@@ -74,7 +74,7 @@ class TestMockUUID:
         assert result != uuid.UUID("12345678-1234-5678-1234-567812345678")
         assert result != uuid.UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
 
-    def test_no_mock_returns_random_uuid(self, mock_uuid):
+    def test_no_mock_returns_random_uuid(self, _mock_uuid):
         """Test that without configuration, random UUIDs are returned."""
         result1 = uuid.uuid4()
         result2 = uuid.uuid4()

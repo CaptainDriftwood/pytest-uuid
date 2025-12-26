@@ -25,6 +25,8 @@ class UUIDMocker:
         self._uuids: list[uuid.UUID] = []
         self._index: int = 0
         self._default: uuid.UUID | None = None
+        # Store reference to original uuid4 to avoid recursion when patched
+        self._original_uuid4 = uuid.uuid4
 
     def set(self, *uuids: str | uuid.UUID) -> None:
         """Set the UUID(s) to return.
@@ -66,7 +68,7 @@ class UUIDMocker:
             return result
         if self._default is not None:
             return self._default
-        return uuid.uuid4()
+        return self._original_uuid4()
 
 
 @pytest.fixture
