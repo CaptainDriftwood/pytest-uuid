@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from uuid import uuid4
 
 import pytest
 
@@ -16,6 +17,16 @@ class TestMockUUID:
         mock_uuid.set(expected)
 
         result = uuid.uuid4()
+
+        assert str(result) == expected
+
+    def test_works_with_direct_import(self, mock_uuid):
+        """Test that mock works with 'from uuid import uuid4' pattern."""
+        expected = "12345678-1234-5678-1234-567812345678"
+        mock_uuid.set(expected)
+
+        # Use the directly imported uuid4 function
+        result = uuid4()
 
         assert str(result) == expected
 
@@ -74,7 +85,7 @@ class TestMockUUID:
         assert result != uuid.UUID("12345678-1234-5678-1234-567812345678")
         assert result != uuid.UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
 
-    def test_no_mock_returns_random_uuid(self, _mock_uuid):
+    def test_no_mock_returns_random_uuid(self, mock_uuid):  # noqa: ARG002
         """Test that without configuration, random UUIDs are returned."""
         result1 = uuid.uuid4()
         result2 = uuid.uuid4()
@@ -90,14 +101,12 @@ class TestMockUUIDFactory:
 
     def test_factory_mocks_specific_module(self, mock_uuid_factory):
         """Test that the factory can mock a specific module."""
-        # Create a simple module-level function that uses uuid4
-        from uuid import uuid4 as module_uuid4
-
         expected = "12345678-1234-5678-1234-567812345678"
 
         with mock_uuid_factory("uuid") as mocker:
             mocker.set(expected)
-            result = module_uuid4()
+            # Access through the module to get the patched version
+            result = uuid.uuid4()
 
         assert str(result) == expected
 

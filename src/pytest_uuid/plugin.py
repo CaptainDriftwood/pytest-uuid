@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import sys
 import uuid
 from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import TYPE_CHECKING
-from unittest.mock import patch
 
 import pytest
 
@@ -71,12 +72,34 @@ class UUIDMocker:
         return self._original_uuid4()
 
 
+def _find_uuid4_imports(original_uuid4: object) -> list[tuple[object, str]]:
+    """Find all modules that have imported uuid4 directly.
+
+    Returns a list of (module, attribute_name) tuples for modules that have
+    the original uuid4 function as an attribute.
+    """
+    imports = []
+    for module in sys.modules.values():
+        if module is None:
+            continue
+        try:
+            for attr_name in dir(module):
+                if attr_name == "uuid4":
+                    attr = getattr(module, attr_name, None)
+                    if attr is original_uuid4:
+                        imports.append((module, attr_name))
+        except Exception:  # noqa: BLE001
+            # Some modules may raise errors when accessing attributes
+            continue
+    return imports
+
+
 @pytest.fixture
-def mock_uuid() -> Iterator[UUIDMocker]:
+def mock_uuid(monkeypatch: pytest.MonkeyPatch) -> Iterator[UUIDMocker]:
     """Fixture that provides a UUIDMocker for controlling uuid.uuid4() calls.
 
-    This fixture patches uuid.uuid4 globally, allowing you to control what
-    UUIDs are returned during your tests.
+    This fixture patches uuid.uuid4 globally AND any modules that have imported
+    uuid4 directly (via `from uuid import uuid4`).
 
     Example:
         def test_something(mock_uuid):
@@ -98,12 +121,25 @@ def mock_uuid() -> Iterator[UUIDMocker]:
         UUIDMocker: An object to control the mocked UUIDs.
     """
     mocker = UUIDMocker()
-    with patch("uuid.uuid4", mocker):
-        yield mocker
+    original_uuid4 = uuid.uuid4
+
+    # Find all modules that have imported uuid4 directly
+    uuid4_imports = _find_uuid4_imports(original_uuid4)
+
+    # Patch uuid.uuid4 in the uuid module
+    monkeypatch.setattr(uuid, "uuid4", mocker)
+
+    # Patch uuid4 in all modules that imported it directly
+    for module, attr_name in uuid4_imports:
+        monkeypatch.setattr(module, attr_name, mocker)
+
+    yield mocker
 
 
 @pytest.fixture
-def mock_uuid_factory() -> Callable[[str], Iterator[UUIDMocker]]:
+def mock_uuid_factory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Callable[[str], Iterator[UUIDMocker]]:
     """Fixture factory for mocking uuid.uuid4() in specific modules.
 
     Use this when you need to mock uuid.uuid4() in a specific module where
@@ -120,12 +156,16 @@ def mock_uuid_factory() -> Callable[[str], Iterator[UUIDMocker]]:
     Returns:
         A context manager factory that takes a module path and yields a UUIDMocker.
     """
-    from contextlib import contextmanager
 
     @contextmanager
     def factory(module_path: str) -> Iterator[UUIDMocker]:
         mocker = UUIDMocker()
-        with patch(f"{module_path}.uuid4", mocker):
+        module = sys.modules[module_path]
+        original = getattr(module, "uuid4")
+        monkeypatch.setattr(module, "uuid4", mocker)
+        try:
             yield mocker
+        finally:
+            monkeypatch.setattr(module, "uuid4", original)
 
     return factory
