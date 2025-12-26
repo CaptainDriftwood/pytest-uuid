@@ -10,7 +10,7 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.9"
 authors = [
-    { name = "Jason", email = "jason@example.com" },
+    { name = "CaptainDriftwood" },
 ]
 keywords = ["pytest", "plugin", "uuid", "mock", "testing"]
 classifiers = [
@@ -42,9 +42,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/jason/pytest-uuid"
-Repository = "https://github.com/jason/pytest-uuid"
-Issues = "https://github.com/jason/pytest-uuid/issues"
+Homepage = "https://github.com/CaptainDriftwood/pytest-uuid"
+Repository = "https://github.com/CaptainDriftwood/pytest-uuid"
+Issues = "https://github.com/CaptainDriftwood/pytest-uuid/issues"
 
 [project.entry-points.pytest11]
 uuid = "pytest_uuid.plugin"

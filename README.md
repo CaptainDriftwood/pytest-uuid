@@ -4,7 +4,7 @@ A pytest plugin for mocking `uuid.uuid4()` calls in your tests.
 
 [![PyPI version](https://img.shields.io/pypi/v/pytest-uuid.svg)](https://pypi.org/project/pytest-uuid/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![CI](https://github.com/jason/pytest-uuid/actions/workflows/ci.yml/badge.svg)](https://github.com/jason/pytest-uuid/actions/workflows/ci.yml)
+[![CI](https://github.com/CaptainDriftwood/pytest-uuid/actions/workflows/ci.yml/badge.svg)](https://github.com/CaptainDriftwood/pytest-uuid/actions/workflows/ci.yml)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![pytest](https://img.shields.io/badge/pytest-plugin-blue.svg)](https://docs.pytest.org/)
@@ -154,7 +154,7 @@ brew install just
 
 ```bash
 # Clone the repository
-git clone https://github.com/jason/pytest-uuid.git
+git clone https://github.com/CaptainDriftwood/pytest-uuid.git
 cd pytest-uuid
 
 # Sync dependencies (creates venv and installs deps)
