@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import random
 import sys
 import uuid
 from collections.abc import Iterator
@@ -10,22 +12,46 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from pytest_uuid.api import UUIDFreezer
+from pytest_uuid.config import get_config
+from pytest_uuid.generators import (
+    ExhaustionBehavior,
+    SeededUUIDGenerator,
+    SequenceUUIDGenerator,
+    StaticUUIDGenerator,
+    UUIDGenerator,
+    parse_uuid,
+    parse_uuids,
+)
+
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+
+def _get_node_seed(node_id: str) -> int:
+    """Generate a deterministic seed from a test node ID."""
+    return int(hashlib.md5(node_id.encode()).hexdigest()[:8], 16)  # noqa: S324
 
 
 class UUIDMocker:
     """A class to manage mocked UUID values.
 
     This class provides a way to control the UUIDs returned by uuid.uuid4()
-    during tests. It can return a single fixed UUID or cycle through a
-    sequence of UUIDs.
+    during tests. It can return a single fixed UUID, cycle through a sequence
+    of UUIDs, or generate reproducible UUIDs from a seed.
     """
 
-    def __init__(self) -> None:
-        self._uuids: list[uuid.UUID] = []
-        self._index: int = 0
-        self._default: uuid.UUID | None = None
+    def __init__(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        node_id: str | None = None,
+    ) -> None:
+        self._monkeypatch = monkeypatch
+        self._node_id = node_id
+        self._generator: UUIDGenerator | None = None
+        self._on_exhausted: ExhaustionBehavior = (
+            get_config().default_exhaustion_behavior
+        )
         # Store reference to original uuid4 to avoid recursion when patched
         self._original_uuid4 = uuid.uuid4
 
@@ -35,41 +61,92 @@ class UUIDMocker:
         Args:
             *uuids: One or more UUIDs (as strings or UUID objects) to return.
                    If multiple UUIDs are provided, they will be returned in
-                   sequence, cycling back to the beginning when exhausted.
+                   sequence. Behavior when exhausted is controlled by
+                   on_exhausted (default: cycle).
         """
-        self._uuids = [uuid.UUID(u) if isinstance(u, str) else u for u in uuids]
-        self._index = 0
+        uuid_list = parse_uuids(uuids)
+        # Only use static generator for single UUID if exhaustion is CYCLE
+        # Otherwise, keep sequence behavior for proper exhaustion handling
+        if len(uuid_list) == 1 and self._on_exhausted == ExhaustionBehavior.CYCLE:
+            self._generator = StaticUUIDGenerator(uuid_list[0])
+        elif uuid_list:
+            self._generator = SequenceUUIDGenerator(
+                uuid_list,
+                on_exhausted=self._on_exhausted,
+            )
+        # else: empty list - generator stays None, will return random UUIDs
 
     def set_default(self, default_uuid: str | uuid.UUID) -> None:
-        """Set a default UUID to return when no specific UUIDs are set.
+        """Set a default UUID to return for all calls.
 
         Args:
             default_uuid: The UUID to use as default.
         """
-        self._default = (
-            uuid.UUID(default_uuid) if isinstance(default_uuid, str) else default_uuid
-        )
+        self._generator = StaticUUIDGenerator(parse_uuid(default_uuid))
+
+    def set_seed(self, seed: int | random.Random) -> None:
+        """Set a seed for reproducible UUID generation.
+
+        Args:
+            seed: Either an integer seed (creates a fresh Random instance)
+                  or a random.Random instance (BYOP - bring your own randomizer).
+        """
+        self._generator = SeededUUIDGenerator(seed)
+
+    def set_seed_from_node(self) -> None:
+        """Set the seed from the current test's node ID.
+
+        This generates reproducible UUIDs based on the test's fully qualified
+        name. The same test always gets the same sequence of UUIDs.
+
+        Raises:
+            RuntimeError: If the node ID is not available.
+        """
+        if self._node_id is None:
+            raise RuntimeError(
+                "Node ID not available. This method requires the fixture "
+                "to have access to the pytest request object."
+            )
+        seed = _get_node_seed(self._node_id)
+        self._generator = SeededUUIDGenerator(seed)
+
+    def set_exhaustion_behavior(
+        self,
+        behavior: ExhaustionBehavior | str,
+    ) -> None:
+        """Set the behavior when a UUID sequence is exhausted.
+
+        Args:
+            behavior: One of "cycle", "random", or "raise".
+        """
+        if isinstance(behavior, str):
+            self._on_exhausted = ExhaustionBehavior(behavior)
+        else:
+            self._on_exhausted = behavior
+
+        # Update existing sequence generator if present
+        if isinstance(self._generator, SequenceUUIDGenerator):
+            self._generator._on_exhausted = self._on_exhausted
 
     def reset(self) -> None:
         """Reset the mocker to its initial state."""
-        self._uuids = []
-        self._index = 0
-        self._default = None
+        self._generator = None
 
     def __call__(self) -> uuid.UUID:
         """Return the next mocked UUID.
 
         Returns:
-            The next UUID in the sequence, or the default UUID if set,
-            or a new random UUID if neither is configured.
+            The next UUID from the generator, or a random UUID if no
+            generator is configured.
         """
-        if self._uuids:
-            result = self._uuids[self._index]
-            self._index = (self._index + 1) % len(self._uuids)
-            return result
-        if self._default is not None:
-            return self._default
+        if self._generator is not None:
+            return self._generator()
         return self._original_uuid4()
+
+    @property
+    def generator(self) -> UUIDGenerator | None:
+        """Get the current UUID generator."""
+        return self._generator
 
 
 def _find_uuid4_imports(original_uuid4: object) -> list[tuple[object, str]]:
@@ -94,8 +171,60 @@ def _find_uuid4_imports(original_uuid4: object) -> list[tuple[object, str]]:
     return imports
 
 
+def pytest_configure(config: pytest.Config) -> None:
+    """Register the freeze_uuid marker."""
+    config.addinivalue_line(
+        "markers",
+        "freeze_uuid(uuids=None, *, seed=None, on_exhausted=None, ignore=None): "
+        "Freeze uuid.uuid4() for this test. "
+        "uuids: static UUID(s) to return. "
+        "seed: int, random.Random, or 'node' for reproducible generation. "
+        "on_exhausted: 'cycle', 'random', or 'raise' when sequence exhausted. "
+        "ignore: module prefixes to exclude from patching.",
+    )
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_runtest_setup(item: pytest.Item) -> None:
+    """Handle freeze_uuid markers on tests."""
+    marker = item.get_closest_marker("freeze_uuid")
+    if marker is None:
+        return
+
+    # Extract marker arguments
+    args = marker.args
+    kwargs = dict(marker.kwargs)
+
+    # Handle positional argument (uuids)
+    uuids = args[0] if args else kwargs.pop("uuids", None)
+
+    # Handle node-seeded mode
+    seed = kwargs.get("seed")
+    if seed == "node":
+        kwargs["node_id"] = item.nodeid
+
+    # Create and enter the freezer
+    freezer = UUIDFreezer(uuids=uuids, **kwargs)
+    freezer.__enter__()
+
+    # Store the freezer for cleanup
+    item._uuid_freezer = freezer  # type: ignore[attr-defined]
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_runtest_teardown(item: pytest.Item) -> None:
+    """Clean up freeze_uuid markers."""
+    freezer = getattr(item, "_uuid_freezer", None)
+    if freezer is not None:
+        freezer.__exit__(None, None, None)
+        delattr(item, "_uuid_freezer")
+
+
 @pytest.fixture
-def mock_uuid(monkeypatch: pytest.MonkeyPatch) -> Iterator[UUIDMocker]:
+def mock_uuid(
+    monkeypatch: pytest.MonkeyPatch,
+    request: pytest.FixtureRequest,
+) -> Iterator[UUIDMocker]:
     """Fixture that provides a UUIDMocker for controlling uuid.uuid4() calls.
 
     This fixture patches uuid.uuid4 globally AND any modules that have imported
@@ -117,10 +246,49 @@ def mock_uuid(monkeypatch: pytest.MonkeyPatch) -> Iterator[UUIDMocker]:
             # Cycles back to the first UUID
             assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
 
+        def test_seeded(mock_uuid):
+            mock_uuid.set_seed(42)
+            # Always produces the same sequence of UUIDs
+            first = uuid.uuid4()
+            mock_uuid.set_seed(42)  # Reset with same seed
+            assert uuid.uuid4() == first
+
+        def test_node_seeded(mock_uuid):
+            mock_uuid.set_seed_from_node()
+            # Same test always gets the same UUIDs
+
     Yields:
         UUIDMocker: An object to control the mocked UUIDs.
     """
-    mocker = UUIDMocker()
+    mocker = UUIDMocker(monkeypatch, node_id=request.node.nodeid)
+    original_uuid4 = uuid.uuid4
+
+    # Find all modules that have imported uuid4 directly
+    uuid4_imports = _find_uuid4_imports(original_uuid4)
+
+    # Patch uuid.uuid4 in the uuid module
+    monkeypatch.setattr(uuid, "uuid4", mocker)
+
+    # Patch uuid4 in all modules that imported it directly
+    for module, attr_name in uuid4_imports:
+        monkeypatch.setattr(module, attr_name, mocker)
+
+    yield mocker
+
+
+@pytest.fixture
+def uuid_freezer(
+    monkeypatch: pytest.MonkeyPatch,
+    request: pytest.FixtureRequest,
+) -> Iterator[UUIDMocker]:
+    """Alternative fixture name following the freezegun naming pattern.
+
+    This is an alias for mock_uuid. Use whichever name you prefer.
+
+    Yields:
+        UUIDMocker: An object to control the mocked UUIDs.
+    """
+    mocker = UUIDMocker(monkeypatch, node_id=request.node.nodeid)
     original_uuid4 = uuid.uuid4
 
     # Find all modules that have imported uuid4 directly
@@ -159,7 +327,7 @@ def mock_uuid_factory(
 
     @contextmanager
     def factory(module_path: str) -> Iterator[UUIDMocker]:
-        mocker = UUIDMocker()
+        mocker = UUIDMocker(monkeypatch)
         module = sys.modules[module_path]
         original = module.uuid4  # type: ignore[attr-defined]
         monkeypatch.setattr(module, "uuid4", mocker)

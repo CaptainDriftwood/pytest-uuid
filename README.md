@@ -9,18 +9,16 @@ A pytest plugin for mocking `uuid.uuid4()` calls in your tests.
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![pytest](https://img.shields.io/badge/pytest-plugin-blue.svg)](https://docs.pytest.org/)
 
-![Python 3.9](https://img.shields.io/badge/python-3.9-blue.svg)
-![Python 3.10](https://img.shields.io/badge/python-3.10-blue.svg)
-![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)
-![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)
-![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)
-![Python 3.14](https://img.shields.io/badge/python-3.14-blue.svg)
+![Python](https://img.shields.io/badge/python-3.9%20|%203.10%20|%203.11%20|%203.12%20|%203.13%20|%203.14-blue.svg)
 
 ## Features
 
 - Mock `uuid.uuid4()` with deterministic values in your tests
 - Works with both `import uuid` and `from uuid import uuid4` patterns
-- Set single, multiple (cycling), or default UUIDs
+- Multiple ways to mock: static, sequence, seeded, or node-seeded
+- Decorator, marker, and fixture APIs (inspired by freezegun)
+- Configurable exhaustion behavior for sequences
+- Ignore list for packages that should use real UUIDs
 - Automatic cleanup after each test
 - Zero configuration required - just use the fixture
 
@@ -33,65 +31,180 @@ pip install pytest-uuid
 uv add pytest-uuid
 ```
 
-## Usage
+## Quick Start
 
-### Basic Usage
-
-The plugin provides a `mock_uuid` fixture that automatically patches `uuid.uuid4()`:
+### Fixture API
 
 ```python
 import uuid
 
 def test_single_uuid(mock_uuid):
-    # Set a specific UUID to return
     mock_uuid.set("12345678-1234-5678-1234-567812345678")
-
-    result = uuid.uuid4()
-
-    assert str(result) == "12345678-1234-5678-1234-567812345678"
-```
-
-### Multiple UUIDs
-
-You can set multiple UUIDs that will be returned in sequence:
-
-```python
-import uuid
+    assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
 
 def test_multiple_uuids(mock_uuid):
     mock_uuid.set(
         "11111111-1111-1111-1111-111111111111",
         "22222222-2222-2222-2222-222222222222",
-        "33333333-3333-3333-3333-333333333333",
     )
-
     assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
     assert str(uuid.uuid4()) == "22222222-2222-2222-2222-222222222222"
-    assert str(uuid.uuid4()) == "33333333-3333-3333-3333-333333333333"
     # Cycles back to the first UUID
     assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
 ```
 
-### Default UUID
-
-Set a default UUID that will be returned for all calls:
+### Decorator API
 
 ```python
 import uuid
+from pytest_uuid import freeze_uuid
 
-def test_default_uuid(mock_uuid):
-    mock_uuid.set_default("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+@freeze_uuid("12345678-1234-5678-1234-567812345678")
+def test_with_decorator():
+    assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
 
-    # All calls return the same UUID
-    assert str(uuid.uuid4()) == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-    assert str(uuid.uuid4()) == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+@freeze_uuid(seed=42)
+def test_seeded():
+    # Reproducible UUIDs from seed
+    result = uuid.uuid4()
+    assert result.version == 4
+```
+
+### Marker API
+
+```python
+import uuid
+import pytest
+
+@pytest.mark.freeze_uuid("12345678-1234-5678-1234-567812345678")
+def test_with_marker():
+    assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+
+@pytest.mark.freeze_uuid(seed="node")
+def test_node_seeded():
+    # Same test always gets the same UUIDs
+    result = uuid.uuid4()
+    assert result.version == 4
+```
+
+## Usage
+
+### Static UUIDs
+
+Return the same UUID every time:
+
+```python
+def test_static(mock_uuid):
+    mock_uuid.set("12345678-1234-5678-1234-567812345678")
+    assert uuid.uuid4() == uuid.uuid4()  # Same UUID
+
+# Or with decorator
+@freeze_uuid("12345678-1234-5678-1234-567812345678")
+def test_static_decorator():
+    assert uuid.uuid4() == uuid.uuid4()  # Same UUID
+```
+
+### UUID Sequences
+
+Return UUIDs from a list:
+
+```python
+def test_sequence(mock_uuid):
+    mock_uuid.set(
+        "11111111-1111-1111-1111-111111111111",
+        "22222222-2222-2222-2222-222222222222",
+    )
+    assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
+    assert str(uuid.uuid4()) == "22222222-2222-2222-2222-222222222222"
+    # Cycles back by default
+    assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
+```
+
+### Seeded UUIDs
+
+Generate reproducible UUIDs from a seed:
+
+```python
+def test_seeded(mock_uuid):
+    mock_uuid.set_seed(42)
+    first = uuid.uuid4()
+
+    mock_uuid.set_seed(42)  # Reset to same seed
+    assert uuid.uuid4() == first  # Same UUID
+
+# With decorator
+@freeze_uuid(seed=42)
+def test_seeded_decorator():
+    result = uuid.uuid4()
+    assert result.version == 4  # Valid UUID v4
+```
+
+### Node-Seeded UUIDs
+
+Derive the seed from the test's node ID for automatic reproducibility:
+
+```python
+def test_node_seeded(mock_uuid):
+    mock_uuid.set_seed_from_node()
+    # Same test always produces the same sequence
+
+# With marker
+@pytest.mark.freeze_uuid(seed="node")
+def test_node_seeded_marker():
+    # Same test always produces the same sequence
+    pass
+```
+
+### Exhaustion Behavior
+
+Control what happens when a UUID sequence is exhausted:
+
+```python
+from pytest_uuid import ExhaustionBehavior, UUIDsExhaustedError
+
+def test_exhaustion_raise(mock_uuid):
+    mock_uuid.set_exhaustion_behavior("raise")
+    mock_uuid.set("11111111-1111-1111-1111-111111111111")
+
+    uuid.uuid4()  # Returns the UUID
+
+    with pytest.raises(UUIDsExhaustedError):
+        uuid.uuid4()  # Raises - sequence exhausted
+
+# With decorator
+@freeze_uuid(
+    ["11111111-1111-1111-1111-111111111111"],
+    on_exhausted="raise",  # or "cycle" or "random"
+)
+def test_exhaustion_decorator():
+    uuid.uuid4()
+    with pytest.raises(UUIDsExhaustedError):
+        uuid.uuid4()
+```
+
+Exhaustion behaviors:
+- `"cycle"` (default): Loop back to the start of the sequence
+- `"random"`: Fall back to generating random UUIDs
+- `"raise"`: Raise `UUIDsExhaustedError`
+
+### Global Configuration
+
+Configure default behavior for all tests:
+
+```python
+# conftest.py
+import pytest_uuid
+
+pytest_uuid.configure(
+    default_ignore_list=["sqlalchemy", "celery"],
+    extend_ignore_list=["myapp.internal"],
+    default_exhaustion_behavior="raise",
+)
 ```
 
 ### Module-Specific Mocking
 
-The `mock_uuid` fixture automatically patches both `import uuid` and `from uuid import uuid4` patterns for modules that are already loaded.
-
-For more granular control, or to patch a specific module in isolation, use the `mock_uuid_factory` fixture:
+For granular control, use `mock_uuid_factory`:
 
 ```python
 # myapp/models.py
@@ -104,49 +217,126 @@ def create_user():
 def test_create_user(mock_uuid_factory):
     with mock_uuid_factory("myapp.models") as mocker:
         mocker.set("12345678-1234-5678-1234-567812345678")
-
         user = create_user()
-
         assert user["id"] == "12345678-1234-5678-1234-567812345678"
 ```
 
-> **Note:** In most cases, `mock_uuid` is sufficient. Use `mock_uuid_factory` when you need to mock uuid4 in a specific module without affecting others.
+### Context Manager
 
-### Reset
-
-Reset the mocker to its initial state:
+Use `freeze_uuid` as a context manager:
 
 ```python
-def test_with_reset(mock_uuid):
-    mock_uuid.set("12345678-1234-5678-1234-567812345678")
+from pytest_uuid import freeze_uuid
 
-    # ... do something ...
+def test_context_manager():
+    with freeze_uuid("12345678-1234-5678-1234-567812345678"):
+        assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
 
-    mock_uuid.reset()
-    # Now uuid.uuid4() returns random UUIDs again
+    # Original uuid.uuid4 is restored
+    assert uuid.uuid4() != uuid.UUID("12345678-1234-5678-1234-567812345678")
+```
+
+### Bring Your Own Randomizer
+
+Pass a `random.Random` instance for full control:
+
+```python
+import random
+from pytest_uuid import freeze_uuid
+
+rng = random.Random(42)
+rng.random()  # Advance the state
+
+@freeze_uuid(seed=rng)
+def test_custom_rng():
+    # Gets UUIDs from the pre-advanced random state
+    result = uuid.uuid4()
 ```
 
 ## API Reference
 
-### `mock_uuid` fixture
+### Fixtures
 
-A fixture that patches `uuid.uuid4` globally, including in modules that have used `from uuid import uuid4`.
+#### `mock_uuid`
+
+Main fixture for controlling `uuid.uuid4()` calls.
 
 **Methods:**
-
-- `set(*uuids)` - Set one or more UUIDs to return (cycles through if multiple)
+- `set(*uuids)` - Set one or more UUIDs to return (cycles by default)
 - `set_default(uuid)` - Set a default UUID for all calls
-- `reset()` - Reset to initial state (returns random UUIDs)
+- `set_seed(seed)` - Set a seed for reproducible generation
+- `set_seed_from_node()` - Use test node ID as seed
+- `set_exhaustion_behavior(behavior)` - Set behavior when sequence exhausted
+- `reset()` - Reset to initial state
 
-### `mock_uuid_factory` fixture
+#### `uuid_freezer`
 
-A fixture factory for mocking `uuid.uuid4()` in specific modules.
+Alias for `mock_uuid` following the freezegun naming pattern.
 
-**Usage:**
+#### `mock_uuid_factory`
+
+Factory for module-specific mocking.
 
 ```python
 with mock_uuid_factory("module.path") as mocker:
     mocker.set("...")
+```
+
+### Decorator/Context Manager
+
+#### `freeze_uuid`
+
+```python
+from pytest_uuid import freeze_uuid
+
+# Static UUID
+@freeze_uuid("12345678-1234-5678-1234-567812345678")
+def test_static(): ...
+
+# Sequence
+@freeze_uuid(["uuid1", "uuid2"], on_exhausted="raise")
+def test_sequence(): ...
+
+# Seeded
+@freeze_uuid(seed=42)
+def test_seeded(): ...
+
+# Node-seeded (for use with marker)
+@pytest.mark.freeze_uuid(seed="node")
+def test_node_seeded(): ...
+
+# Context manager
+with freeze_uuid("...") as freezer:
+    result = uuid.uuid4()
+    freezer.reset()
+```
+
+**Parameters:**
+- `uuids` - UUID(s) to return (string, UUID, or sequence)
+- `seed` - Integer, `random.Random`, or `"node"` for reproducible generation
+- `on_exhausted` - `"cycle"`, `"random"`, or `"raise"`
+- `ignore` - Module prefixes to exclude from patching
+
+### Marker
+
+```python
+@pytest.mark.freeze_uuid("uuid")
+@pytest.mark.freeze_uuid(["uuid1", "uuid2"])
+@pytest.mark.freeze_uuid(seed=42)
+@pytest.mark.freeze_uuid(seed="node")
+@pytest.mark.freeze_uuid("uuid", on_exhausted="raise")
+```
+
+### Configuration
+
+```python
+import pytest_uuid
+
+pytest_uuid.configure(
+    default_ignore_list=["package1", "package2"],
+    extend_ignore_list=["package3"],
+    default_exhaustion_behavior="raise",
+)
 ```
 
 ## Development
@@ -161,83 +351,26 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Install just (macOS)
 brew install just
-
-# Install just (other platforms)
-# See: https://just.systems/man/en/installation.html
 ```
 
 ### Setup
 
 ```bash
-# Clone the repository
 git clone https://github.com/CaptainDriftwood/pytest-uuid.git
 cd pytest-uuid
-
-# Sync dependencies (creates venv and installs deps)
 just sync
-
-# Or install in development mode
-just install
 ```
 
 ### Available Commands
 
 ```bash
-# List all available commands
-just
-
-# Run tests
-just test
-
-# Run tests with verbose output
-just test-verbose
-
-# Run tests across all Python versions
-just test-all
-
-# Run tests for a specific Python version
-just test-py 3.12
-
-# Run linting
-just lint
-
-# Format code
-just format
-
-# Run all checks
-just check
-
-# Build the package
-just build
-
-# Clean build artifacts
-just clean
-```
-
-### Running Tests
-
-```bash
-# Run tests
-just test
-
-# Run with pytest options
-just test -v --tb=short
-
-# Run tests across all Python versions with nox
-just test-all
-```
-
-### Linting and Formatting
-
-```bash
-# Check linting
-just lint
-
-# Check formatting
-just format-check
-
-# Format code (auto-fix)
-just format
+just              # List all commands
+just test         # Run tests
+just test-all     # Run tests across all Python versions
+just lint         # Run linting
+just format       # Format code
+just check        # Run all checks
+just build        # Build the package
 ```
 
 ## License
