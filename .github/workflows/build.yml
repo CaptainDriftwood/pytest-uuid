@@ -29,9 +29,32 @@ jobs:
 
       - name: Verify plugin imports
         run: |
-          /tmp/test-env/bin/python -c "from pytest_uuid import mock_uuid, mock_uuid_factory; print('Import OK')"
+          /tmp/test-env/bin/python -c "
+          from pytest_uuid import (
+              # Main API
+              freeze_uuid,
+              UUIDFreezer,
+              # Configuration
+              configure,
+              get_config,
+              reset_config,
+              # Generators
+              UUIDGenerator,
+              StaticUUIDGenerator,
+              SequenceUUIDGenerator,
+              SeededUUIDGenerator,
+              RandomUUIDGenerator,
+              # Enums and Exceptions
+              ExhaustionBehavior,
+              UUIDsExhaustedError,
+              # Fixtures
+              UUIDMocker,
+          )
+          print('All imports OK')
+          "
 
       - name: Verify plugin fixtures available
         run: |
           /tmp/test-env/bin/pytest --fixtures 2>&1 | grep -q "mock_uuid" && echo "mock_uuid fixture found"
           /tmp/test-env/bin/pytest --fixtures 2>&1 | grep -q "mock_uuid_factory" && echo "mock_uuid_factory fixture found"
+          /tmp/test-env/bin/pytest --fixtures 2>&1 | grep -q "uuid_freezer" && echo "uuid_freezer fixture found"
