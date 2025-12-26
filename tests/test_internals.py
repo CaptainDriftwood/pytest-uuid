@@ -1,0 +1,88 @@
+"""Tests for internal/private functions in pytest-uuid."""
+
+from __future__ import annotations
+
+import sys
+import types
+import uuid
+
+from pytest_uuid.api import _find_uuid4_imports, _should_ignore_frame
+
+
+class TestShouldIgnoreFrame:
+    """Tests for the _should_ignore_frame function."""
+
+    def test_empty_ignore_list_returns_false(self):
+        """Test that empty ignore list always returns False."""
+        # Create a mock frame with f_globals
+        frame = types.SimpleNamespace(f_globals={"__name__": "mymodule"})
+        assert _should_ignore_frame(frame, ()) is False
+
+    def test_matching_prefix_returns_true(self):
+        """Test that matching module prefix returns True."""
+        frame = types.SimpleNamespace(f_globals={"__name__": "mymodule.submodule"})
+        assert _should_ignore_frame(frame, ("mymodule",)) is True
+
+    def test_non_matching_prefix_returns_false(self):
+        """Test that non-matching module prefix returns False."""
+        frame = types.SimpleNamespace(f_globals={"__name__": "othermodule"})
+        assert _should_ignore_frame(frame, ("mymodule",)) is False
+
+    def test_multiple_prefixes_any_match(self):
+        """Test that any matching prefix returns True."""
+        frame = types.SimpleNamespace(f_globals={"__name__": "package_b.module"})
+        assert _should_ignore_frame(frame, ("package_a", "package_b")) is True
+
+    def test_frame_without_name_returns_false(self):
+        """Test that frame without __name__ returns False."""
+        frame = types.SimpleNamespace(f_globals={})
+        assert _should_ignore_frame(frame, ("mymodule",)) is False
+
+    def test_frame_without_f_globals_returns_false(self):
+        """Test that frame without f_globals attribute returns False."""
+        frame = types.SimpleNamespace()
+        assert _should_ignore_frame(frame, ("mymodule",)) is False
+
+
+class TestFindUuid4Imports:
+    """Tests for the _find_uuid4_imports function."""
+
+    def test_finds_direct_import(self):
+        """Test that direct uuid4 imports are found."""
+        original_uuid4 = uuid.uuid4
+        imports = _find_uuid4_imports(original_uuid4)
+
+        # Should find at least the uuid module itself
+        modules_found = [mod for mod, _ in imports]
+        assert uuid in modules_found
+
+    def test_skips_different_uuid4_object(self):
+        """Test that different uuid4 objects are not matched."""
+
+        # Create a fake uuid4 function
+        def fake_uuid4():
+            pass
+
+        imports = _find_uuid4_imports(fake_uuid4)
+
+        # Should not find the real uuid module since it has a different uuid4
+        modules_found = [mod for mod, _ in imports]
+        assert uuid not in modules_found
+
+    def test_handles_none_module_in_sys_modules(self):
+        """Test that None modules in sys.modules are handled gracefully."""
+        original_uuid4 = uuid.uuid4
+
+        # Temporarily add a None module to sys.modules
+        test_key = "_test_none_module_"
+        original_value = sys.modules.get(test_key)
+        try:
+            sys.modules[test_key] = None  # type: ignore[assignment]
+            # Should not raise
+            imports = _find_uuid4_imports(original_uuid4)
+            assert isinstance(imports, list)
+        finally:
+            if original_value is None:
+                sys.modules.pop(test_key, None)
+            else:
+                sys.modules[test_key] = original_value

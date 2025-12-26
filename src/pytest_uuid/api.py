@@ -183,9 +183,8 @@ class UUIDFreezer:
             # Walk up the call stack to check for ignored modules
             frame = inspect.currentframe()
             try:
-                # Skip this frame and the caller's frame
-                if frame is not None:
-                    frame = frame.f_back
+                # Skip only this frame (patched_uuid4_with_ignore)
+                # We want to check the caller's frame and all frames above it
                 if frame is not None:
                     frame = frame.f_back
 

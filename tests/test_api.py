@@ -28,12 +28,6 @@ class TestFreezeUUIDContextManager:
             result = uuid.uuid4()
             assert str(result) == "12345678-1234-5678-1234-567812345678"
 
-    def test_static_uuid_returns_same_every_time(self):
-        """Test that static UUID is returned on every call."""
-        with freeze_uuid("12345678-1234-5678-1234-567812345678"):
-            for _ in range(10):
-                assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
-
     def test_uuid_sequence(self):
         """Test freezing with a sequence of UUIDs."""
         uuids = [

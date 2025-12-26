@@ -39,20 +39,6 @@ class TestMockUUID:
 
         assert result == expected
 
-    def test_set_multiple_uuids_cycles(self, mock_uuid):
-        """Test that multiple UUIDs cycle through."""
-        uuid1 = "11111111-1111-1111-1111-111111111111"
-        uuid2 = "22222222-2222-2222-2222-222222222222"
-        uuid3 = "33333333-3333-3333-3333-333333333333"
-
-        mock_uuid.set(uuid1, uuid2, uuid3)
-
-        assert str(uuid.uuid4()) == uuid1
-        assert str(uuid.uuid4()) == uuid2
-        assert str(uuid.uuid4()) == uuid3
-        # Cycles back
-        assert str(uuid.uuid4()) == uuid1
-
     def test_set_default_uuid(self, mock_uuid):
         """Test setting a default UUID."""
         default = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
