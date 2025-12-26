@@ -62,6 +62,62 @@ class TestPytestHooks:
         result = pytester.runpytest("-v")
         result.assert_outcomes(passed=1)
 
+    def test_node_seed_distinct_sequences_per_test(self, pytester):
+        """Test that separate tests with seed='node' get distinct UUID sequences.
+
+        Each test function has a unique node ID (e.g., test_module.py::test_one),
+        so each should generate a different sequence of UUIDs even when run
+        in the same session.
+        """
+        pytester.makepyfile(
+            test_node_distinct="""
+            import uuid
+            import pytest
+
+            # Collect UUIDs from each test to compare afterward
+            collected_uuids = {}
+
+            @pytest.mark.freeze_uuid(seed="node")
+            def test_first():
+                # Generate a few UUIDs
+                uuids = [uuid.uuid4() for _ in range(3)]
+                collected_uuids["first"] = [str(u) for u in uuids]
+
+            @pytest.mark.freeze_uuid(seed="node")
+            def test_second():
+                # Generate the same number of UUIDs
+                uuids = [uuid.uuid4() for _ in range(3)]
+                collected_uuids["second"] = [str(u) for u in uuids]
+
+            @pytest.mark.freeze_uuid(seed="node")
+            def test_third():
+                # Generate UUIDs for this test too
+                uuids = [uuid.uuid4() for _ in range(3)]
+                collected_uuids["third"] = [str(u) for u in uuids]
+
+            def test_verify_all_distinct():
+                # This test runs last and verifies all sequences were different
+                assert len(collected_uuids) == 3, "All node-seeded tests should have run"
+
+                first_seq = collected_uuids["first"]
+                second_seq = collected_uuids["second"]
+                third_seq = collected_uuids["third"]
+
+                # Each test should have generated different UUIDs
+                assert first_seq != second_seq, "test_first and test_second should differ"
+                assert second_seq != third_seq, "test_second and test_third should differ"
+                assert first_seq != third_seq, "test_first and test_third should differ"
+
+                # Verify no UUID appears in multiple sequences
+                all_uuids = first_seq + second_seq + third_seq
+                assert len(set(all_uuids)) == 9, "All 9 UUIDs should be unique"
+            """
+        )
+
+        # Disable randomly to ensure test_verify_all_distinct runs last
+        result = pytester.runpytest("-v", "-p", "no:randomly")
+        result.assert_outcomes(passed=4)
+
     def test_marker_cleanup_on_teardown(self, pytester):
         """Test that marker properly cleans up after test."""
         pytester.makepyfile(

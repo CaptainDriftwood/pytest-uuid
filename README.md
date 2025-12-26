@@ -152,7 +152,7 @@ def test_seeded_decorator():
     assert result.version == 4  # Valid UUID v4
 ```
 
-### Node-Seeded UUIDs
+### Node-Seeded UUIDs (Recommended)
 
 Derive the seed from the test's node ID for automatic reproducibility:
 
@@ -167,6 +167,68 @@ def test_node_seeded_marker():
     # Same test always produces the same sequence
     pass
 ```
+
+> **Why node seeding is recommended:** Node-seeded UUIDs give you deterministic, reproducible tests without the maintenance burden of hardcoded UUIDs. Each test gets its own unique seed derived from its fully-qualified name (e.g., `test_module.py::TestClass::test_method`), so tests are isolated and don't affect each other. When a test fails, you get the same UUIDs on every run, making debugging easier. Unlike static UUIDs, you never have to update test files when adding new UUID calls.
+
+#### Class-Level Node Seeding
+
+```python
+import uuid
+import pytest
+
+
+@pytest.mark.freeze_uuid(seed="node")
+class TestUserService:
+    def test_create(self):
+        # Seed derived from "test_module.py::TestUserService::test_create"
+        result = uuid.uuid4()
+        assert result.version == 4
+
+    def test_update(self):
+        # Seed derived from "test_module.py::TestUserService::test_update"
+        result = uuid.uuid4()
+        assert result.version == 4
+```
+
+#### Module-Level Node Seeding
+
+```python
+# tests/test_user_creation.py
+import uuid
+import pytest
+
+pytestmark = pytest.mark.freeze_uuid(seed="node")
+
+
+def test_create_user():
+    # Seed derived from "test_user_creation.py::test_create_user"
+    result = uuid.uuid4()
+    assert result.version == 4
+
+
+def test_create_admin():
+    # Seed derived from "test_user_creation.py::test_create_admin"
+    result = uuid.uuid4()
+    assert result.version == 4
+```
+
+#### Session-Level Node Seeding
+
+```python
+# conftest.py
+import pytest
+from pytest_uuid import freeze_uuid
+
+
+@pytest.fixture(scope="session", autouse=True)
+def freeze_uuids_globally(request):
+    # Use session node ID as seed for all tests
+    seed = hash(request.node.nodeid)
+    with freeze_uuid(seed=seed):
+        yield
+```
+
+> **Note:** For session-level fixtures, use `request.node.nodeid` directly since `seed="node"` in the marker requires per-test context. Alternatively, use a fixed seed for true global determinism.
 
 ### Exhaustion Behavior
 
