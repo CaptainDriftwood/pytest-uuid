@@ -27,7 +27,10 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Software Development :: Testing",
+    "Topic :: Software Development :: Testing :: Mocking",
+    "Topic :: Software Development :: Testing :: Unit",
 ]
 dependencies = [
     "pytest>=7.0.0",
@@ -38,12 +41,12 @@ dev = [
     "nox",
     "nox-uv",
     "ruff",
-    "twine",
     "pytest-cov",
 ]
 
 [project.urls]
 Homepage = "https://github.com/CaptainDriftwood/pytest-uuid"
+Documentation = "https://github.com/CaptainDriftwood/pytest-uuid#readme"
 Repository = "https://github.com/CaptainDriftwood/pytest-uuid"
 Issues = "https://github.com/CaptainDriftwood/pytest-uuid/issues"
 

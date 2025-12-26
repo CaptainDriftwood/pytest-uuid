@@ -4,7 +4,7 @@ A pytest plugin for mocking `uuid.uuid4()` calls in your tests.
 
 [![PyPI version](https://img.shields.io/pypi/v/pytest-uuid.svg)](https://pypi.org/project/pytest-uuid/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![CI](https://github.com/CaptainDriftwood/pytest-uuid/actions/workflows/ci.yml/badge.svg)](https://github.com/CaptainDriftwood/pytest-uuid/actions/workflows/ci.yml)
+[![Tests](https://github.com/CaptainDriftwood/pytest-uuid/actions/workflows/test.yml/badge.svg)](https://github.com/CaptainDriftwood/pytest-uuid/actions/workflows/test.yml)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![pytest](https://img.shields.io/badge/pytest-plugin-blue.svg)](https://docs.pytest.org/)
@@ -16,10 +16,21 @@ A pytest plugin for mocking `uuid.uuid4()` calls in your tests.
 ![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)
 ![Python 3.14](https://img.shields.io/badge/python-3.14-blue.svg)
 
+## Features
+
+- Mock `uuid.uuid4()` with deterministic values in your tests
+- Works with both `import uuid` and `from uuid import uuid4` patterns
+- Set single, multiple (cycling), or default UUIDs
+- Automatic cleanup after each test
+- Zero configuration required - just use the fixture
+
 ## Installation
 
 ```bash
 pip install pytest-uuid
+
+# or with uv
+uv add pytest-uuid
 ```
 
 ## Usage
@@ -78,7 +89,9 @@ def test_default_uuid(mock_uuid):
 
 ### Module-Specific Mocking
 
-If your code imports `uuid4` directly (e.g., `from uuid import uuid4`), use the `mock_uuid_factory` fixture:
+The `mock_uuid` fixture automatically patches both `import uuid` and `from uuid import uuid4` patterns for modules that are already loaded.
+
+For more granular control, or to patch a specific module in isolation, use the `mock_uuid_factory` fixture:
 
 ```python
 # myapp/models.py
@@ -96,6 +109,8 @@ def test_create_user(mock_uuid_factory):
 
         assert user["id"] == "12345678-1234-5678-1234-567812345678"
 ```
+
+> **Note:** In most cases, `mock_uuid` is sufficient. Use `mock_uuid_factory` when you need to mock uuid4 in a specific module without affecting others.
 
 ### Reset
 
@@ -115,7 +130,7 @@ def test_with_reset(mock_uuid):
 
 ### `mock_uuid` fixture
 
-A fixture that patches `uuid.uuid4` globally.
+A fixture that patches `uuid.uuid4` globally, including in modules that have used `from uuid import uuid4`.
 
 **Methods:**
 
