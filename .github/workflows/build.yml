@@ -1,0 +1,37 @@
+name: Build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Build package
+        run: uv build
+
+      - name: Install from wheel
+        run: |
+          uv venv /tmp/test-env
+          uv pip install dist/*.whl --python /tmp/test-env/bin/python
+          uv pip install pytest --python /tmp/test-env/bin/python
+
+      - name: Verify plugin imports
+        run: |
+          /tmp/test-env/bin/python -c "from pytest_uuid import mock_uuid, mock_uuid_factory; print('Import OK')"
+
+      - name: Verify plugin fixtures available
+        run: |
+          /tmp/test-env/bin/pytest --fixtures 2>&1 | grep -q "mock_uuid" && echo "mock_uuid fixture found"
+          /tmp/test-env/bin/pytest --fixtures 2>&1 | grep -q "mock_uuid_factory" && echo "mock_uuid_factory fixture found"
