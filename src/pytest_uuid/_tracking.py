@@ -69,8 +69,11 @@ def _find_uuid4_imports(original_uuid4: object) -> list[tuple[object, str]]:
                     attr = getattr(module, attr_name, None)
                     if attr is original_uuid4:
                         imports.append((module, attr_name))
-        except Exception:
-            # Some modules may raise errors when accessing attributes
+        except (TypeError, AttributeError, ImportError, RuntimeError):
+            # TypeError: module has broken __dir__ (some C extensions)
+            # AttributeError: module attributes inaccessible during teardown
+            # ImportError: lazy imports that fail when triggered by dir()
+            # RuntimeError: various edge cases with unusual modules
             continue
     return imports
 
