@@ -1,3 +1,5 @@
+<img src="docs/images/logo.svg" alt="pytest-uuid logo" width="300" align="right" style="margin-top: -40px; margin-right: 20px;">
+
 # pytest-uuid
 
 A pytest plugin for mocking `uuid.uuid4()` calls in your tests.
