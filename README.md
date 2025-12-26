@@ -202,7 +202,17 @@ Exhaustion behaviors:
 
 ### Global Configuration
 
-Configure default behavior for all tests:
+Configure default behavior for all tests via `pyproject.toml`:
+
+```toml
+# pyproject.toml
+[tool.pytest_uuid]
+default_ignore_list = ["sqlalchemy", "celery"]
+extend_ignore_list = ["myapp.internal"]
+default_exhaustion_behavior = "raise"
+```
+
+Or programmatically in `conftest.py`:
 
 ```python
 # conftest.py
@@ -354,6 +364,7 @@ Main fixture for controlling `uuid.uuid4()` calls.
 - `set_seed(seed)` - Set a seed for reproducible generation
 - `set_seed_from_node()` - Use test node ID as seed
 - `set_exhaustion_behavior(behavior)` - Set behavior when sequence exhausted
+- `spy()` - Switch to spy mode (return real UUIDs while still tracking)
 - `reset()` - Reset to initial state
 
 #### `mock_uuid_factory`
