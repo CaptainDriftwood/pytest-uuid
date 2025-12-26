@@ -1,0 +1,929 @@
+"""Integration tests for edge cases and error handling.
+
+These tests cover ignore lists, direct import patching, exception handling,
+large sequences, and deeply nested contexts.
+"""
+
+from __future__ import annotations
+
+
+class TestIgnoreList:
+    """Tests for ignore list functionality."""
+
+    def test_ignored_module_gets_real_uuid(self, pytester):
+        """Test that modules in ignore list receive real UUIDs."""
+        # Create a helper module that will be ignored
+        pytester.makepyfile(
+            ignored_helper="""
+            import uuid
+
+            def get_uuid():
+                return uuid.uuid4()
+            """
+        )
+
+        # Create a test that uses the ignored module
+        pytester.makepyfile(
+            test_ignore="""
+            import uuid
+            from pytest_uuid.api import freeze_uuid
+            import ignored_helper
+
+            def test_ignored_module():
+                with freeze_uuid(
+                    "12345678-1234-5678-1234-567812345678",
+                    ignore=["ignored_helper"]
+                ):
+                    # Direct call should be mocked
+                    mocked = uuid.uuid4()
+                    assert str(mocked) == "12345678-1234-5678-1234-567812345678"
+
+                    # Call from ignored module should be real (different)
+                    real = ignored_helper.get_uuid()
+                    assert str(real) != "12345678-1234-5678-1234-567812345678"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_non_ignored_module_gets_mocked_uuid(self, pytester):
+        """Test that modules not in ignore list receive mocked UUIDs."""
+        # Create a helper module that will NOT be ignored
+        pytester.makepyfile(
+            helper="""
+            import uuid
+
+            def get_uuid():
+                return uuid.uuid4()
+            """
+        )
+
+        pytester.makepyfile(
+            test_not_ignored="""
+            import uuid
+            from pytest_uuid.api import freeze_uuid
+            import helper
+
+            def test_non_ignored_module():
+                with freeze_uuid("12345678-1234-5678-1234-567812345678"):
+                    # Both should be mocked
+                    direct = uuid.uuid4()
+                    from_helper = helper.get_uuid()
+
+                    assert str(direct) == "12345678-1234-5678-1234-567812345678"
+                    assert str(from_helper) == "12345678-1234-5678-1234-567812345678"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_multiple_ignore_prefixes(self, pytester):
+        """Test that multiple ignore prefixes all work."""
+        pytester.makepyfile(
+            pkg_a="""
+            import uuid
+            def get_uuid():
+                return uuid.uuid4()
+            """
+        )
+
+        pytester.makepyfile(
+            pkg_b="""
+            import uuid
+            def get_uuid():
+                return uuid.uuid4()
+            """
+        )
+
+        pytester.makepyfile(
+            test_multi_ignore="""
+            import uuid
+            from pytest_uuid.api import freeze_uuid
+            import pkg_a
+            import pkg_b
+
+            def test_multiple_ignores():
+                with freeze_uuid(
+                    "12345678-1234-5678-1234-567812345678",
+                    ignore=["pkg_a", "pkg_b"]
+                ):
+                    # Direct call should be mocked
+                    direct = uuid.uuid4()
+                    assert str(direct) == "12345678-1234-5678-1234-567812345678"
+
+                    # Both ignored modules should get real UUIDs
+                    from_a = pkg_a.get_uuid()
+                    from_b = pkg_b.get_uuid()
+
+                    assert str(from_a) != "12345678-1234-5678-1234-567812345678"
+                    assert str(from_b) != "12345678-1234-5678-1234-567812345678"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_ignore_list_with_sequence(self, pytester):
+        """Test ignore list works with UUID sequences."""
+        pytester.makepyfile(
+            ignored_mod="""
+            import uuid
+            def get_uuid():
+                return uuid.uuid4()
+            """
+        )
+
+        pytester.makepyfile(
+            test_ignore_seq="""
+            import uuid
+            from pytest_uuid.api import freeze_uuid
+            import ignored_mod
+
+            def test_ignore_with_sequence():
+                uuids = [
+                    "11111111-1111-1111-1111-111111111111",
+                    "22222222-2222-2222-2222-222222222222",
+                ]
+                with freeze_uuid(uuids, ignore=["ignored_mod"]):
+                    # Direct calls should cycle through sequence
+                    assert str(uuid.uuid4()) == uuids[0]
+                    assert str(uuid.uuid4()) == uuids[1]
+
+                    # Ignored module should get real UUID
+                    real = ignored_mod.get_uuid()
+                    assert str(real) not in uuids
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_nested_module_matching(self, pytester):
+        """Test ignore list works with nested module names."""
+        # Create a nested package structure
+        pytester.mkpydir("mypkg")
+        pytester.makepyfile(
+            **{
+                "mypkg/subpkg/__init__": "",
+                "mypkg/subpkg/helper": """
+import uuid
+
+def get_uuid():
+    return uuid.uuid4()
+""",
+            }
+        )
+
+        pytester.makepyfile(
+            test_nested="""
+            import uuid
+            from pytest_uuid.api import freeze_uuid
+            from mypkg.subpkg import helper
+
+            def test_nested_module_ignored():
+                with freeze_uuid(
+                    "12345678-1234-5678-1234-567812345678",
+                    ignore=["mypkg.subpkg"]
+                ):
+                    # Direct call should be mocked
+                    mocked = uuid.uuid4()
+                    assert str(mocked) == "12345678-1234-5678-1234-567812345678"
+
+                    # Nested module should get real UUID
+                    real = helper.get_uuid()
+                    assert str(real) != "12345678-1234-5678-1234-567812345678"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+
+class TestDirectImportPatching:
+    """Tests for patching 'from uuid import uuid4' pattern."""
+
+    def test_from_uuid_import_uuid4_is_patched(self, pytester):
+        """Test that 'from uuid import uuid4' is properly patched."""
+        pytester.makepyfile(
+            test_direct_import="""
+            from uuid import uuid4
+            from pytest_uuid.api import freeze_uuid
+
+            def test_direct_import_patched():
+                with freeze_uuid("12345678-1234-5678-1234-567812345678"):
+                    result = uuid4()
+                    assert str(result) == "12345678-1234-5678-1234-567812345678"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_both_import_styles_in_same_module(self, pytester):
+        """Test both import styles work in the same module."""
+        pytester.makepyfile(
+            test_both_styles="""
+            import uuid
+            from uuid import uuid4
+
+            def test_both_import_styles(mock_uuid):
+                mock_uuid.set("12345678-1234-5678-1234-567812345678")
+
+                # Both should return the mocked UUID
+                result1 = uuid.uuid4()
+                result2 = uuid4()
+
+                assert str(result1) == "12345678-1234-5678-1234-567812345678"
+                assert str(result2) == "12345678-1234-5678-1234-567812345678"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_multiple_modules_with_direct_imports(self, pytester):
+        """Test patching works across multiple modules with direct imports."""
+        pytester.makepyfile(
+            module_a="""
+            from uuid import uuid4
+
+            def get_uuid():
+                return uuid4()
+            """
+        )
+
+        pytester.makepyfile(
+            module_b="""
+            from uuid import uuid4
+
+            def get_uuid():
+                return uuid4()
+            """
+        )
+
+        pytester.makepyfile(
+            test_multi_module="""
+            from pytest_uuid.api import freeze_uuid
+            import module_a
+            import module_b
+
+            def test_multiple_modules():
+                with freeze_uuid("12345678-1234-5678-1234-567812345678"):
+                    result_a = module_a.get_uuid()
+                    result_b = module_b.get_uuid()
+
+                    assert str(result_a) == "12345678-1234-5678-1234-567812345678"
+                    assert str(result_b) == "12345678-1234-5678-1234-567812345678"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_patching_restored_after_context(self, pytester):
+        """Test that patching is properly restored after context exit."""
+        pytester.makepyfile(
+            test_restore="""
+            import uuid
+            from uuid import uuid4 as direct_uuid4
+            from pytest_uuid.api import freeze_uuid
+
+            def test_restore_after_context():
+                original_module = uuid.uuid4
+
+                with freeze_uuid("12345678-1234-5678-1234-567812345678"):
+                    # Should be mocked
+                    assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+
+                # Should be restored
+                assert uuid.uuid4 is original_module
+
+                # Should return real UUIDs now
+                result = uuid.uuid4()
+                assert str(result) != "12345678-1234-5678-1234-567812345678"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+
+class TestEdgeCases:
+    """Tests for edge cases and error handling."""
+
+    # Note: Nested context tests are covered by TestDeepNesting (3 and 5 levels)
+
+    def test_marker_and_fixture_together(self, pytester):
+        """Test using marker and fixture in the same test."""
+        pytester.makepyfile(
+            test_marker_fixture="""
+            import uuid
+            import pytest
+
+            @pytest.mark.freeze_uuid("11111111-1111-1111-1111-111111111111")
+            def test_marker_with_fixture(mock_uuid):
+                # Marker should already be applied
+                assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
+
+                # Fixture can override
+                mock_uuid.set("22222222-2222-2222-2222-222222222222")
+                assert str(uuid.uuid4()) == "22222222-2222-2222-2222-222222222222"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_exhaustion_raise_behavior(self, pytester):
+        """Test that exhaustion with 'raise' behavior works."""
+        pytester.makepyfile(
+            test_exhaust_raise="""
+            import uuid
+            import pytest
+            from pytest_uuid.api import freeze_uuid
+            from pytest_uuid.generators import UUIDsExhaustedError
+
+            def test_raise_on_exhausted():
+                with freeze_uuid(
+                    ["11111111-1111-1111-1111-111111111111"],
+                    on_exhausted="raise"
+                ):
+                    uuid.uuid4()  # OK
+                    with pytest.raises(UUIDsExhaustedError):
+                        uuid.uuid4()  # Should raise
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_seeded_reproducibility_across_runs(self, pytester):
+        """Test that seeded UUIDs are reproducible across test runs."""
+        pytester.makepyfile(
+            test_seed_repro="""
+            import uuid
+            from pytest_uuid.api import freeze_uuid
+
+            def test_seeded_reproducible():
+                with freeze_uuid(seed=42):
+                    first_run = [uuid.uuid4() for _ in range(3)]
+
+                with freeze_uuid(seed=42):
+                    second_run = [uuid.uuid4() for _ in range(3)]
+
+                assert first_run == second_run
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_invalid_exhaustion_behavior_raises(self, pytester):
+        """Test that invalid exhaustion behavior string raises ValueError."""
+        pytester.makepyfile(
+            test_invalid_exhaust="""
+            import pytest
+            from pytest_uuid.api import freeze_uuid
+
+            def test_invalid_exhaustion():
+                with pytest.raises(ValueError):
+                    with freeze_uuid(
+                        ["11111111-1111-1111-1111-111111111111"],
+                        on_exhausted="invalid_behavior"
+                    ):
+                        pass
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+
+class TestIgnoreListWithCallTracking:
+    """Tests for ignore list functionality validated with call tracking."""
+
+    def test_ignored_module_receives_real_uuid(self, pytester):
+        """Test that calls from ignored modules return real (non-mocked) UUIDs."""
+        pytester.makepyfile(
+            ignored_lib="""
+            import uuid
+
+            def get_uuid():
+                return uuid.uuid4()
+            """
+        )
+
+        pytester.makepyfile(
+            test_ignore_tracking="""
+            import uuid
+            from pytest_uuid.api import freeze_uuid
+
+            import ignored_lib
+
+            def test_ignored_marked_real():
+                with freeze_uuid(
+                    "12345678-1234-5678-1234-567812345678",
+                    ignore=["ignored_lib"]
+                ) as freezer:
+                    # Direct call should be mocked
+                    mocked = uuid.uuid4()
+
+                    # Call from ignored module should use real uuid4
+                    real = ignored_lib.get_uuid()
+
+                    # Verify the mocked call returned our UUID
+                    assert str(mocked) == "12345678-1234-5678-1234-567812345678"
+
+                    # Verify the real call is different
+                    assert str(real) != "12345678-1234-5678-1234-567812345678"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_nested_package_ignore_with_call_tracking(self, pytester):
+        """Test ignore list with nested packages and call tracking."""
+        # Create nested package structure
+        pytester.mkpydir("external_pkg")
+        pytester.makepyfile(
+            **{
+                "external_pkg/submodule/__init__": "",
+                "external_pkg/submodule/helper": """
+import uuid
+
+def generate():
+    return uuid.uuid4()
+""",
+            }
+        )
+
+        pytester.makepyfile(
+            test_nested_ignore="""
+            import uuid
+            from pytest_uuid.api import freeze_uuid
+            from external_pkg.submodule import helper
+
+            def test_nested_package_ignored():
+                with freeze_uuid(
+                    "12345678-1234-5678-1234-567812345678",
+                    ignore=["external_pkg"]
+                ):
+                    # Direct call should be mocked
+                    mocked = uuid.uuid4()
+                    assert str(mocked) == "12345678-1234-5678-1234-567812345678"
+
+                    # Nested module under external_pkg should be ignored
+                    real = helper.generate()
+                    assert str(real) != "12345678-1234-5678-1234-567812345678"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_mock_uuid_with_ignore_list_via_config(self, pytester):
+        """Test ignore list via pyproject.toml configuration."""
+        pytester.makefile(
+            ".toml",
+            pyproject="""
+            [tool.pytest_uuid]
+            default_ignore_list = ["external_service"]
+            """,
+        )
+
+        pytester.makepyfile(
+            external_service="""
+            import uuid
+
+            def call_api():
+                return {"request_id": str(uuid.uuid4())}
+            """
+        )
+
+        pytester.makepyfile(
+            test_config_ignore="""
+            import uuid
+            from pytest_uuid.api import freeze_uuid
+            import external_service
+
+            def test_config_ignore_list():
+                with freeze_uuid("12345678-1234-5678-1234-567812345678"):
+                    # Direct call should be mocked
+                    mocked = uuid.uuid4()
+                    assert str(mocked) == "12345678-1234-5678-1234-567812345678"
+
+                    # external_service is in default_ignore_list
+                    result = external_service.call_api()
+                    assert result["request_id"] != "12345678-1234-5678-1234-567812345678"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_extend_ignore_list_via_config(self, pytester):
+        """Test extending ignore list via pyproject.toml."""
+        pytester.makefile(
+            ".toml",
+            pyproject="""
+            [tool.pytest_uuid]
+            extend_ignore_list = ["custom_lib"]
+            """,
+        )
+
+        pytester.makepyfile(
+            custom_lib="""
+            import uuid
+
+            def generate():
+                return uuid.uuid4()
+            """
+        )
+
+        pytester.makepyfile(
+            test_extend_ignore="""
+            import uuid
+            from pytest_uuid.api import freeze_uuid
+            import custom_lib
+
+            def test_extended_ignore():
+                with freeze_uuid("12345678-1234-5678-1234-567812345678"):
+                    # custom_lib is in extend_ignore_list
+                    real = custom_lib.generate()
+                    assert str(real) != "12345678-1234-5678-1234-567812345678"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+
+class TestExceptionHandling:
+    """Tests for exception handling during UUID generation."""
+
+    def test_exception_during_test_restores_uuid4(self, pytester):
+        """Test that uuid4 is restored even if test raises exception."""
+        pytester.makepyfile(
+            test_exception_restore="""
+            import uuid
+            import pytest
+            from pytest_uuid.api import freeze_uuid
+
+            def test_exception_in_context():
+                original = uuid.uuid4
+
+                try:
+                    with freeze_uuid("12345678-1234-5678-1234-567812345678"):
+                        assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+                        raise ValueError("Test exception")
+                except ValueError:
+                    pass
+
+                # uuid4 should be restored
+                assert uuid.uuid4 is original
+
+            def test_after_exception():
+                # Should get real UUIDs
+                result = uuid.uuid4()
+                assert str(result) != "12345678-1234-5678-1234-567812345678"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=2)
+
+    def test_fixture_cleanup_on_test_failure(self, pytester):
+        """Test that fixture cleans up properly when test fails."""
+        pytester.makepyfile(
+            test_fixture_cleanup="""
+            import uuid
+            import pytest
+
+            def test_failing_test(mock_uuid):
+                mock_uuid.set("12345678-1234-5678-1234-567812345678")
+                assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+                pytest.fail("Intentional failure")
+
+            def test_after_failure(mock_uuid):
+                # Fixture should have clean state despite previous failure
+                # Without setting anything, we get random UUIDs
+                result = uuid.uuid4()
+                assert str(result) != "12345678-1234-5678-1234-567812345678"
+            """
+        )
+
+        result = pytester.runpytest("-v", "-p", "no:randomly")
+        result.assert_outcomes(passed=1, failed=1)
+
+    def test_decorator_cleanup_on_exception(self, pytester):
+        """Test that decorator cleans up on exception."""
+        pytester.makepyfile(
+            test_decorator_cleanup="""
+            import uuid
+            import pytest
+            from pytest_uuid import freeze_uuid
+
+            @freeze_uuid("12345678-1234-5678-1234-567812345678")
+            def test_decorated_failure():
+                assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+                raise RuntimeError("Test error")
+
+            def test_after_decorated_failure():
+                # Should get real UUIDs
+                result = uuid.uuid4()
+                assert str(result) != "12345678-1234-5678-1234-567812345678"
+            """
+        )
+
+        result = pytester.runpytest("-v", "-p", "no:randomly")
+        result.assert_outcomes(passed=1, failed=1)
+
+    def test_catch_exhausted_error_and_continue(self, pytester):
+        """Test catching UUIDsExhaustedError and continuing within same context."""
+        pytester.makepyfile(
+            test_catch_continue="""
+            import uuid
+            import pytest
+            from pytest_uuid.api import freeze_uuid
+            from pytest_uuid.generators import UUIDsExhaustedError
+
+            def test_catch_and_continue():
+                with freeze_uuid(
+                    ["11111111-1111-1111-1111-111111111111"],
+                    on_exhausted="raise"
+                ) as freezer:
+                    # First call succeeds
+                    first = uuid.uuid4()
+                    assert str(first) == "11111111-1111-1111-1111-111111111111"
+
+                    # Second call raises but we catch it
+                    try:
+                        uuid.uuid4()
+                        pytest.fail("Should have raised UUIDsExhaustedError")
+                    except UUIDsExhaustedError as e:
+                        assert e.count == 1
+
+                    # The context is still active, subsequent calls also raise
+                    with pytest.raises(UUIDsExhaustedError):
+                        uuid.uuid4()
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_catch_exhausted_error_set_new_uuid(self, pytester):
+        """Test catching UUIDsExhaustedError and setting new UUID via fixture."""
+        pytester.makepyfile(
+            test_catch_set_new="""
+            import uuid
+            import pytest
+            from pytest_uuid.generators import UUIDsExhaustedError
+
+            @pytest.mark.freeze_uuid(
+                ["11111111-1111-1111-1111-111111111111"],
+                on_exhausted="raise"
+            )
+            def test_recover_with_fixture(mock_uuid):
+                # First call uses marker's UUID
+                first = uuid.uuid4()
+                assert str(first) == "11111111-1111-1111-1111-111111111111"
+
+                # Second call raises
+                with pytest.raises(UUIDsExhaustedError):
+                    uuid.uuid4()
+
+                # But fixture can set a new UUID to recover
+                mock_uuid.set("22222222-2222-2222-2222-222222222222")
+                recovered = uuid.uuid4()
+                assert str(recovered) == "22222222-2222-2222-2222-222222222222"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_nested_exception_cleanup(self, pytester):
+        """Test cleanup when exception occurs in nested context."""
+        pytester.makepyfile(
+            test_nested_exc="""
+            import uuid
+            import pytest
+            from pytest_uuid.api import freeze_uuid
+
+            def test_nested_exception():
+                with freeze_uuid("11111111-1111-1111-1111-111111111111"):
+                    assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
+
+                    try:
+                        with freeze_uuid("22222222-2222-2222-2222-222222222222"):
+                            assert str(uuid.uuid4()) == "22222222-2222-2222-2222-222222222222"
+                            raise ValueError("Inner error")
+                    except ValueError:
+                        pass
+
+                    # Outer context should still work
+                    assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
+
+                # Outside all contexts
+                result = uuid.uuid4()
+                assert str(result) != "11111111-1111-1111-1111-111111111111"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+
+class TestLargeSequences:
+    """Tests for large UUID sequences and performance."""
+
+    def test_large_sequence_cycling(self, pytester):
+        """Test that large sequences cycle correctly."""
+        pytester.makepyfile(
+            test_large_seq="""
+            import uuid
+            from pytest_uuid.api import freeze_uuid
+
+            def test_large_sequence():
+                # Create a sequence of 100 UUIDs
+                uuids = [f"{i:08x}-{i:04x}-{i:04x}-{i:04x}-{i:012x}" for i in range(100)]
+
+                with freeze_uuid(uuids, on_exhausted="cycle"):
+                    # Generate 250 UUIDs (2.5 cycles)
+                    results = [str(uuid.uuid4()) for _ in range(250)]
+
+                    # First 100 should match sequence
+                    assert results[:100] == uuids
+
+                    # Next 100 should be same (cycled)
+                    assert results[100:200] == uuids
+
+                    # Last 50 should be first 50 of sequence
+                    assert results[200:250] == uuids[:50]
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_large_sequence_raise_on_exhaustion(self, pytester):
+        """Test that large sequences raise on exhaustion when configured."""
+        pytester.makepyfile(
+            test_large_raise="""
+            import uuid
+            import pytest
+            from pytest_uuid.api import freeze_uuid
+            from pytest_uuid.generators import UUIDsExhaustedError
+
+            def test_large_sequence_exhaustion():
+                # Create a sequence of 50 UUIDs
+                uuids = [f"{i:08x}-{i:04x}-{i:04x}-{i:04x}-{i:012x}" for i in range(50)]
+
+                with freeze_uuid(uuids, on_exhausted="raise"):
+                    # Generate exactly 50 UUIDs - should work
+                    for _ in range(50):
+                        uuid.uuid4()
+
+                    # 51st should raise
+                    with pytest.raises(UUIDsExhaustedError):
+                        uuid.uuid4()
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_many_seeded_uuids_are_unique(self, pytester):
+        """Test that seeded generator produces many unique UUIDs."""
+        pytester.makepyfile(
+            test_seeded_unique="""
+            import uuid
+            from pytest_uuid.api import freeze_uuid
+
+            def test_seeded_uniqueness():
+                with freeze_uuid(seed=42):
+                    # Generate 1000 UUIDs
+                    results = [uuid.uuid4() for _ in range(1000)]
+
+                    # All should be unique
+                    assert len(set(results)) == 1000
+
+                    # All should be valid v4 UUIDs
+                    assert all(u.version == 4 for u in results)
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+
+class TestDeepNesting:
+    """Tests for deeply nested freeze_uuid contexts."""
+
+    def test_three_level_nesting(self, pytester):
+        """Test three levels of nested freeze_uuid contexts."""
+        pytester.makepyfile(
+            test_three_levels="""
+            import uuid
+            from pytest_uuid.api import freeze_uuid
+
+            def test_three_nested():
+                with freeze_uuid("11111111-1111-1111-1111-111111111111"):
+                    assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
+
+                    with freeze_uuid("22222222-2222-2222-2222-222222222222"):
+                        assert str(uuid.uuid4()) == "22222222-2222-2222-2222-222222222222"
+
+                        with freeze_uuid("33333333-3333-3333-3333-333333333333"):
+                            assert str(uuid.uuid4()) == "33333333-3333-3333-3333-333333333333"
+
+                        # Back to level 2
+                        assert str(uuid.uuid4()) == "22222222-2222-2222-2222-222222222222"
+
+                    # Back to level 1
+                    assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
+
+                # Outside all contexts - real UUID
+                result = uuid.uuid4()
+                assert str(result) not in [
+                    "11111111-1111-1111-1111-111111111111",
+                    "22222222-2222-2222-2222-222222222222",
+                    "33333333-3333-3333-3333-333333333333",
+                ]
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_five_level_nesting(self, pytester):
+        """Test five levels of nested freeze_uuid contexts."""
+        pytester.makepyfile(
+            test_five_levels="""
+            import uuid
+            from pytest_uuid.api import freeze_uuid
+
+            def test_five_nested():
+                uuids = [
+                    f"{i}1111111-1111-1111-1111-111111111111"
+                    for i in range(1, 6)
+                ]
+
+                with freeze_uuid(uuids[0]):
+                    assert str(uuid.uuid4()) == uuids[0]
+                    with freeze_uuid(uuids[1]):
+                        assert str(uuid.uuid4()) == uuids[1]
+                        with freeze_uuid(uuids[2]):
+                            assert str(uuid.uuid4()) == uuids[2]
+                            with freeze_uuid(uuids[3]):
+                                assert str(uuid.uuid4()) == uuids[3]
+                                with freeze_uuid(uuids[4]):
+                                    assert str(uuid.uuid4()) == uuids[4]
+                                assert str(uuid.uuid4()) == uuids[3]
+                            assert str(uuid.uuid4()) == uuids[2]
+                        assert str(uuid.uuid4()) == uuids[1]
+                    assert str(uuid.uuid4()) == uuids[0]
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_nested_with_different_configs(self, pytester):
+        """Test nested contexts with different configurations."""
+        pytester.makepyfile(
+            test_nested_configs="""
+            import uuid
+            from pytest_uuid.api import freeze_uuid
+
+            def test_nested_different_configs():
+                # Outer: static UUID
+                with freeze_uuid("11111111-1111-1111-1111-111111111111"):
+                    assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
+
+                    # Middle: sequence
+                    with freeze_uuid([
+                        "22222222-2222-2222-2222-222222222222",
+                        "33333333-3333-3333-3333-333333333333",
+                    ]):
+                        assert str(uuid.uuid4()) == "22222222-2222-2222-2222-222222222222"
+
+                        # Inner: seeded
+                        with freeze_uuid(seed=42):
+                            seeded_uuid = uuid.uuid4()
+                            assert seeded_uuid.version == 4
+
+                        # Back to sequence (continues)
+                        assert str(uuid.uuid4()) == "33333333-3333-3333-3333-333333333333"
+
+                    # Back to static
+                    assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)

@@ -1,15 +1,25 @@
-"""Tests for the pytest-uuid plugin."""
+"""Tests for the mock_uuid fixture.
+
+This file consolidates tests for all mock_uuid fixture functionality:
+- Basic operations (set, set_default, reset)
+- Enhanced features (set_seed, set_exhaustion_behavior)
+- Factory fixture (mock_uuid_factory)
+- Call tracking integration
+"""
 
 from __future__ import annotations
 
+import random
 import uuid
 from uuid import uuid4
 
 import pytest
 
+from pytest_uuid.generators import ExhaustionBehavior, UUIDsExhaustedError
 
-class TestMockUUID:
-    """Tests for the mock_uuid fixture."""
+
+class TestMockUUIDBasic:
+    """Tests for basic mock_uuid fixture operations."""
 
     def test_set_single_uuid(self, mock_uuid):
         """Test setting a single UUID."""
@@ -82,6 +92,74 @@ class TestMockUUID:
         assert result1 != result2
 
 
+class TestMockUUIDEnhanced:
+    """Tests for enhanced mock_uuid fixture methods (seed, exhaustion)."""
+
+    def test_set_seed_integer(self, mock_uuid):
+        """Test set_seed with integer seed."""
+        mock_uuid.set_seed(42)
+        first = uuid.uuid4()
+
+        mock_uuid.set_seed(42)
+        second = uuid.uuid4()
+
+        assert first == second
+
+    def test_set_seed_random_instance(self, mock_uuid):
+        """Test set_seed with Random instance."""
+        rng = random.Random(42)
+        mock_uuid.set_seed(rng)
+
+        result = uuid.uuid4()
+        assert isinstance(result, uuid.UUID)
+        assert result.version == 4
+
+    def test_set_seed_from_node(self, mock_uuid):
+        """Test set_seed_from_node uses test node ID."""
+        mock_uuid.set_seed_from_node()
+        first = uuid.uuid4()
+
+        mock_uuid.set_seed_from_node()
+        second = uuid.uuid4()
+
+        # Same test, same node ID, same seed
+        assert first == second
+
+    def test_set_exhaustion_behavior_string(self, mock_uuid):
+        """Test setting exhaustion behavior with string."""
+        mock_uuid.set_exhaustion_behavior("raise")
+        mock_uuid.set(
+            "11111111-1111-1111-1111-111111111111",
+            "22222222-2222-2222-2222-222222222222",
+        )
+
+        uuid.uuid4()
+        uuid.uuid4()
+
+        with pytest.raises(UUIDsExhaustedError):
+            uuid.uuid4()
+
+    def test_set_exhaustion_behavior_enum(self, mock_uuid):
+        """Test setting exhaustion behavior with enum."""
+        mock_uuid.set_exhaustion_behavior(ExhaustionBehavior.RAISE)
+        mock_uuid.set("11111111-1111-1111-1111-111111111111")
+
+        uuid.uuid4()
+
+        with pytest.raises(UUIDsExhaustedError):
+            uuid.uuid4()
+
+    def test_generator_property(self, mock_uuid):
+        """Test the generator property."""
+        assert mock_uuid.generator is None
+
+        mock_uuid.set_seed(42)
+        assert mock_uuid.generator is not None
+
+        mock_uuid.reset()
+        assert mock_uuid.generator is None
+
+
 class TestMockUUIDFactory:
     """Tests for the mock_uuid_factory fixture."""
 
@@ -147,8 +225,6 @@ class TestPluginIntegration:
         """Test that the mock_uuid_factory fixture is automatically available."""
         assert mock_uuid_factory is not None
         assert callable(mock_uuid_factory)
-
-    # Note: Test isolation is thoroughly tested in test_pytester_integration.py::TestTestIsolation
 
 
 class TestEdgeCases:
