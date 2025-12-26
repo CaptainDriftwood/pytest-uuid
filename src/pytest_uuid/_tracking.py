@@ -64,15 +64,19 @@ def _find_uuid4_imports(original_uuid4: object) -> list[tuple[object, str]]:
         if module is None:
             continue
         try:
-            for attr_name in dir(module):
-                if attr_name == "uuid4":
-                    attr = getattr(module, attr_name, None)
-                    if attr is original_uuid4:
-                        imports.append((module, attr_name))
-        except (TypeError, AttributeError, ImportError, RuntimeError):
-            # TypeError: module has broken __dir__ (some C extensions)
+            # Use __dict__ directly instead of dir() for performance.
+            # dir() iterates all attributes, handles inheritance, and sorts.
+            # For uuid4 imports (simple assignments), __dict__ lookup suffices.
+            module_dict = getattr(module, "__dict__", None)
+            if (
+                module_dict is not None
+                and "uuid4" in module_dict
+                and module_dict["uuid4"] is original_uuid4
+            ):
+                imports.append((module, "uuid4"))
+        except (TypeError, AttributeError, RuntimeError):
+            # TypeError: unusual module types
             # AttributeError: module attributes inaccessible during teardown
-            # ImportError: lazy imports that fail when triggered by dir()
             # RuntimeError: various edge cases with unusual modules
             continue
     return imports
