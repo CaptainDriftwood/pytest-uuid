@@ -150,89 +150,33 @@ class TestEdgeCases:
         assert str(uuid.uuid4()) == "22222222-2222-2222-2222-222222222222"
 
 
-class TestInspectionHelpers:
-    """Tests for inspection helper properties."""
+class TestCallTrackingIntegration:
+    """Integration tests for call tracking via mock_uuid fixture.
 
-    def test_call_count_starts_at_zero(self, mock_uuid):
-        """Test that call_count starts at zero."""
-        assert mock_uuid.call_count == 0
+    Note: The CallTrackingMixin is thoroughly tested in test_tracking.py.
+    These tests verify that mock_uuid properly integrates call tracking.
+    """
 
-    def test_call_count_increments(self, mock_uuid):
-        """Test that call_count increments with each call."""
-        mock_uuid.set("12345678-1234-5678-1234-567812345678")
+    def test_tracking_works_with_mocked_uuids(self, mock_uuid):
+        """Test that tracking works correctly with mocked UUIDs."""
+        mock_uuid.set(
+            "11111111-1111-1111-1111-111111111111",
+            "22222222-2222-2222-2222-222222222222",
+        )
 
-        uuid.uuid4()
-        assert mock_uuid.call_count == 1
+        result1 = uuid.uuid4()
+        result2 = uuid.uuid4()
 
-        uuid.uuid4()
         assert mock_uuid.call_count == 2
+        assert mock_uuid.generated_uuids == [result1, result2]
+        assert mock_uuid.last_uuid == result2
+        assert mock_uuid.mocked_count == 2
+        assert all(c.was_mocked for c in mock_uuid.calls)
 
-    def test_call_count_with_random_uuids(self, mock_uuid):
-        """Test call_count works without setting a mock."""
-        uuid.uuid4()
-        uuid.uuid4()
-        uuid.uuid4()
+    def test_tracking_works_with_real_uuids(self, mock_uuid):
+        """Test that tracking works when no mock is set (spy mode)."""
+        result = uuid.uuid4()
 
-        assert mock_uuid.call_count == 3
-
-    def test_generated_uuids_empty_initially(self, mock_uuid):
-        """Test that generated_uuids starts empty."""
-        assert mock_uuid.generated_uuids == []
-
-    def test_generated_uuids_tracks_all(self, mock_uuid):
-        """Test that generated_uuids tracks all generated UUIDs."""
-        mock_uuid.set(
-            "11111111-1111-1111-1111-111111111111",
-            "22222222-2222-2222-2222-222222222222",
-        )
-
-        uuid.uuid4()
-        uuid.uuid4()
-
-        assert len(mock_uuid.generated_uuids) == 2
-        assert mock_uuid.generated_uuids[0] == uuid.UUID(
-            "11111111-1111-1111-1111-111111111111"
-        )
-        assert mock_uuid.generated_uuids[1] == uuid.UUID(
-            "22222222-2222-2222-2222-222222222222"
-        )
-
-    def test_generated_uuids_returns_copy(self, mock_uuid):
-        """Test that generated_uuids returns a copy (defensive)."""
-        mock_uuid.set("12345678-1234-5678-1234-567812345678")
-        uuid.uuid4()
-
-        result = mock_uuid.generated_uuids
-        result.clear()  # Modify the copy
-
-        # Original should be unchanged
-        assert len(mock_uuid.generated_uuids) == 1
-
-    def test_last_uuid_none_initially(self, mock_uuid):
-        """Test that last_uuid is None before any calls."""
-        assert mock_uuid.last_uuid is None
-
-    def test_last_uuid_returns_most_recent(self, mock_uuid):
-        """Test that last_uuid returns the most recent UUID."""
-        mock_uuid.set(
-            "11111111-1111-1111-1111-111111111111",
-            "22222222-2222-2222-2222-222222222222",
-        )
-
-        uuid.uuid4()
-        assert mock_uuid.last_uuid == uuid.UUID("11111111-1111-1111-1111-111111111111")
-
-        uuid.uuid4()
-        assert mock_uuid.last_uuid == uuid.UUID("22222222-2222-2222-2222-222222222222")
-
-    def test_reset_clears_inspection_data(self, mock_uuid):
-        """Test that reset clears all inspection data."""
-        mock_uuid.set("12345678-1234-5678-1234-567812345678")
-        uuid.uuid4()
-        uuid.uuid4()
-
-        mock_uuid.reset()
-
-        assert mock_uuid.call_count == 0
-        assert mock_uuid.generated_uuids == []
-        assert mock_uuid.last_uuid is None
+        assert mock_uuid.call_count == 1
+        assert mock_uuid.last_uuid == result
+        assert mock_uuid.real_count == 1

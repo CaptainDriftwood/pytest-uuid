@@ -22,54 +22,20 @@ class TestSpyUUID:
         assert result1.version == 4
         assert result2.version == 4
 
-    def test_spy_tracks_call_count(self, spy_uuid):
-        """Test that spy tracks call count."""
-        assert spy_uuid.call_count == 0
+    def test_spy_integrates_call_tracking(self, spy_uuid):
+        """Test that spy_uuid properly integrates CallTrackingMixin.
 
-        uuid.uuid4()
-        assert spy_uuid.call_count == 1
-
-        uuid.uuid4()
-        uuid.uuid4()
-        assert spy_uuid.call_count == 3
-
-    def test_spy_tracks_generated_uuids(self, spy_uuid):
-        """Test that spy tracks all generated UUIDs."""
+        Note: The CallTrackingMixin is thoroughly tested in test_tracking.py.
+        This test verifies the fixture properly uses the mixin.
+        """
         result1 = uuid.uuid4()
         result2 = uuid.uuid4()
 
+        assert spy_uuid.call_count == 2
         assert spy_uuid.generated_uuids == [result1, result2]
-
-    def test_spy_tracks_last_uuid(self, spy_uuid):
-        """Test that spy tracks the last UUID."""
-        assert spy_uuid.last_uuid is None
-
-        result1 = uuid.uuid4()
-        assert spy_uuid.last_uuid == result1
-
-        result2 = uuid.uuid4()
         assert spy_uuid.last_uuid == result2
-
-    def test_spy_reset(self, spy_uuid):
-        """Test that spy reset clears tracking data."""
-        uuid.uuid4()
-        uuid.uuid4()
-
-        spy_uuid.reset()
-
-        assert spy_uuid.call_count == 0
-        assert spy_uuid.generated_uuids == []
-        assert spy_uuid.last_uuid is None
-
-    def test_spy_generated_uuids_returns_copy(self, spy_uuid):
-        """Test that generated_uuids returns a copy (defensive)."""
-        uuid.uuid4()
-
-        result = spy_uuid.generated_uuids
-        result.clear()  # Modify the copy
-
-        # Original should be unchanged
-        assert len(spy_uuid.generated_uuids) == 1
+        # All spy calls should be marked as not mocked
+        assert all(not c.was_mocked for c in spy_uuid.calls)
 
 
 class TestMockUUIDSpyMode:
@@ -120,23 +86,14 @@ class TestMockUUIDSpyMode:
 
 
 class TestUUIDCallTracking:
-    """Tests for detailed call tracking with UUIDCall dataclass."""
+    """Integration tests for UUIDCall tracking.
 
-    def test_spy_uuid_calls_property(self, spy_uuid):
-        """Test that spy_uuid tracks calls with metadata."""
-        result1 = uuid.uuid4()
-        result2 = uuid.uuid4()
+    Note: The CallTrackingMixin is thoroughly tested in test_tracking.py.
+    These tests verify fixture-specific behavior and integration.
+    """
 
-        calls = spy_uuid.calls
-        assert len(calls) == 2
-
-        # All spy calls return real UUIDs (was_mocked=False)
-        assert all(not c.was_mocked for c in calls)
-        assert calls[0].uuid == result1
-        assert calls[1].uuid == result2
-
-    def test_spy_uuid_calls_have_caller_info(self, spy_uuid):
-        """Test that spy_uuid captures caller module and file."""
+    def test_calls_capture_caller_info(self, spy_uuid):
+        """Test that calls capture caller module and file via _get_caller_info."""
         uuid.uuid4()
 
         calls = spy_uuid.calls
@@ -149,58 +106,13 @@ class TestUUIDCallTracking:
         assert call.caller_file is not None
         assert call.caller_file.endswith(".py")
 
-    def test_spy_uuid_calls_from_filter(self, spy_uuid):
-        """Test filtering calls by module prefix."""
-        uuid.uuid4()
-
-        # Filter by this test module
-        matching = spy_uuid.calls_from("tests")
-        assert len(matching) == 1
-
-        # Filter by non-matching prefix
-        non_matching = spy_uuid.calls_from("nonexistent")
-        assert len(non_matching) == 0
-
-    def test_spy_uuid_calls_returns_copy(self, spy_uuid):
-        """Test that calls property returns a defensive copy."""
-        uuid.uuid4()
-
-        calls = spy_uuid.calls
-        calls.clear()
-
-        # Original should be unchanged
-        assert len(spy_uuid.calls) == 1
-
-    def test_spy_uuid_reset_clears_calls(self, spy_uuid):
-        """Test that reset clears the calls list."""
-        uuid.uuid4()
-        assert len(spy_uuid.calls) == 1
-
-        spy_uuid.reset()
-        assert len(spy_uuid.calls) == 0
-
-    def test_mock_uuid_calls_property(self, mock_uuid):
-        """Test that mock_uuid tracks calls with metadata."""
-        mock_uuid.set("12345678-1234-5678-1234-567812345678")
-        result = uuid.uuid4()
-
-        calls = mock_uuid.calls
-        assert len(calls) == 1
-
-        call = calls[0]
-        assert call.uuid == result
-        assert call.was_mocked is True
-
-    def test_mock_uuid_mocked_vs_real_calls(self, mock_uuid):
+    def test_mocked_vs_real_calls_separation(self, mock_uuid):
         """Test separation of mocked and real (spy mode) calls."""
         mock_uuid.set("12345678-1234-5678-1234-567812345678")
         mocked_result = uuid.uuid4()  # Mocked
 
         mock_uuid.spy()
         real_result = uuid.uuid4()  # Real
-
-        # Check all calls
-        assert mock_uuid.call_count == 2
 
         # Check mocked_calls
         mocked = mock_uuid.mocked_calls
@@ -213,47 +125,6 @@ class TestUUIDCallTracking:
         assert len(real) == 1
         assert real[0].uuid == real_result
         assert real[0].was_mocked is False
-
-    def test_mock_uuid_mocked_and_real_counts(self, mock_uuid):
-        """Test mocked_count and real_count properties."""
-        mock_uuid.set("12345678-1234-5678-1234-567812345678")
-        uuid.uuid4()  # Mocked
-        uuid.uuid4()  # Mocked
-
-        mock_uuid.spy()
-        uuid.uuid4()  # Real
-
-        assert mock_uuid.mocked_count == 2
-        assert mock_uuid.real_count == 1
-        assert mock_uuid.call_count == 3
-
-    def test_mock_uuid_calls_from_filter(self, mock_uuid):
-        """Test filtering calls by module prefix."""
-        mock_uuid.set("12345678-1234-5678-1234-567812345678")
-        uuid.uuid4()
-
-        # Filter by this test module
-        matching = mock_uuid.calls_from("tests")
-        assert len(matching) == 1
-        assert matching[0].was_mocked is True
-
-        # Filter by non-matching prefix
-        non_matching = mock_uuid.calls_from("nonexistent")
-        assert len(non_matching) == 0
-
-    def test_mock_uuid_reset_clears_calls(self, mock_uuid):
-        """Test that reset clears the calls list."""
-        mock_uuid.set("12345678-1234-5678-1234-567812345678")
-        uuid.uuid4()
-
-        assert len(mock_uuid.calls) == 1
-        assert mock_uuid.mocked_count == 1
-
-        mock_uuid.reset()
-
-        assert len(mock_uuid.calls) == 0
-        assert mock_uuid.mocked_count == 0
-        assert mock_uuid.real_count == 0
 
 
 class TestUUIDCallDataclass:
