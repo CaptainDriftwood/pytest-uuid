@@ -13,6 +13,14 @@ A pytest plugin for mocking `uuid.uuid4()` calls in your tests.
 
 ![Python](https://img.shields.io/badge/python-3.9%20|%203.10%20|%203.11%20|%203.12%20|%203.13%20|%203.14-blue.svg)
 
+- [Features](#features)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Usage](#usage)
+- [API Reference](#api-reference)
+- [Development](#development)
+- [License](#license)
+
 ## Features
 
 - Mock `uuid.uuid4()` with deterministic values in your tests
