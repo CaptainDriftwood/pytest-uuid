@@ -284,6 +284,73 @@ class TestGetCallerInfo:
         assert module is not None
         assert "test_tracking" in module
 
+    def test_deep_call_stack(self):
+        """Test _get_caller_info with deep call stack (10+ frames)."""
+
+        def create_nested_caller(depth: int):
+            """Create a chain of nested function calls."""
+            if depth <= 0:
+                # At the bottom, get caller info skipping all frames back to test
+                return _get_caller_info(skip_frames=depth + 2)
+
+            return create_nested_caller(depth - 1)
+
+        # Test with 15 nested frames
+        module, file = create_nested_caller(15)
+
+        # Should still get valid caller info
+        assert module is not None
+        assert file is not None
+        assert file.endswith(".py")
+
+    def test_skip_frames_beyond_stack(self):
+        """Test _get_caller_info when skip_frames exceeds stack depth."""
+        # Skip more frames than exist in the stack
+        module, file = _get_caller_info(skip_frames=1000)
+
+        # Should return None, None gracefully
+        assert module is None
+        assert file is None
+
+    def test_caller_info_from_lambda(self):
+        """Test _get_caller_info called from a lambda."""
+        get_info = lambda: _get_caller_info(skip_frames=1)  # noqa: E731
+        module, file = get_info()
+
+        assert module is not None
+        assert "test_tracking" in module
+        assert file is not None
+
+    def test_caller_info_from_nested_class(self):
+        """Test _get_caller_info from within a nested class method."""
+
+        class NestedClass:
+            def get_caller_info(self):
+                return _get_caller_info(skip_frames=1)
+
+        obj = NestedClass()
+        module, file = obj.get_caller_info()
+
+        assert module is not None
+        assert "test_tracking" in module
+        assert file is not None
+
+    def test_caller_info_from_builtin_callback(self):
+        """Test _get_caller_info when called via builtin (map/filter)."""
+        results = []
+
+        def capture_info(_x):
+            results.append(_get_caller_info(skip_frames=1))
+            return True
+
+        # Call through builtin filter
+        list(filter(capture_info, [1]))
+
+        assert len(results) == 1
+        module, file = results[0]
+        # The frame should still be accessible
+        assert file is not None
+
 
 class TestFindUuid4Imports:
     """Tests for _find_uuid4_imports helper function."""
@@ -306,3 +373,318 @@ class TestFindUuid4Imports:
 
         imports = _find_uuid4_imports(fake_uuid4)
         assert imports == []
+
+    def test_finds_dynamically_imported_module(self):
+        """Test that _find_uuid4_imports finds uuid4 in dynamically imported modules."""
+        import importlib
+        import sys
+
+        # Dynamically import the uuid module with a fresh reference
+        uuid_module = importlib.import_module("uuid")
+        original_uuid4 = uuid_module.uuid4
+
+        imports = _find_uuid4_imports(original_uuid4)
+
+        # Should find the uuid module
+        module_names = [m.__name__ for m, _ in imports if hasattr(m, "__name__")]
+        assert "uuid" in module_names
+
+    def test_handles_module_with_custom_uuid4_attribute(self):
+        """Test that modules with custom uuid4 attributes don't false-positive."""
+        import sys
+        import types
+
+        # Create a fake module with a custom uuid4 function
+        fake_module = types.ModuleType("fake_uuid_module")
+        fake_module.uuid4 = lambda: "not a real uuid4"
+        sys.modules["fake_uuid_module"] = fake_module
+
+        try:
+            # Looking for the real uuid4 should not find our fake module
+            original_uuid4 = uuid.uuid4
+            imports = _find_uuid4_imports(original_uuid4)
+
+            module_names = [m.__name__ for m, _ in imports if hasattr(m, "__name__")]
+            assert "fake_uuid_module" not in module_names
+        finally:
+            # Clean up
+            del sys.modules["fake_uuid_module"]
+
+    def test_finds_module_with_same_uuid4_reference(self):
+        """Test that modules sharing the same uuid4 reference are found."""
+        import sys
+        import types
+
+        # Create a module that has the real uuid4 as an attribute
+        test_module = types.ModuleType("test_uuid_reference")
+        test_module.uuid4 = uuid.uuid4  # Same reference as original
+        sys.modules["test_uuid_reference"] = test_module
+
+        try:
+            original_uuid4 = uuid.uuid4
+            imports = _find_uuid4_imports(original_uuid4)
+
+            module_names = [m.__name__ for m, _ in imports if hasattr(m, "__name__")]
+            assert "test_uuid_reference" in module_names
+        finally:
+            # Clean up
+            del sys.modules["test_uuid_reference"]
+
+    def test_handles_module_without_dict(self):
+        """Test that modules without __dict__ are handled gracefully."""
+        import sys
+
+        # Create a module-like object without proper __dict__
+        class FakeModule:
+            __name__ = "fake_no_dict"
+
+            @property
+            def __dict__(self):
+                raise AttributeError("No dict here")
+
+        fake = FakeModule()
+        sys.modules["fake_no_dict"] = fake  # type: ignore[assignment]
+
+        try:
+            # Should not raise, should handle gracefully
+            original_uuid4 = uuid.uuid4
+            imports = _find_uuid4_imports(original_uuid4)
+
+            # Result should be valid (not crash)
+            assert isinstance(imports, list)
+        finally:
+            del sys.modules["fake_no_dict"]
+
+    def test_handles_none_in_sys_modules(self):
+        """Test that None entries in sys.modules are handled."""
+        import sys
+
+        # sys.modules can contain None values for certain failed imports
+        original_value = sys.modules.get("__none_test__")
+        sys.modules["__none_test__"] = None  # type: ignore[assignment]
+
+        try:
+            original_uuid4 = uuid.uuid4
+            # Should not raise
+            imports = _find_uuid4_imports(original_uuid4)
+            assert isinstance(imports, list)
+        finally:
+            if original_value is None:
+                sys.modules.pop("__none_test__", None)
+            else:
+                sys.modules["__none_test__"] = original_value
+
+
+class TestThreadSafety:
+    """Tests for thread safety behavior of tracking utilities.
+
+    Note: These tests document current behavior (not thread-safe) rather than
+    guaranteeing thread safety. The CallTrackingMixin explicitly documents
+    that it is NOT thread-safe.
+    """
+
+    def test_concurrent_record_calls_high_thread_count(self):
+        """Test _record_call from many concurrent threads.
+
+        This test verifies that concurrent access doesn't crash, though
+        exact counts may vary due to race conditions (which is expected).
+        """
+        import threading
+
+        tracker = ConcreteTracker()
+        num_threads = 50
+        calls_per_thread = 100
+        errors = []
+
+        def record_calls():
+            try:
+                for i in range(calls_per_thread):
+                    test_uuid = uuid.UUID(f"{i:08x}-0000-0000-0000-{threading.current_thread().ident:012x}"[:36])
+                    tracker._record_call(
+                        test_uuid,
+                        was_mocked=True,
+                        caller_module="test_thread",
+                        caller_file="/test.py",
+                    )
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=record_calls) for _ in range(num_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # Should not have raised any exceptions
+        assert errors == [], f"Threads raised exceptions: {errors}"
+
+        # Due to race conditions, we may not have exactly the expected count,
+        # but we should have recorded some calls and not crashed
+        assert tracker.call_count > 0
+        assert len(tracker.generated_uuids) > 0
+        assert len(tracker.calls) > 0
+
+    def test_concurrent_read_during_writes(self):
+        """Test reading tracking data while concurrent writes are happening."""
+        import threading
+        import time
+
+        tracker = ConcreteTracker()
+        stop_flag = threading.Event()
+        errors = []
+        read_counts = []
+
+        def writer():
+            i = 0
+            while not stop_flag.is_set():
+                test_uuid = uuid.UUID(f"{i:08x}-0000-0000-0000-000000000000")
+                try:
+                    tracker._record_call(
+                        test_uuid,
+                        was_mocked=True,
+                        caller_module="writer",
+                        caller_file="/test.py",
+                    )
+                except Exception as e:
+                    errors.append(("writer", e))
+                i += 1
+                time.sleep(0.001)  # Small delay to allow reads
+
+        def reader():
+            while not stop_flag.is_set():
+                try:
+                    # These reads should not crash even during concurrent writes
+                    _ = tracker.call_count
+                    _ = tracker.generated_uuids
+                    _ = tracker.calls
+                    _ = tracker.last_uuid
+                    _ = tracker.mocked_calls
+                    _ = tracker.real_calls
+                    read_counts.append(1)
+                except Exception as e:
+                    errors.append(("reader", e))
+                time.sleep(0.001)
+
+        # Start writer and multiple readers
+        writer_thread = threading.Thread(target=writer)
+        reader_threads = [threading.Thread(target=reader) for _ in range(5)]
+
+        writer_thread.start()
+        for t in reader_threads:
+            t.start()
+
+        # Let them run for a short time
+        time.sleep(0.1)
+        stop_flag.set()
+
+        writer_thread.join()
+        for t in reader_threads:
+            t.join()
+
+        # Should not have crashed
+        assert errors == [], f"Threads raised exceptions: {errors}"
+        # Readers should have successfully read multiple times
+        assert len(read_counts) > 0
+
+    def test_reset_during_concurrent_writes(self):
+        """Test that reset can be called during concurrent writes without crashing."""
+        import threading
+        import time
+
+        tracker = ConcreteTracker()
+        stop_flag = threading.Event()
+        errors = []
+
+        def writer():
+            i = 0
+            while not stop_flag.is_set():
+                test_uuid = uuid.UUID(f"{i:08x}-0000-0000-0000-000000000000")
+                try:
+                    tracker._record_call(
+                        test_uuid,
+                        was_mocked=True,
+                        caller_module="writer",
+                        caller_file="/test.py",
+                    )
+                except Exception as e:
+                    errors.append(("writer", e))
+                i += 1
+
+        def resetter():
+            while not stop_flag.is_set():
+                try:
+                    tracker._reset_tracking()
+                except Exception as e:
+                    errors.append(("resetter", e))
+                time.sleep(0.01)
+
+        writer_threads = [threading.Thread(target=writer) for _ in range(10)]
+        resetter_thread = threading.Thread(target=resetter)
+
+        for t in writer_threads:
+            t.start()
+        resetter_thread.start()
+
+        time.sleep(0.1)
+        stop_flag.set()
+
+        for t in writer_threads:
+            t.join()
+        resetter_thread.join()
+
+        # The main goal is to not crash
+        assert errors == [], f"Threads raised exceptions: {errors}"
+
+    def test_calls_from_filter_during_writes(self):
+        """Test calls_from filtering during concurrent writes."""
+        import threading
+        import time
+
+        tracker = ConcreteTracker()
+        stop_flag = threading.Event()
+        errors = []
+        filter_results = []
+
+        def writer():
+            i = 0
+            modules = ["myapp.models", "myapp.views", "other.module"]
+            while not stop_flag.is_set():
+                test_uuid = uuid.UUID(f"{i:08x}-0000-0000-0000-000000000000")
+                try:
+                    tracker._record_call(
+                        test_uuid,
+                        was_mocked=True,
+                        caller_module=modules[i % len(modules)],
+                        caller_file="/test.py",
+                    )
+                except Exception as e:
+                    errors.append(("writer", e))
+                i += 1
+
+        def filterer():
+            while not stop_flag.is_set():
+                try:
+                    result = tracker.calls_from("myapp")
+                    filter_results.append(len(result))
+                except Exception as e:
+                    errors.append(("filterer", e))
+                time.sleep(0.001)
+
+        writer_thread = threading.Thread(target=writer)
+        filterer_threads = [threading.Thread(target=filterer) for _ in range(3)]
+
+        writer_thread.start()
+        for t in filterer_threads:
+            t.start()
+
+        time.sleep(0.1)
+        stop_flag.set()
+
+        writer_thread.join()
+        for t in filterer_threads:
+            t.join()
+
+        # Should not crash
+        assert errors == [], f"Threads raised exceptions: {errors}"
+        # Filter should have returned results (even if inconsistent due to races)
+        assert len(filter_results) > 0
