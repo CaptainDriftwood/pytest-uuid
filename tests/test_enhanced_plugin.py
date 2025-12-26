@@ -1,4 +1,8 @@
-"""Tests for enhanced plugin features."""
+"""Tests for enhanced plugin features.
+
+These are unit-style tests for the mock_uuid/uuid_freezer fixture methods.
+Integration tests for markers and isolation are in test_pytester_integration.py.
+"""
 
 from __future__ import annotations
 
@@ -95,112 +99,3 @@ class TestUUIDFreezerFixture:
         uuid_freezer.set_seed(42)
         result = uuid.uuid4()
         assert isinstance(result, uuid.UUID)
-
-
-class TestFreezeUUIDMarker:
-    """Tests for @pytest.mark.freeze_uuid marker."""
-
-    @pytest.mark.freeze_uuid("12345678-1234-5678-1234-567812345678")
-    def test_marker_with_static_uuid(self):
-        """Test marker with static UUID."""
-        assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
-
-    @pytest.mark.freeze_uuid(
-        ["11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"]
-    )
-    def test_marker_with_sequence(self):
-        """Test marker with UUID sequence."""
-        assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
-        assert str(uuid.uuid4()) == "22222222-2222-2222-2222-222222222222"
-
-    @pytest.mark.freeze_uuid(seed=42)
-    def test_marker_with_seed(self):
-        """Test marker with seed."""
-        result = uuid.uuid4()
-        assert isinstance(result, uuid.UUID)
-        assert result.version == 4
-
-    @pytest.mark.freeze_uuid(seed="node")
-    def test_marker_with_node_seed(self):
-        """Test marker with node seed."""
-        result1 = uuid.uuid4()
-
-        # Reset and get another - should be different since we're advancing
-        # But if we use the same node ID, we'd get the same sequence
-        result2 = uuid.uuid4()
-
-        # Both are valid UUIDs from the seeded sequence
-        assert isinstance(result1, uuid.UUID)
-        assert isinstance(result2, uuid.UUID)
-        assert result1 != result2  # Sequential calls differ
-
-    @pytest.mark.freeze_uuid(
-        ["11111111-1111-1111-1111-111111111111"],
-        on_exhausted="raise",
-    )
-    def test_marker_with_on_exhausted(self):
-        """Test marker with on_exhausted behavior."""
-        uuid.uuid4()  # First call works
-
-        with pytest.raises(UUIDsExhaustedError):
-            uuid.uuid4()
-
-
-class TestMarkerReproducibility:
-    """Tests for marker reproducibility across runs."""
-
-    @pytest.mark.freeze_uuid(seed=12345)
-    def test_seeded_first_run(self):
-        """First run with specific seed - should be reproducible."""
-        result = uuid.uuid4()
-        # This specific seed should always produce the same UUID
-        assert isinstance(result, uuid.UUID)
-        assert result.version == 4
-
-    @pytest.mark.freeze_uuid(seed=12345)
-    def test_seeded_second_run(self):
-        """Second test with same seed - should match first test."""
-        result = uuid.uuid4()
-        # Fresh seed means same first UUID
-        assert isinstance(result, uuid.UUID)
-        assert result.version == 4
-
-
-class TestMarkerWithFixture:
-    """Tests for combining marker with fixture."""
-
-    @pytest.mark.freeze_uuid("12345678-1234-5678-1234-567812345678")
-    def test_marker_takes_precedence(self, mock_uuid):  # noqa: ARG002
-        """Test that marker freezes before fixture can be used."""
-        # The marker has already frozen uuid.uuid4
-        result = uuid.uuid4()
-        assert str(result) == "12345678-1234-5678-1234-567812345678"
-
-        # The mock_uuid fixture is separate and won't affect the marker's freeze
-        # This is expected behavior - markers and fixtures are independent
-
-
-class TestIsolation:
-    """Tests for test isolation."""
-
-    def test_first_test_sets_uuid(self, mock_uuid):
-        """First test sets a UUID."""
-        mock_uuid.set("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
-        assert str(uuid.uuid4()) == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-
-    def test_second_test_is_isolated(self, mock_uuid):  # noqa: ARG002
-        """Second test should not be affected by first."""
-        # Without setting anything, we get random UUIDs
-        result = uuid.uuid4()
-        assert str(result) != "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-        assert isinstance(result, uuid.UUID)
-
-    @pytest.mark.freeze_uuid("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
-    def test_marker_is_isolated(self):
-        """Test with marker should not affect other tests."""
-        assert str(uuid.uuid4()) == "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
-
-    def test_after_marker_is_clean(self, mock_uuid):  # noqa: ARG002
-        """Test after marker should have clean state."""
-        result = uuid.uuid4()
-        assert str(result) != "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"

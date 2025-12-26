@@ -631,3 +631,485 @@ class TestEdgeCases:
 
         result = pytester.runpytest("-v")
         result.assert_outcomes(passed=1)
+
+
+class TestMarkerVariants:
+    """Tests for @pytest.mark.freeze_uuid marker variants."""
+
+    def test_marker_with_static_uuid(self, pytester):
+        """Test marker with a static UUID string."""
+        pytester.makepyfile(
+            test_static="""
+            import uuid
+            import pytest
+
+            @pytest.mark.freeze_uuid("12345678-1234-5678-1234-567812345678")
+            def test_static_uuid():
+                assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+                assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_marker_with_sequence(self, pytester):
+        """Test marker with a UUID sequence."""
+        pytester.makepyfile(
+            test_sequence="""
+            import uuid
+            import pytest
+
+            @pytest.mark.freeze_uuid(
+                [
+                    "11111111-1111-1111-1111-111111111111",
+                    "22222222-2222-2222-2222-222222222222",
+                ],
+                on_exhausted="cycle",
+            )
+            def test_sequence():
+                assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
+                assert str(uuid.uuid4()) == "22222222-2222-2222-2222-222222222222"
+                # Cycles back
+                assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_marker_with_integer_seed(self, pytester):
+        """Test marker with integer seed for reproducible UUIDs."""
+        pytester.makepyfile(
+            test_seed="""
+            import uuid
+            import pytest
+
+            @pytest.mark.freeze_uuid(seed=42)
+            def test_seeded():
+                result = uuid.uuid4()
+                assert isinstance(result, uuid.UUID)
+                assert result.version == 4
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_marker_with_on_exhausted_raise(self, pytester):
+        """Test marker with on_exhausted='raise'."""
+        pytester.makepyfile(
+            test_exhaust="""
+            import uuid
+            import pytest
+            from pytest_uuid.generators import UUIDsExhaustedError
+
+            @pytest.mark.freeze_uuid(
+                ["11111111-1111-1111-1111-111111111111"],
+                on_exhausted="raise",
+            )
+            def test_raises_on_exhausted():
+                uuid.uuid4()  # First call OK
+                with pytest.raises(UUIDsExhaustedError):
+                    uuid.uuid4()  # Should raise
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_marker_on_class(self, pytester):
+        """Test marker applied to a test class."""
+        pytester.makepyfile(
+            test_class_marker="""
+            import uuid
+            import pytest
+
+            @pytest.mark.freeze_uuid("12345678-1234-5678-1234-567812345678")
+            class TestWithMarker:
+                def test_one(self):
+                    assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+
+                def test_two(self):
+                    assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=2)
+
+    def test_marker_seed_reproducibility(self, pytester):
+        """Test that same seed produces same UUIDs across different tests."""
+        pytester.makepyfile(
+            test_repro="""
+            import uuid
+            import pytest
+
+            # Store the UUID from first test to compare
+            first_uuid = None
+
+            @pytest.mark.freeze_uuid(seed=12345)
+            def test_first():
+                global first_uuid
+                first_uuid = uuid.uuid4()
+                assert first_uuid.version == 4
+
+            @pytest.mark.freeze_uuid(seed=12345)
+            def test_second():
+                # Same seed should produce same first UUID
+                result = uuid.uuid4()
+                assert result == first_uuid
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=2)
+
+
+class TestTestIsolation:
+    """Tests for test isolation - ensuring tests don't affect each other."""
+
+    def test_fixture_isolation_between_tests(self, pytester):
+        """Test that mock_uuid fixture is isolated between tests."""
+        pytester.makepyfile(
+            test_isolation="""
+            import uuid
+
+            def test_first(mock_uuid):
+                mock_uuid.set("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+                assert str(uuid.uuid4()) == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+
+            def test_second(mock_uuid):
+                # Should NOT be affected by first test
+                # Without setting anything, we get random UUIDs
+                result = uuid.uuid4()
+                assert str(result) != "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+                assert isinstance(result, uuid.UUID)
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=2)
+
+    def test_marker_isolation_between_tests(self, pytester):
+        """Test that marker freezing is isolated between tests."""
+        pytester.makepyfile(
+            test_marker_isolation="""
+            import uuid
+            import pytest
+
+            @pytest.mark.freeze_uuid("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+            def test_with_marker():
+                assert str(uuid.uuid4()) == "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+
+            def test_after_marker(mock_uuid):
+                # Should have clean state - not affected by previous marker
+                result = uuid.uuid4()
+                assert str(result) != "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=2)
+
+    def test_decorator_isolation_between_tests(self, pytester):
+        """Test that @freeze_uuid decorator is isolated between tests."""
+        pytester.makepyfile(
+            test_decorator_isolation="""
+            import uuid
+            from pytest_uuid import freeze_uuid
+
+            @freeze_uuid("cccccccc-cccc-cccc-cccc-cccccccccccc")
+            def test_with_decorator():
+                assert str(uuid.uuid4()) == "cccccccc-cccc-cccc-cccc-cccccccccccc"
+
+            def test_after_decorator():
+                # Should have clean state
+                result = uuid.uuid4()
+                assert str(result) != "cccccccc-cccc-cccc-cccc-cccccccccccc"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=2)
+
+
+class TestScopedMocking:
+    """Tests for module-level, class-level, and session-level mocking."""
+
+    def test_module_level_pytestmark(self, pytester):
+        """Test module-level pytestmark applies to all tests in module."""
+        pytester.makepyfile(
+            test_module_mark="""
+            import uuid
+            import pytest
+
+            pytestmark = pytest.mark.freeze_uuid("12345678-1234-5678-1234-567812345678")
+
+            def test_one():
+                assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+
+            def test_two():
+                assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+
+            class TestNested:
+                def test_three(self):
+                    assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=3)
+
+    def test_module_level_pytestmark_with_seed(self, pytester):
+        """Test module-level pytestmark with seeded UUIDs."""
+        pytester.makepyfile(
+            test_module_seed="""
+            import uuid
+            import pytest
+
+            pytestmark = pytest.mark.freeze_uuid(seed=42)
+
+            def test_seeded_one():
+                result = uuid.uuid4()
+                assert result.version == 4
+
+            def test_seeded_two():
+                result = uuid.uuid4()
+                assert result.version == 4
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=2)
+
+    def test_class_decorator_freeze_uuid(self, pytester):
+        """Test @freeze_uuid decorator on a test class."""
+        pytester.makepyfile(
+            test_class_decorator="""
+            import uuid
+            from pytest_uuid import freeze_uuid
+
+            @freeze_uuid("12345678-1234-5678-1234-567812345678")
+            class TestWithDecorator:
+                def test_one(self):
+                    assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+
+                def test_two(self):
+                    assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+
+                def helper_method(self):
+                    # Non-test methods are NOT wrapped
+                    return uuid.uuid4()
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=2)
+
+    def test_class_decorator_with_seed(self, pytester):
+        """Test @freeze_uuid(seed=...) decorator on a test class."""
+        pytester.makepyfile(
+            test_class_seeded="""
+            import uuid
+            from pytest_uuid import freeze_uuid
+
+            @freeze_uuid(seed=42)
+            class TestSeededClass:
+                def test_one(self):
+                    result = uuid.uuid4()
+                    assert result.version == 4
+
+                def test_two(self):
+                    # Each method gets fresh seeded generator
+                    result = uuid.uuid4()
+                    assert result.version == 4
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=2)
+
+    def test_class_decorator_method_isolation(self, pytester):
+        """Test that each method in decorated class gets fresh context."""
+        pytester.makepyfile(
+            test_class_isolation="""
+            import uuid
+            from pytest_uuid import freeze_uuid
+
+            @freeze_uuid([
+                "11111111-1111-1111-1111-111111111111",
+                "22222222-2222-2222-2222-222222222222",
+            ])
+            class TestMethodIsolation:
+                def test_one(self):
+                    # First method starts at beginning of sequence
+                    assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
+                    assert str(uuid.uuid4()) == "22222222-2222-2222-2222-222222222222"
+
+                def test_two(self):
+                    # Second method ALSO starts at beginning (fresh context)
+                    assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
+                    assert str(uuid.uuid4()) == "22222222-2222-2222-2222-222222222222"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=2)
+
+    def test_session_scoped_fixture(self, pytester):
+        """Test session-scoped autouse fixture freezes across files."""
+        pytester.makeconftest(
+            """
+            import pytest
+            from pytest_uuid import freeze_uuid
+
+            @pytest.fixture(scope="session", autouse=True)
+            def freeze_all_uuids():
+                with freeze_uuid("12345678-1234-5678-1234-567812345678"):
+                    yield
+            """
+        )
+
+        pytester.makepyfile(
+            test_file_a="""
+            import uuid
+
+            def test_in_file_a():
+                assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+            """
+        )
+
+        pytester.makepyfile(
+            test_file_b="""
+            import uuid
+
+            def test_in_file_b():
+                assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=2)
+
+    def test_session_scoped_seeded_fixture(self, pytester):
+        """Test session-scoped seeded fixture maintains sequence across tests."""
+        pytester.makeconftest(
+            """
+            import pytest
+            from pytest_uuid import freeze_uuid
+
+            @pytest.fixture(scope="session", autouse=True)
+            def freeze_seeded():
+                with freeze_uuid(seed=42):
+                    yield
+            """
+        )
+
+        pytester.makepyfile(
+            test_session_seed="""
+            import uuid
+
+            generated = []
+
+            def test_first():
+                generated.append(uuid.uuid4())
+
+            def test_second():
+                generated.append(uuid.uuid4())
+
+            def test_verify():
+                # Session scope means sequence continues (not reset per test)
+                # So second UUID should be different from first
+                assert generated[0] != generated[1]
+                assert generated[0].version == 4
+                assert generated[1].version == 4
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=3)
+
+    def test_module_scoped_fixture(self, pytester):
+        """Test module-scoped fixture resets between modules."""
+        pytester.makeconftest(
+            """
+            import pytest
+            from pytest_uuid import freeze_uuid
+
+            @pytest.fixture(scope="module", autouse=True)
+            def freeze_per_module():
+                with freeze_uuid(seed=42):
+                    yield
+            """
+        )
+
+        pytester.makepyfile(
+            test_mod_a="""
+            import uuid
+
+            first_uuid = None
+
+            def test_get_first():
+                global first_uuid
+                first_uuid = uuid.uuid4()
+
+            def test_check_continues():
+                # Within same module, sequence continues
+                second = uuid.uuid4()
+                assert second != first_uuid
+            """
+        )
+
+        pytester.makepyfile(
+            test_mod_b="""
+            import uuid
+            import test_mod_a
+
+            def test_module_reset():
+                # New module = fresh fixture = sequence restarts
+                result = uuid.uuid4()
+                # Should equal first UUID from test_mod_a (same seed, reset sequence)
+                assert result == test_mod_a.first_uuid
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=3)
+
+
+class TestPluginDiscovery:
+    """Tests for plugin auto-discovery and registration."""
+
+    def test_plugin_auto_registered(self, pytester):
+        """Test that pytest-uuid plugin is auto-discovered."""
+        pytester.makepyfile(
+            test_discovery="""
+            def test_fixtures_available(mock_uuid, spy_uuid, uuid_freezer, mock_uuid_factory):
+                # All fixtures should be available without explicit configuration
+                assert mock_uuid is not None
+                assert spy_uuid is not None
+                assert uuid_freezer is not None
+                assert mock_uuid_factory is not None
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_marker_no_warning(self, pytester):
+        """Test that freeze_uuid marker doesn't produce unknown marker warning."""
+        pytester.makepyfile(
+            test_no_warning="""
+            import pytest
+
+            @pytest.mark.freeze_uuid("12345678-1234-5678-1234-567812345678")
+            def test_marker():
+                pass
+            """
+        )
+
+        result = pytester.runpytest("-v", "--strict-markers")
+        result.assert_outcomes(passed=1)
+        # Should not contain "Unknown pytest.mark.freeze_uuid"
+        assert "Unknown" not in result.stdout.str()

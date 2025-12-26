@@ -264,6 +264,80 @@ def test_custom_rng():
     result = uuid.uuid4()
 ```
 
+### Scoped Mocking
+
+#### Module-Level
+
+Apply to all tests in a module using pytest's `pytestmark`:
+
+```python
+# tests/test_user_creation.py
+import uuid
+import pytest
+
+pytestmark = pytest.mark.freeze_uuid("12345678-1234-5678-1234-567812345678")
+
+
+def test_create_user():
+    assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+
+
+def test_create_another_user():
+    assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+```
+
+#### Class-Level
+
+Apply the decorator to a test class to freeze UUIDs for all test methods:
+
+```python
+import uuid
+from pytest_uuid import freeze_uuid
+
+
+@freeze_uuid("12345678-1234-5678-1234-567812345678")
+class TestUserService:
+    def test_create(self):
+        assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+
+    def test_update(self):
+        assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+```
+
+Or use the marker:
+
+```python
+import uuid
+import pytest
+
+
+@pytest.mark.freeze_uuid(seed=42)
+class TestSeededService:
+    def test_one(self):
+        result = uuid.uuid4()
+        assert result.version == 4
+
+    def test_two(self):
+        result = uuid.uuid4()
+        assert result.version == 4
+```
+
+#### Session-Level
+
+For session-wide mocking, use a session-scoped autouse fixture in `conftest.py`:
+
+```python
+# conftest.py
+import pytest
+from pytest_uuid import freeze_uuid
+
+
+@pytest.fixture(scope="session", autouse=True)
+def freeze_uuids_globally():
+    with freeze_uuid(seed=12345):
+        yield
+```
+
 ## API Reference
 
 ### Fixtures

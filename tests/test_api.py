@@ -141,6 +141,96 @@ class TestFreezeUUIDDecorator:
         assert my_function.__name__ == "my_function"
         assert my_function.__doc__ == "My docstring."
 
+    def test_class_decorator_static_uuid(self):
+        """Test decorator on a class with static UUID."""
+
+        @freeze_uuid("12345678-1234-5678-1234-567812345678")
+        class MyTestClass:
+            def test_one(self):
+                return uuid.uuid4()
+
+            def test_two(self):
+                return uuid.uuid4()
+
+        instance = MyTestClass()
+        assert str(instance.test_one()) == "12345678-1234-5678-1234-567812345678"
+        assert str(instance.test_two()) == "12345678-1234-5678-1234-567812345678"
+
+    def test_class_decorator_seeded(self):
+        """Test decorator on a class with seeded generation."""
+
+        @freeze_uuid(seed=42)
+        class MyTestClass:
+            def test_one(self):
+                return uuid.uuid4()
+
+            def test_two(self):
+                return uuid.uuid4()
+
+        instance = MyTestClass()
+        # Each method gets a fresh seeded generator, so same seed = same first UUID
+        result1 = instance.test_one()
+        result2 = instance.test_two()
+        assert result1 == result2  # Both start from same seed
+
+    def test_class_decorator_method_isolation(self):
+        """Test that each method call gets a fresh freeze context."""
+
+        @freeze_uuid(
+            [
+                "11111111-1111-1111-1111-111111111111",
+                "22222222-2222-2222-2222-222222222222",
+            ]
+        )
+        class MyTestClass:
+            def test_method(self):
+                first = uuid.uuid4()
+                second = uuid.uuid4()
+                return first, second
+
+        instance = MyTestClass()
+        first1, second1 = instance.test_method()
+        first2, second2 = instance.test_method()
+
+        # Each call starts fresh
+        assert str(first1) == "11111111-1111-1111-1111-111111111111"
+        assert str(second1) == "22222222-2222-2222-2222-222222222222"
+        assert str(first2) == "11111111-1111-1111-1111-111111111111"
+        assert str(second2) == "22222222-2222-2222-2222-222222222222"
+
+    def test_class_decorator_only_wraps_test_methods(self):
+        """Test that only methods starting with 'test' are wrapped."""
+
+        @freeze_uuid("12345678-1234-5678-1234-567812345678")
+        class MyTestClass:
+            def test_method(self):
+                return uuid.uuid4()
+
+            def helper_method(self):
+                return uuid.uuid4()
+
+        instance = MyTestClass()
+
+        # test_method is wrapped
+        assert str(instance.test_method()) == "12345678-1234-5678-1234-567812345678"
+
+        # helper_method is NOT wrapped - returns real random UUID
+        helper_result = instance.helper_method()
+        assert str(helper_result) != "12345678-1234-5678-1234-567812345678"
+
+    def test_class_decorator_preserves_class_identity(self):
+        """Test that the decorated class is still the same class."""
+
+        @freeze_uuid("12345678-1234-5678-1234-567812345678")
+        class MyTestClass:
+            class_attr = "value"
+
+            def test_method(self):
+                return uuid.uuid4()
+
+        assert MyTestClass.class_attr == "value"
+        assert MyTestClass.__name__ == "MyTestClass"
+
 
 class TestUUIDFreezer:
     """Tests for the UUIDFreezer class directly."""

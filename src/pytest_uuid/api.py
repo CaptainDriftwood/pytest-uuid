@@ -230,13 +230,58 @@ class UUIDFreezer:
         self._generator = None
         self._original_uuid4 = None
 
-    def __call__(self, func: Callable[..., object]) -> Callable[..., object]:
-        """Use as a decorator."""
+    def __call__(
+        self, func_or_class: Callable[..., object] | type
+    ) -> Callable[..., object] | type:
+        """Use as a decorator on functions or classes.
 
-        @functools.wraps(func)
+        When applied to a class, all test methods (methods starting with 'test')
+        are wrapped to run within the frozen UUID context.
+        """
+        if isinstance(func_or_class, type):
+            # Decorating a class - wrap all test methods
+            return self._wrap_class(func_or_class)
+
+        # Decorating a function
+        @functools.wraps(func_or_class)
         def wrapper(*args: object, **kwargs: object) -> object:
             with self:
-                return func(*args, **kwargs)
+                return func_or_class(*args, **kwargs)
+
+        return wrapper
+
+    def _wrap_class(self, klass: type) -> type:
+        """Wrap all test methods in a class with the freeze context."""
+        for attr_name in dir(klass):
+            if attr_name.startswith("test"):
+                attr = getattr(klass, attr_name)
+                if callable(attr) and not isinstance(attr, type):
+                    # Create a new freezer for each method to ensure isolation
+                    wrapped = self._wrap_method(attr)
+                    setattr(klass, attr_name, wrapped)
+        return klass
+
+    def _wrap_method(self, method: Callable[..., object]) -> Callable[..., object]:
+        """Wrap a single method with a fresh freeze context."""
+        # Capture the freezer config to create fresh instances per call
+        uuids = self._uuids
+        seed = self._seed
+        on_exhausted = self._on_exhausted
+        ignore_extra = self._ignore_extra
+        node_id = self._node_id
+
+        @functools.wraps(method)
+        def wrapper(*args: object, **kwargs: object) -> object:
+            # Create a fresh freezer for each method call
+            freezer = UUIDFreezer(
+                uuids=uuids,
+                seed=seed,
+                on_exhausted=on_exhausted,
+                ignore=ignore_extra if ignore_extra else None,
+                node_id=node_id,
+            )
+            with freezer:
+                return method(*args, **kwargs)
 
         return wrapper
 
