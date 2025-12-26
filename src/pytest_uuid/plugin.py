@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import random
 import sys
 import uuid
@@ -16,6 +15,7 @@ from pytest_uuid._tracking import (
     CallTrackingMixin,
     _find_uuid4_imports,
     _get_caller_info,
+    _get_node_seed,
 )
 from pytest_uuid.api import UUIDFreezer
 from pytest_uuid.config import get_config, load_config_from_pyproject
@@ -33,11 +33,6 @@ from pytest_uuid.types import UUIDCall
 if TYPE_CHECKING:
     from collections.abc import Callable
     from contextlib import AbstractContextManager
-
-
-def _get_node_seed(node_id: str) -> int:
-    """Generate a deterministic seed from a test node ID."""
-    return int(hashlib.md5(node_id.encode()).hexdigest()[:8], 16)  # noqa: S324
 
 
 class UUIDMocker(CallTrackingMixin):

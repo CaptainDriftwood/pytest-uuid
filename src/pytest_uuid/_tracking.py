@@ -6,11 +6,24 @@ across UUIDMocker, UUIDSpy, and UUIDFreezer classes.
 
 from __future__ import annotations
 
+import hashlib
 import inspect
 import sys
 import uuid
 
 from pytest_uuid.types import UUIDCall
+
+
+def _get_node_seed(node_id: str) -> int:
+    """Generate a deterministic seed from a test node ID.
+
+    Args:
+        node_id: The pytest node ID (e.g., "tests/test_foo.py::TestClass::test_method")
+
+    Returns:
+        A deterministic integer seed derived from the node ID.
+    """
+    return int(hashlib.md5(node_id.encode()).hexdigest()[:8], 16)  # noqa: S324
 
 
 def _get_caller_info(skip_frames: int = 2) -> tuple[str | None, str | None]:

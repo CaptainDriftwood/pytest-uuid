@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import functools
-import hashlib
 import inspect
 import random
 import uuid
@@ -13,6 +12,7 @@ from pytest_uuid._tracking import (
     CallTrackingMixin,
     _find_uuid4_imports,
     _get_caller_info,
+    _get_node_seed,
 )
 from pytest_uuid.config import get_config
 from pytest_uuid.generators import (
@@ -29,18 +29,6 @@ from pytest_uuid.types import UUIDCall
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
-
-
-def _get_node_seed(node_id: str) -> int:
-    """Generate a deterministic seed from a test node ID.
-
-    Args:
-        node_id: The pytest node ID (e.g., "tests/test_foo.py::TestClass::test_method")
-
-    Returns:
-        A deterministic integer seed derived from the node ID.
-    """
-    return int(hashlib.md5(node_id.encode()).hexdigest()[:8], 16)  # noqa: S324
 
 
 def _should_ignore_frame(frame: object, ignore_list: tuple[str, ...]) -> bool:
