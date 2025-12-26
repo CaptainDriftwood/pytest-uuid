@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from pytest_uuid.config import (
     PytestUUIDConfig,
+    _load_pyproject_config,
     configure,
     get_config,
+    load_config_from_pyproject,
     reset_config,
 )
 from pytest_uuid.generators import ExhaustionBehavior
@@ -137,3 +141,115 @@ class TestGetConfig:
         config2 = get_config()
 
         assert config1 is config2
+
+
+class TestPyprojectConfig:
+    """Tests for pyproject.toml configuration loading."""
+
+    def test_load_nonexistent_file(self, tmp_path: Path):
+        """Test loading from directory without pyproject.toml."""
+        result = _load_pyproject_config(tmp_path)
+        assert result == {}
+
+    def test_load_empty_pyproject(self, tmp_path: Path):
+        """Test loading from empty pyproject.toml."""
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text("")
+
+        result = _load_pyproject_config(tmp_path)
+        assert result == {}
+
+    def test_load_pyproject_without_tool_section(self, tmp_path: Path):
+        """Test loading from pyproject.toml without [tool] section."""
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text('[project]\nname = "test"\n')
+
+        result = _load_pyproject_config(tmp_path)
+        assert result == {}
+
+    def test_load_pyproject_without_pytest_uuid_section(self, tmp_path: Path):
+        """Test loading from pyproject.toml without [tool.pytest_uuid]."""
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text('[tool.other]\nkey = "value"\n')
+
+        result = _load_pyproject_config(tmp_path)
+        assert result == {}
+
+    def test_load_pyproject_with_config(self, tmp_path: Path):
+        """Test loading full configuration."""
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text(
+            """
+[tool.pytest_uuid]
+default_ignore_list = ["sqlalchemy", "celery"]
+extend_ignore_list = ["myapp.internal"]
+default_exhaustion_behavior = "raise"
+"""
+        )
+
+        result = _load_pyproject_config(tmp_path)
+
+        assert result["default_ignore_list"] == ["sqlalchemy", "celery"]
+        assert result["extend_ignore_list"] == ["myapp.internal"]
+        assert result["default_exhaustion_behavior"] == "raise"
+
+    def test_load_pyproject_applies_config(self, tmp_path: Path):
+        """Test that load_config_from_pyproject applies settings."""
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text(
+            """
+[tool.pytest_uuid]
+default_ignore_list = ["pkg1"]
+default_exhaustion_behavior = "random"
+"""
+        )
+
+        load_config_from_pyproject(tmp_path)
+        config = get_config()
+
+        assert config.default_ignore_list == ["pkg1"]
+        assert config.default_exhaustion_behavior == ExhaustionBehavior.RANDOM
+
+    def test_invalid_toml_silently_ignored(self, tmp_path: Path):
+        """Test that invalid TOML doesn't crash."""
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text("invalid [ toml content")
+
+        # Should not raise
+        result = _load_pyproject_config(tmp_path)
+        assert result == {}
+
+    def test_programmatic_config_overrides_file(self, tmp_path: Path):
+        """Test that programmatic configure() overrides file config."""
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text(
+            """
+[tool.pytest_uuid]
+default_ignore_list = ["from_file"]
+"""
+        )
+
+        load_config_from_pyproject(tmp_path)
+        configure(default_ignore_list=["programmatic"])
+
+        config = get_config()
+        assert config.default_ignore_list == ["programmatic"]
+
+    def test_load_pyproject_partial_config(self, tmp_path: Path):
+        """Test loading partial configuration."""
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text(
+            """
+[tool.pytest_uuid]
+extend_ignore_list = ["only_extend"]
+"""
+        )
+
+        load_config_from_pyproject(tmp_path)
+        config = get_config()
+
+        # Only extend_ignore_list should be set
+        assert config.extend_ignore_list == ["only_extend"]
+        # Others should remain defaults
+        assert config.default_ignore_list == []
+        assert config.default_exhaustion_behavior == ExhaustionBehavior.CYCLE

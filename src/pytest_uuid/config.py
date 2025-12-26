@@ -2,9 +2,18 @@
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
 
 from pytest_uuid.generators import ExhaustionBehavior
+
+# TOML parsing - use stdlib on 3.11+, fallback to tomli
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib
 
 
 @dataclass
@@ -88,3 +97,62 @@ def reset_config() -> None:
     """Reset configuration to defaults. Primarily for testing."""
     global _config
     _config = PytestUUIDConfig()
+
+
+def _load_pyproject_config(rootdir: Path | None = None) -> dict[str, Any]:
+    """Load pytest-uuid config from pyproject.toml.
+
+    Args:
+        rootdir: Directory to search for pyproject.toml.
+                 If None, uses current working directory.
+
+    Returns:
+        Configuration dict from [tool.pytest_uuid] section,
+        or empty dict if not found.
+    """
+    if rootdir is None:
+        rootdir = Path.cwd()
+
+    pyproject_path = rootdir / "pyproject.toml"
+    if not pyproject_path.exists():
+        return {}
+
+    try:
+        with open(pyproject_path, "rb") as f:
+            data = tomllib.load(f)
+        return data.get("tool", {}).get("pytest_uuid", {})
+    except Exception:  # noqa: BLE001
+        # Silently ignore parse errors - don't break pytest
+        return {}
+
+
+def load_config_from_pyproject(rootdir: Path | None = None) -> None:
+    """Load configuration from pyproject.toml and apply it.
+
+    This function reads the [tool.pytest_uuid] section from pyproject.toml
+    and applies the settings to the global configuration.
+
+    Supported keys:
+        - default_ignore_list: List of module prefixes to ignore
+        - extend_ignore_list: Additional modules to ignore
+        - default_exhaustion_behavior: "cycle", "random", or "raise"
+
+    Args:
+        rootdir: Directory containing pyproject.toml.
+
+    Example pyproject.toml:
+        [tool.pytest_uuid]
+        default_ignore_list = ["sqlalchemy", "celery"]
+        extend_ignore_list = ["myapp.internal"]
+        default_exhaustion_behavior = "raise"
+    """
+    config_data = _load_pyproject_config(rootdir)
+    if not config_data:
+        return
+
+    # Apply configuration (only if keys are present)
+    configure(
+        default_ignore_list=config_data.get("default_ignore_list"),
+        extend_ignore_list=config_data.get("extend_ignore_list"),
+        default_exhaustion_behavior=config_data.get("default_exhaustion_behavior"),
+    )

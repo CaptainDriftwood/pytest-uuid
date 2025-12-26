@@ -80,3 +80,64 @@ class UUIDMockerProtocol(Protocol):
     def generator(self) -> UUIDGenerator | None:
         """Get the current UUID generator, if any."""
         ...
+
+    @property
+    def call_count(self) -> int:
+        """Get the number of times uuid4 was called."""
+        ...
+
+    @property
+    def generated_uuids(self) -> list[uuid.UUID]:
+        """Get a list of all UUIDs that have been generated."""
+        ...
+
+    @property
+    def last_uuid(self) -> uuid.UUID | None:
+        """Get the most recently generated UUID, or None if none generated."""
+        ...
+
+    def spy(self) -> None:
+        """Enable spy mode - track calls but return real UUIDs.
+
+        In spy mode, uuid4 calls return real random UUIDs but are still
+        tracked via call_count, generated_uuids, and last_uuid properties.
+        """
+        ...
+
+
+@runtime_checkable
+class UUIDSpyProtocol(Protocol):
+    """Protocol for UUID spy fixtures.
+
+    A spy tracks uuid4 calls without replacing them with mocked values.
+    Use this when you need to verify uuid4 was called without controlling output.
+
+    Example:
+        def test_with_spy(spy_uuid: UUIDSpyProtocol) -> None:
+            result = uuid.uuid4()  # Returns real random UUID
+            assert spy_uuid.call_count == 1
+            assert spy_uuid.last_uuid == result
+    """
+
+    @property
+    def call_count(self) -> int:
+        """Get the number of times uuid4 was called."""
+        ...
+
+    @property
+    def generated_uuids(self) -> list[uuid.UUID]:
+        """Get a list of all UUIDs that have been generated."""
+        ...
+
+    @property
+    def last_uuid(self) -> uuid.UUID | None:
+        """Get the most recently generated UUID, or None if none generated."""
+        ...
+
+    def __call__(self) -> uuid.UUID:
+        """Generate a real UUID and track it."""
+        ...
+
+    def reset(self) -> None:
+        """Reset tracking data."""
+        ...

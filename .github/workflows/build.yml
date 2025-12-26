@@ -38,6 +38,7 @@ jobs:
               configure,
               get_config,
               reset_config,
+              load_config_from_pyproject,
               # Generators
               UUIDGenerator,
               StaticUUIDGenerator,
@@ -49,8 +50,10 @@ jobs:
               UUIDsExhaustedError,
               # Type annotations
               UUIDMockerProtocol,
-              # Fixtures
+              UUIDSpyProtocol,
+              # Fixtures and classes
               UUIDMocker,
+              UUIDSpy,
           )
           print('All imports OK')
           "
@@ -60,3 +63,4 @@ jobs:
           /tmp/test-env/bin/pytest --fixtures 2>&1 | grep -q "mock_uuid" && echo "mock_uuid fixture found"
           /tmp/test-env/bin/pytest --fixtures 2>&1 | grep -q "mock_uuid_factory" && echo "mock_uuid_factory fixture found"
           /tmp/test-env/bin/pytest --fixtures 2>&1 | grep -q "uuid_freezer" && echo "uuid_freezer fixture found"
+          /tmp/test-env/bin/pytest --fixtures 2>&1 | grep -q "spy_uuid" && echo "spy_uuid fixture found"

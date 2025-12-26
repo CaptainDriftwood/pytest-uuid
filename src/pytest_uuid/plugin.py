@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from pytest_uuid.api import UUIDFreezer
-from pytest_uuid.config import get_config
+from pytest_uuid.config import get_config, load_config_from_pyproject
 from pytest_uuid.generators import (
     ExhaustionBehavior,
     SeededUUIDGenerator,
@@ -54,6 +54,9 @@ class UUIDMocker:
         )
         # Store reference to original uuid4 to avoid recursion when patched
         self._original_uuid4 = uuid.uuid4
+        # Tracking for inspection helpers
+        self._call_count: int = 0
+        self._generated_uuids: list[uuid.UUID] = []
 
     def set(self, *uuids: str | uuid.UUID) -> None:
         """Set the UUID(s) to return.
@@ -131,6 +134,8 @@ class UUIDMocker:
     def reset(self) -> None:
         """Reset the mocker to its initial state."""
         self._generator = None
+        self._call_count = 0
+        self._generated_uuids.clear()
 
     def __call__(self) -> uuid.UUID:
         """Return the next mocked UUID.
@@ -140,13 +145,95 @@ class UUIDMocker:
             generator is configured.
         """
         if self._generator is not None:
-            return self._generator()
-        return self._original_uuid4()
+            result = self._generator()
+        else:
+            result = self._original_uuid4()
+        self._call_count += 1
+        self._generated_uuids.append(result)
+        return result
 
     @property
     def generator(self) -> UUIDGenerator | None:
         """Get the current UUID generator."""
         return self._generator
+
+    @property
+    def call_count(self) -> int:
+        """Get the number of times uuid4 was called."""
+        return self._call_count
+
+    @property
+    def generated_uuids(self) -> list[uuid.UUID]:
+        """Get a list of all UUIDs that have been generated.
+
+        Returns a copy to prevent external modification.
+        """
+        return list(self._generated_uuids)
+
+    @property
+    def last_uuid(self) -> uuid.UUID | None:
+        """Get the most recently generated UUID, or None if none generated."""
+        return self._generated_uuids[-1] if self._generated_uuids else None
+
+    def spy(self) -> None:
+        """Enable spy mode - track calls but return real UUIDs.
+
+        In spy mode, uuid4 calls return real random UUIDs but are still
+        tracked via call_count, generated_uuids, and last_uuid properties.
+
+        Example:
+            def test_something(mock_uuid):
+                mock_uuid.spy()  # Switch to spy mode
+
+                result = uuid.uuid4()  # Returns real random UUID
+
+                assert mock_uuid.call_count == 1
+                assert mock_uuid.last_uuid == result
+        """
+        self._generator = None
+
+
+class UUIDSpy:
+    """A class to spy on UUID generation without mocking.
+
+    This class wraps uuid.uuid4() to track calls while still returning
+    real random UUIDs. Similar to pytest-mock's spy functionality.
+    """
+
+    def __init__(self, original_uuid4: Callable[[], uuid.UUID]) -> None:
+        self._original_uuid4 = original_uuid4
+        self._call_count: int = 0
+        self._generated_uuids: list[uuid.UUID] = []
+
+    def __call__(self) -> uuid.UUID:
+        """Generate a real UUID and track it."""
+        result = self._original_uuid4()
+        self._call_count += 1
+        self._generated_uuids.append(result)
+        return result
+
+    @property
+    def call_count(self) -> int:
+        """Get the number of times uuid4 was called."""
+        return self._call_count
+
+    @property
+    def generated_uuids(self) -> list[uuid.UUID]:
+        """Get a list of all UUIDs that have been generated.
+
+        Returns a copy to prevent external modification.
+        """
+        return list(self._generated_uuids)
+
+    @property
+    def last_uuid(self) -> uuid.UUID | None:
+        """Get the most recently generated UUID, or None if none generated."""
+        return self._generated_uuids[-1] if self._generated_uuids else None
+
+    def reset(self) -> None:
+        """Reset tracking data."""
+        self._call_count = 0
+        self._generated_uuids.clear()
 
 
 def _find_uuid4_imports(original_uuid4: object) -> list[tuple[object, str]]:
@@ -172,7 +259,13 @@ def _find_uuid4_imports(original_uuid4: object) -> list[tuple[object, str]]:
 
 
 def pytest_configure(config: pytest.Config) -> None:
-    """Register the freeze_uuid marker."""
+    """Load config from pyproject.toml and register the freeze_uuid marker."""
+    from pathlib import Path
+
+    # Load config from pyproject.toml if present
+    load_config_from_pyproject(Path(config.rootdir))
+
+    # Register the freeze_uuid marker
     config.addinivalue_line(
         "markers",
         "freeze_uuid(uuids=None, *, seed=None, on_exhausted=None, ignore=None): "
@@ -337,3 +430,41 @@ def mock_uuid_factory(
             monkeypatch.setattr(module, "uuid4", original)
 
     return factory
+
+
+@pytest.fixture
+def spy_uuid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Iterator[UUIDSpy]:
+    """Fixture that spies on uuid.uuid4() calls without mocking.
+
+    This fixture patches uuid.uuid4 to track all calls while still
+    returning real random UUIDs. Use this when you need to verify
+    that uuid.uuid4() was called, but don't need to control its output.
+
+    Example:
+        def test_something(spy_uuid):
+            # Call some code that uses uuid4
+            result = uuid.uuid4()
+
+            # Verify uuid4 was called
+            assert spy_uuid.call_count == 1
+            assert spy_uuid.last_uuid == result
+
+    Yields:
+        UUIDSpy: An object to inspect uuid4 calls.
+    """
+    original_uuid4 = uuid.uuid4
+    spy = UUIDSpy(original_uuid4)
+
+    # Find all modules that have imported uuid4 directly
+    uuid4_imports = _find_uuid4_imports(original_uuid4)
+
+    # Patch uuid.uuid4 in the uuid module
+    monkeypatch.setattr(uuid, "uuid4", spy)
+
+    # Patch uuid4 in all modules that imported it directly
+    for module, attr_name in uuid4_imports:
+        monkeypatch.setattr(module, attr_name, spy)
+
+    yield spy
