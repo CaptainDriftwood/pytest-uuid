@@ -85,7 +85,7 @@ ignore = [
     "S101",   # assert usage (needed in tests)
     "S311",   # pseudo-random generators (OK for testing library, not cryptographic)
     "S112",   # try-except-continue (acceptable when silently ignoring inspection errors)
-    "ANN",    # type annotations (to be added in follow-on commit)
+    "ANN401", # Dynamically typed expressions (Any) - sometimes necessary
     "RUF022", # unsorted __all__ (organized by category intentionally)
     "TC001",  # TYPE_CHECKING imports (UUIDCall needed at runtime)
     "TC003",  # TYPE_CHECKING imports (some modules need runtime access)
@@ -95,6 +95,14 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["pytest_uuid"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "ANN",    # Test functions don't need type annotations
+]
+"noxfile.py" = [
+    "ANN",    # Nox sessions don't need type annotations
+]
 
 [tool.ruff.format]
 quote-style = "double"
