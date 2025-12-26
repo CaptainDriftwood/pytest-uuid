@@ -32,25 +32,25 @@ class TestGenerateUUIDFromRandom:
         assert result.version == 4
         assert result.variant == uuid.RFC_4122
 
-    def test_reproducible_with_same_seed(self):
-        """Test that same seed produces same UUIDs."""
-        rng1 = random.Random(42)
-        rng2 = random.Random(42)
+    @pytest.mark.parametrize(
+        "seed1,seed2,should_be_equal",
+        [
+            (42, 42, True),
+            (42, 43, False),
+        ],
+    )
+    def test_seed_reproducibility(self, seed1, seed2, should_be_equal):
+        """Test UUID generation reproducibility with different seeds."""
+        rng1 = random.Random(seed1)
+        rng2 = random.Random(seed2)
 
         uuid1 = generate_uuid_from_random(rng1)
         uuid2 = generate_uuid_from_random(rng2)
 
-        assert uuid1 == uuid2
-
-    def test_different_seeds_produce_different_uuids(self):
-        """Test that different seeds produce different UUIDs."""
-        rng1 = random.Random(42)
-        rng2 = random.Random(43)
-
-        uuid1 = generate_uuid_from_random(rng1)
-        uuid2 = generate_uuid_from_random(rng2)
-
-        assert uuid1 != uuid2
+        if should_be_equal:
+            assert uuid1 == uuid2
+        else:
+            assert uuid1 != uuid2
 
     def test_sequential_calls_produce_different_uuids(self):
         """Test that sequential calls produce different UUIDs."""
@@ -100,52 +100,39 @@ class TestSequenceUUIDGenerator:
         assert generator() == uuids[1]
         assert generator() == uuids[2]
 
-    def test_cycle_behavior_loops_back(self):
-        """Test that CYCLE behavior loops back to start."""
-        uuids = [
-            uuid.UUID("11111111-1111-1111-1111-111111111111"),
-            uuid.UUID("22222222-2222-2222-2222-222222222222"),
-        ]
-        generator = SequenceUUIDGenerator(uuids, on_exhausted=ExhaustionBehavior.CYCLE)
-
-        assert generator() == uuids[0]
-        assert generator() == uuids[1]
-        assert generator() == uuids[0]  # Cycles back
-        assert generator() == uuids[1]
-
-    def test_random_behavior_falls_back_to_random(self):
-        """Test that RANDOM behavior generates random UUIDs after exhaustion."""
+    @pytest.mark.parametrize(
+        "behavior,should_raise",
+        [
+            (ExhaustionBehavior.CYCLE, False),
+            (ExhaustionBehavior.RANDOM, False),
+            (ExhaustionBehavior.RAISE, True),
+        ],
+    )
+    def test_exhaustion_behavior(self, behavior, should_raise):
+        """Test different exhaustion behaviors after sequence is consumed."""
         uuids = [uuid.UUID("11111111-1111-1111-1111-111111111111")]
         rng = random.Random(42)
         generator = SequenceUUIDGenerator(
-            uuids,
-            on_exhausted=ExhaustionBehavior.RANDOM,
-            fallback_rng=rng,
+            uuids, on_exhausted=behavior, fallback_rng=rng
         )
 
         # First call returns the sequence UUID
         assert generator() == uuids[0]
 
-        # Subsequent calls return random (but reproducible with seed) UUIDs
-        random_uuid = generator()
-        assert random_uuid != uuids[0]
-        assert isinstance(random_uuid, uuid.UUID)
-        assert random_uuid.version == 4
-
-    def test_raise_behavior_raises_on_exhaustion(self):
-        """Test that RAISE behavior raises UUIDsExhaustedError."""
-        uuids = [uuid.UUID("11111111-1111-1111-1111-111111111111")]
-        generator = SequenceUUIDGenerator(uuids, on_exhausted=ExhaustionBehavior.RAISE)
-
-        # First call works
-        assert generator() == uuids[0]
-
-        # Second call raises
-        with pytest.raises(UUIDsExhaustedError) as exc_info:
-            generator()
-
-        assert exc_info.value.count == 1
-        assert "exhausted after 1 UUIDs" in str(exc_info.value)
+        # Second call triggers exhaustion behavior
+        if should_raise:
+            with pytest.raises(UUIDsExhaustedError) as exc_info:
+                generator()
+            assert exc_info.value.count == 1
+            assert "exhausted after 1 UUIDs" in str(exc_info.value)
+        else:
+            result = generator()
+            assert isinstance(result, uuid.UUID)
+            if behavior == ExhaustionBehavior.CYCLE:
+                assert result == uuids[0]  # Cycles back
+            else:  # RANDOM
+                assert result != uuids[0]
+                assert result.version == 4
 
     def test_is_exhausted_property(self):
         """Test the is_exhausted property."""
@@ -172,42 +159,32 @@ class TestSequenceUUIDGenerator:
 
         assert generator() == uuids[0]  # Back to first
 
-    def test_empty_sequence_returns_random(self):
-        """Test that empty sequence falls back to random UUIDs."""
-        rng = random.Random(42)
-        generator = SequenceUUIDGenerator([], fallback_rng=rng)
-
-        result = generator()
-        assert isinstance(result, uuid.UUID)
-        assert result.version == 4
-
-    def test_empty_sequence_sets_exhausted(self):
-        """Test that empty sequence sets is_exhausted on first call."""
-        generator = SequenceUUIDGenerator([])
-
-        assert not generator.is_exhausted
-        generator()  # First call
-        assert generator.is_exhausted
-
-    def test_empty_sequence_with_raise_raises(self):
-        """Test that empty sequence with RAISE raises on first call."""
-        generator = SequenceUUIDGenerator([], on_exhausted=ExhaustionBehavior.RAISE)
-
-        with pytest.raises(UUIDsExhaustedError) as exc_info:
-            generator()
-
-        assert exc_info.value.count == 0
-        assert generator.is_exhausted
-
-    def test_empty_sequence_with_random_returns_random(self):
-        """Test that empty sequence with RANDOM returns random UUIDs."""
+    @pytest.mark.parametrize(
+        "behavior,should_raise",
+        [
+            (ExhaustionBehavior.CYCLE, False),
+            (ExhaustionBehavior.RANDOM, False),
+            (ExhaustionBehavior.RAISE, True),
+        ],
+    )
+    def test_empty_sequence_exhaustion_behavior(self, behavior, should_raise):
+        """Test exhaustion behavior with empty sequences."""
         rng = random.Random(42)
         generator = SequenceUUIDGenerator(
-            [], on_exhausted=ExhaustionBehavior.RANDOM, fallback_rng=rng
+            [], on_exhausted=behavior, fallback_rng=rng
         )
 
-        result = generator()
-        assert isinstance(result, uuid.UUID)
+        assert not generator.is_exhausted
+
+        if should_raise:
+            with pytest.raises(UUIDsExhaustedError) as exc_info:
+                generator()
+            assert exc_info.value.count == 0
+        else:
+            result = generator()
+            assert isinstance(result, uuid.UUID)
+            assert result.version == 4
+
         assert generator.is_exhausted
 
 
@@ -282,10 +259,17 @@ class TestRandomUUIDGenerator:
 class TestParseUUID:
     """Tests for parse_uuid function."""
 
-    def test_parses_string(self):
-        """Test parsing a UUID string."""
-        result = parse_uuid("12345678-1234-5678-1234-567812345678")
-        assert result == uuid.UUID("12345678-1234-5678-1234-567812345678")
+    @pytest.mark.parametrize(
+        "input_value,expected_uuid",
+        [
+            ("12345678-1234-5678-1234-567812345678", "12345678-1234-5678-1234-567812345678"),
+            ("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+        ],
+    )
+    def test_parses_valid_string(self, input_value, expected_uuid):
+        """Test parsing valid UUID strings."""
+        result = parse_uuid(input_value)
+        assert result == uuid.UUID(expected_uuid)
 
     def test_returns_uuid_unchanged(self):
         """Test that UUID objects are returned unchanged."""
@@ -293,10 +277,19 @@ class TestParseUUID:
         result = parse_uuid(original)
         assert result is original
 
-    def test_invalid_string_raises(self):
+    @pytest.mark.parametrize(
+        "invalid_input",
+        [
+            "not-a-uuid",
+            "12345",
+            "",
+            "gggggggg-gggg-gggg-gggg-gggggggggggg",
+        ],
+    )
+    def test_invalid_string_raises(self, invalid_input):
         """Test that invalid strings raise ValueError."""
         with pytest.raises(ValueError):
-            parse_uuid("not-a-uuid")
+            parse_uuid(invalid_input)
 
 
 class TestParseUUIDs:

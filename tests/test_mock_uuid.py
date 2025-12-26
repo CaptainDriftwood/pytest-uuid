@@ -125,23 +125,16 @@ class TestMockUUIDEnhanced:
         # Same test, same node ID, same seed
         assert first == second
 
-    def test_set_exhaustion_behavior_string(self, mock_uuid):
-        """Test setting exhaustion behavior with string."""
-        mock_uuid.set_exhaustion_behavior("raise")
-        mock_uuid.set(
-            "11111111-1111-1111-1111-111111111111",
-            "22222222-2222-2222-2222-222222222222",
-        )
-
-        uuid.uuid4()
-        uuid.uuid4()
-
-        with pytest.raises(UUIDsExhaustedError):
-            uuid.uuid4()
-
-    def test_set_exhaustion_behavior_enum(self, mock_uuid):
-        """Test setting exhaustion behavior with enum."""
-        mock_uuid.set_exhaustion_behavior(ExhaustionBehavior.RAISE)
+    @pytest.mark.parametrize(
+        "behavior_input",
+        [
+            "raise",
+            ExhaustionBehavior.RAISE,
+        ],
+    )
+    def test_set_exhaustion_behavior(self, mock_uuid, behavior_input):
+        """Test setting exhaustion behavior with string or enum."""
+        mock_uuid.set_exhaustion_behavior(behavior_input)
         mock_uuid.set("11111111-1111-1111-1111-111111111111")
 
         uuid.uuid4()
