@@ -120,7 +120,7 @@ def _load_pyproject_config(rootdir: Path | None = None) -> dict[str, Any]:
         with open(pyproject_path, "rb") as f:
             data = tomllib.load(f)
         return data.get("tool", {}).get("pytest_uuid", {})
-    except Exception:  # noqa: BLE001
+    except Exception:
         # Silently ignore parse errors - don't break pytest
         return {}
 

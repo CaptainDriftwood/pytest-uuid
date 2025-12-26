@@ -37,6 +37,10 @@ nox version="":
 lint:
     uv run ruff check src tests noxfile.py
 
+# Run type checking
+type:
+    uv run ty check src/
+
 # Run formatter check
 format-check:
     uv run ruff format --check src tests noxfile.py

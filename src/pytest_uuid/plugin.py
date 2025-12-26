@@ -266,7 +266,7 @@ def pytest_runtest_teardown(item: pytest.Item) -> None:
 def mock_uuid(
     monkeypatch: pytest.MonkeyPatch,
     request: pytest.FixtureRequest,
-) -> Iterator[UUIDMocker]:
+) -> UUIDMocker:
     """Fixture that provides a UUIDMocker for controlling uuid.uuid4() calls.
 
     This fixture patches uuid.uuid4 globally AND any modules that have imported
@@ -299,7 +299,7 @@ def mock_uuid(
             mock_uuid.set_seed_from_node()
             # Same test always gets the same UUIDs
 
-    Yields:
+    Returns:
         UUIDMocker: An object to control the mocked UUIDs.
     """
     mocker = UUIDMocker(monkeypatch, node_id=request.node.nodeid)
@@ -317,12 +317,12 @@ def mock_uuid(
 def uuid_freezer(
     monkeypatch: pytest.MonkeyPatch,
     request: pytest.FixtureRequest,
-) -> Iterator[UUIDMocker]:
+) -> UUIDMocker:
     """Alternative fixture name following the freezegun naming pattern.
 
     This is an alias for mock_uuid. Use whichever name you prefer.
 
-    Yields:
+    Returns:
         UUIDMocker: An object to control the mocked UUIDs.
     """
     mocker = UUIDMocker(monkeypatch, node_id=request.node.nodeid)
@@ -374,7 +374,7 @@ def mock_uuid_factory(
 @pytest.fixture
 def spy_uuid(
     monkeypatch: pytest.MonkeyPatch,
-) -> Iterator[UUIDSpy]:
+) -> UUIDSpy:
     """Fixture that spies on uuid.uuid4() calls without mocking.
 
     This fixture patches uuid.uuid4 to track all calls while still
@@ -390,7 +390,7 @@ def spy_uuid(
             assert spy_uuid.call_count == 1
             assert spy_uuid.last_uuid == result
 
-    Yields:
+    Returns:
         UUIDSpy: An object to inspect uuid4 calls.
     """
     original_uuid4 = uuid.uuid4
