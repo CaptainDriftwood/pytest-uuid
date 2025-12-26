@@ -332,7 +332,24 @@ def mock_uuid_factory(
     @contextmanager
     def factory(module_path: str) -> Iterator[UUIDMocker]:
         mocker = UUIDMocker(monkeypatch)
-        module = sys.modules[module_path]
+
+        try:
+            module = sys.modules[module_path]
+        except KeyError:
+            raise KeyError(
+                f"Module '{module_path}' is not loaded. "
+                f"Make sure to import the module before using mock_uuid_factory. "
+                f"Example: import {module_path.split('.')[0]}"
+            ) from None
+
+        if not hasattr(module, "uuid4"):
+            raise AttributeError(
+                f"Module '{module_path}' does not have a 'uuid4' attribute. "
+                f"This fixture only works with modules that use "
+                f"'from uuid import uuid4'. "
+                f"For modules using 'import uuid', use the mock_uuid fixture instead."
+            )
+
         original = module.uuid4  # type: ignore[attr-defined]
         monkeypatch.setattr(module, "uuid4", mocker)
         try:

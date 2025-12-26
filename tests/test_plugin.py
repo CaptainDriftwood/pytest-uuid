@@ -110,6 +110,31 @@ class TestMockUUIDFactory:
             mocker.set_default("22222222-2222-2222-2222-222222222222")
             assert str(uuid.uuid4()) == "22222222-2222-2222-2222-222222222222"
 
+    def test_factory_raises_keyerror_for_unloaded_module(self, mock_uuid_factory):
+        """Test that factory raises helpful KeyError for unloaded modules."""
+        with (
+            pytest.raises(KeyError) as exc_info,
+            mock_uuid_factory("nonexistent.module"),
+        ):
+            pass
+
+        error_msg = str(exc_info.value)
+        assert "nonexistent.module" in error_msg
+        assert "not loaded" in error_msg
+
+    def test_factory_raises_attributeerror_for_module_without_uuid4(
+        self, mock_uuid_factory
+    ):
+        """Test that factory raises helpful AttributeError when module lacks uuid4."""
+        # Use a module that exists but doesn't have uuid4 (sys is always loaded)
+        with pytest.raises(AttributeError) as exc_info, mock_uuid_factory("sys"):
+            pass
+
+        error_msg = str(exc_info.value)
+        assert "sys" in error_msg
+        assert "uuid4" in error_msg
+        assert "mock_uuid fixture" in error_msg
+
 
 class TestPluginIntegration:
     """Integration tests for the plugin."""
