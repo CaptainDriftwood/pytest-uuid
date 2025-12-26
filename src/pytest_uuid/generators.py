@@ -102,7 +102,6 @@ class SequenceUUIDGenerator(UUIDGenerator):
             self._index += 1
             return result
 
-        # Sequence exhausted
         self._exhausted = True
 
         if self._on_exhausted == ExhaustionBehavior.CYCLE:

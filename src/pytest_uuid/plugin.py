@@ -54,7 +54,6 @@ class UUIDMocker:
         )
         # Store reference to original uuid4 to avoid recursion when patched
         self._original_uuid4 = uuid.uuid4
-        # Tracking for inspection helpers
         self._call_count: int = 0
         self._generated_uuids: list[uuid.UUID] = []
 
@@ -127,7 +126,6 @@ class UUIDMocker:
         else:
             self._on_exhausted = behavior
 
-        # Update existing sequence generator if present
         if isinstance(self._generator, SequenceUUIDGenerator):
             self._generator._on_exhausted = self._on_exhausted
 
@@ -262,10 +260,8 @@ def pytest_configure(config: pytest.Config) -> None:
     """Load config from pyproject.toml and register the freeze_uuid marker."""
     from pathlib import Path
 
-    # Load config from pyproject.toml if present
     load_config_from_pyproject(Path(config.rootdir))
 
-    # Register the freeze_uuid marker
     config.addinivalue_line(
         "markers",
         "freeze_uuid(uuids=None, *, seed=None, on_exhausted=None, ignore=None): "
@@ -284,23 +280,18 @@ def pytest_runtest_setup(item: pytest.Item) -> None:
     if marker is None:
         return
 
-    # Extract marker arguments
     args = marker.args
     kwargs = dict(marker.kwargs)
 
-    # Handle positional argument (uuids)
     uuids = args[0] if args else kwargs.pop("uuids", None)
 
-    # Handle node-seeded mode
     seed = kwargs.get("seed")
     if seed == "node":
         kwargs["node_id"] = item.nodeid
 
-    # Create and enter the freezer
     freezer = UUIDFreezer(uuids=uuids, **kwargs)
     freezer.__enter__()
 
-    # Store the freezer for cleanup
     item._uuid_freezer = freezer  # type: ignore[attr-defined]
 
 
@@ -355,14 +346,9 @@ def mock_uuid(
     """
     mocker = UUIDMocker(monkeypatch, node_id=request.node.nodeid)
     original_uuid4 = uuid.uuid4
-
-    # Find all modules that have imported uuid4 directly
     uuid4_imports = _find_uuid4_imports(original_uuid4)
 
-    # Patch uuid.uuid4 in the uuid module
     monkeypatch.setattr(uuid, "uuid4", mocker)
-
-    # Patch uuid4 in all modules that imported it directly
     for module, attr_name in uuid4_imports:
         monkeypatch.setattr(module, attr_name, mocker)
 
@@ -383,14 +369,9 @@ def uuid_freezer(
     """
     mocker = UUIDMocker(monkeypatch, node_id=request.node.nodeid)
     original_uuid4 = uuid.uuid4
-
-    # Find all modules that have imported uuid4 directly
     uuid4_imports = _find_uuid4_imports(original_uuid4)
 
-    # Patch uuid.uuid4 in the uuid module
     monkeypatch.setattr(uuid, "uuid4", mocker)
-
-    # Patch uuid4 in all modules that imported it directly
     for module, attr_name in uuid4_imports:
         monkeypatch.setattr(module, attr_name, mocker)
 
@@ -456,14 +437,9 @@ def spy_uuid(
     """
     original_uuid4 = uuid.uuid4
     spy = UUIDSpy(original_uuid4)
-
-    # Find all modules that have imported uuid4 directly
     uuid4_imports = _find_uuid4_imports(original_uuid4)
 
-    # Patch uuid.uuid4 in the uuid module
     monkeypatch.setattr(uuid, "uuid4", spy)
-
-    # Patch uuid4 in all modules that imported it directly
     for module, attr_name in uuid4_imports:
         monkeypatch.setattr(module, attr_name, spy)
 

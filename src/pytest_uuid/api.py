@@ -51,7 +51,6 @@ def _should_ignore_frame(frame: object, ignore_list: tuple[str, ...]) -> bool:
     if not ignore_list:
         return False
 
-    # Get the module name from the frame's globals
     module_name = getattr(frame, "f_globals", {}).get("__name__", "")
     if not module_name:
         return False
@@ -114,7 +113,6 @@ class UUIDFreezer:
         self._node_id = node_id
         self._ignore_extra = tuple(ignore) if ignore else ()
 
-        # Resolve exhaustion behavior
         config = get_config()
         if on_exhausted is None:
             self._on_exhausted = config.default_exhaustion_behavior
@@ -123,7 +121,6 @@ class UUIDFreezer:
         else:
             self._on_exhausted = on_exhausted
 
-        # Build the full ignore list
         self._ignore_list = config.get_ignore_list() + self._ignore_extra
 
         # These are set during __enter__
@@ -148,7 +145,6 @@ class UUIDFreezer:
             else:
                 return SeededUUIDGenerator(self._seed)
 
-        # Static/sequence mode
         if self._uuids is not None:
             if isinstance(self._uuids, (str, uuid.UUID)):
                 # Single UUID as string/UUID - use static generator
@@ -177,13 +173,11 @@ class UUIDFreezer:
         original_uuid4 = self._original_uuid4
 
         if not ignore_list:
-            # No ignore list - just use the generator directly
             def patched_uuid4() -> uuid.UUID:
                 return generator()  # type: ignore[misc]
 
             return patched_uuid4
 
-        # With ignore list - check call stack
         def patched_uuid4_with_ignore() -> uuid.UUID:
             # Walk up the call stack to check for ignored modules
             frame = inspect.currentframe()
@@ -212,23 +206,16 @@ class UUIDFreezer:
         self._generator = self._create_generator()
         patched = self._create_patched_uuid4()
 
-        # Find all uuid4 imports BEFORE patching anything
-        # This ensures we capture the original references
         uuid4_imports = _find_uuid4_imports(self._original_uuid4)
 
-        # Build list of (module, attr_name, original) tuples BEFORE patching
         patches_to_apply: list[tuple[object, str, object]] = []
-
-        # Add uuid module itself
         patches_to_apply.append((uuid, "uuid4", self._original_uuid4))
 
-        # Add all direct imports (excluding uuid module to avoid duplicate)
         for module, attr_name in uuid4_imports:
             if module is not uuid:  # Skip uuid module, we already handle it
                 original = getattr(module, attr_name)
                 patches_to_apply.append((module, attr_name, original))
 
-        # Now apply all patches
         for module, attr_name, original in patches_to_apply:
             self._patched_locations.append((module, attr_name, original))
             setattr(module, attr_name, patched)
@@ -237,7 +224,6 @@ class UUIDFreezer:
 
     def __exit__(self, *args: object) -> None:
         """Stop freezing and restore original uuid.uuid4()."""
-        # Restore all patched locations
         for module, attr_name, original in self._patched_locations:
             setattr(module, attr_name, original)
         self._patched_locations.clear()

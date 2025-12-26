@@ -39,7 +39,6 @@ class PytestUUIDConfig:
         return tuple(self.default_ignore_list + self.extend_ignore_list)
 
 
-# Global configuration instance
 _config: PytestUUIDConfig = PytestUUIDConfig()
 
 
@@ -150,7 +149,6 @@ def load_config_from_pyproject(rootdir: Path | None = None) -> None:
     if not config_data:
         return
 
-    # Apply configuration (only if keys are present)
     configure(
         default_ignore_list=config_data.get("default_ignore_list"),
         extend_ignore_list=config_data.get("extend_ignore_list"),
