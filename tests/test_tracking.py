@@ -498,7 +498,11 @@ class TestThreadSafety:
         def record_calls():
             try:
                 for i in range(calls_per_thread):
-                    test_uuid = uuid.UUID(f"{i:08x}-0000-0000-0000-{threading.current_thread().ident:012x}"[:36])
+                    test_uuid = uuid.UUID(
+                        f"{i:08x}-0000-0000-0000-{threading.current_thread().ident:012x}"[
+                            :36
+                        ]
+                    )
                     tracker._record_call(
                         test_uuid,
                         was_mocked=True,

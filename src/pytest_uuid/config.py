@@ -16,7 +16,7 @@ if sys.version_info >= (3, 11):
 
     TOMLDecodeError = tomllib.TOMLDecodeError
 else:
-    import tomli as tomllib
+    import tomli as tomllib  # type: ignore[import-not-found]
 
     TOMLDecodeError = tomllib.TOMLDecodeError
 

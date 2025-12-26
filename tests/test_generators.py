@@ -170,9 +170,7 @@ class TestSequenceUUIDGenerator:
     def test_empty_sequence_exhaustion_behavior(self, behavior, should_raise):
         """Test exhaustion behavior with empty sequences."""
         rng = random.Random(42)
-        generator = SequenceUUIDGenerator(
-            [], on_exhausted=behavior, fallback_rng=rng
-        )
+        generator = SequenceUUIDGenerator([], on_exhausted=behavior, fallback_rng=rng)
 
         assert not generator.is_exhausted
 
@@ -262,8 +260,14 @@ class TestParseUUID:
     @pytest.mark.parametrize(
         ("input_value", "expected_uuid"),
         [
-            ("12345678-1234-5678-1234-567812345678", "12345678-1234-5678-1234-567812345678"),
-            ("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+            (
+                "12345678-1234-5678-1234-567812345678",
+                "12345678-1234-5678-1234-567812345678",
+            ),
+            (
+                "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            ),
         ],
     )
     def test_parses_valid_string(self, input_value, expected_uuid):
