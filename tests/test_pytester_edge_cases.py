@@ -200,6 +200,83 @@ def get_uuid():
         result = pytester.runpytest("-v")
         result.assert_outcomes(passed=1)
 
+    def test_mixed_import_patterns_with_ignore(self, pytester):
+        """Test all import patterns together with ignore list.
+
+        Demonstrates:
+        1. module_a: `import uuid; uuid.uuid4()` - should be mocked
+        2. module_b: `from uuid import uuid4; uuid4()` - should be mocked
+        3. ignored_pkg.sub.helper: `import uuid; uuid.uuid4()` - should be ignored
+        """
+        # Create module using `import uuid`
+        pytester.makepyfile(
+            module_a="""
+import uuid
+
+def get_uuid():
+    return uuid.uuid4()
+"""
+        )
+
+        # Create module using `from uuid import uuid4`
+        pytester.makepyfile(
+            module_b="""
+from uuid import uuid4
+
+def get_uuid():
+    return uuid4()
+"""
+        )
+
+        # Create nested package that will be ignored
+        pytester.mkpydir("ignored_pkg")
+        pytester.makepyfile(
+            **{
+                "ignored_pkg/sub/__init__": "",
+                "ignored_pkg/sub/helper": """
+import uuid
+
+def get_uuid():
+    return uuid.uuid4()
+""",
+            }
+        )
+
+        pytester.makepyfile(
+            test_mixed_patterns="""
+            import uuid
+            from pytest_uuid.api import freeze_uuid
+            import module_a
+            import module_b
+            from ignored_pkg.sub import helper
+
+            def test_mixed_import_patterns():
+                with freeze_uuid(
+                    "12345678-1234-5678-1234-567812345678",
+                    ignore=["ignored_pkg"]
+                ):
+                    # Direct call with `import uuid` - should be mocked
+                    direct = uuid.uuid4()
+                    assert str(direct) == "12345678-1234-5678-1234-567812345678"
+
+                    # module_a uses `import uuid` - should be mocked
+                    from_module_a = module_a.get_uuid()
+                    assert str(from_module_a) == "12345678-1234-5678-1234-567812345678"
+
+                    # module_b uses `from uuid import uuid4` - should be mocked
+                    from_module_b = module_b.get_uuid()
+                    assert str(from_module_b) == "12345678-1234-5678-1234-567812345678"
+
+                    # ignored_pkg.sub.helper uses `import uuid` - should be REAL
+                    from_ignored = helper.get_uuid()
+                    assert str(from_ignored) != "12345678-1234-5678-1234-567812345678"
+                    assert isinstance(from_ignored, uuid.UUID)
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
 
 class TestDirectImportPatching:
     """Tests for patching 'from uuid import uuid4' pattern."""
