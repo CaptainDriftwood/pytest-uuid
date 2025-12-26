@@ -356,10 +356,6 @@ Main fixture for controlling `uuid.uuid4()` calls.
 - `set_exhaustion_behavior(behavior)` - Set behavior when sequence exhausted
 - `reset()` - Reset to initial state
 
-#### `uuid_freezer`
-
-Alias for `mock_uuid` following the freezegun naming pattern.
-
 #### `mock_uuid_factory`
 
 Factory for module-specific mocking.

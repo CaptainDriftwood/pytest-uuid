@@ -1,6 +1,6 @@
 """Tests for enhanced plugin features.
 
-These are unit-style tests for the mock_uuid/uuid_freezer fixture methods.
+These are unit-style tests for the mock_uuid fixture methods.
 Integration tests for markers and isolation are in test_pytester_integration.py.
 """
 
@@ -80,25 +80,3 @@ class TestUUIDMockerEnhanced:
 
         mock_uuid.reset()
         assert mock_uuid.generator is None
-
-
-class TestUUIDFreezerFixture:
-    """Tests for the uuid_freezer fixture (alias for mock_uuid)."""
-
-    def test_uuid_freezer_has_same_api_as_mock_uuid(self, uuid_freezer):
-        """Test that uuid_freezer has the same API as mock_uuid."""
-        # Verify fixture exists and has the same UUIDMocker API
-        assert uuid_freezer is not None
-
-        # Test set() method
-        uuid_freezer.set("12345678-1234-5678-1234-567812345678")
-        assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
-
-        # Test set_seed() method
-        uuid_freezer.set_seed(42)
-        result = uuid.uuid4()
-        assert isinstance(result, uuid.UUID)
-
-        # Test reset() method
-        uuid_freezer.reset()
-        assert uuid_freezer.generator is None

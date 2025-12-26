@@ -314,29 +314,6 @@ def mock_uuid(
 
 
 @pytest.fixture
-def uuid_freezer(
-    monkeypatch: pytest.MonkeyPatch,
-    request: pytest.FixtureRequest,
-) -> UUIDMocker:
-    """Alternative fixture name following the freezegun naming pattern.
-
-    This is an alias for mock_uuid. Use whichever name you prefer.
-
-    Returns:
-        UUIDMocker: An object to control the mocked UUIDs.
-    """
-    mocker = UUIDMocker(monkeypatch, node_id=request.node.nodeid)
-    original_uuid4 = uuid.uuid4
-    uuid4_imports = _find_uuid4_imports(original_uuid4)
-
-    monkeypatch.setattr(uuid, "uuid4", mocker)
-    for module, attr_name in uuid4_imports:
-        monkeypatch.setattr(module, attr_name, mocker)
-
-    return mocker
-
-
-@pytest.fixture
 def mock_uuid_factory(
     monkeypatch: pytest.MonkeyPatch,
 ) -> Callable[[str], AbstractContextManager[UUIDMocker]]:

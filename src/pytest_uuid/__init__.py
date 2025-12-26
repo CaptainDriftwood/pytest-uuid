@@ -22,7 +22,6 @@ from pytest_uuid.plugin import (
     mock_uuid,
     mock_uuid_factory,
     spy_uuid,
-    uuid_freezer,
 )
 from pytest_uuid.types import UUIDMockerProtocol, UUIDSpyProtocol
 
@@ -51,7 +50,6 @@ __all__ = [
     # Fixtures (for documentation - actual fixtures registered via plugin)
     "mock_uuid",
     "mock_uuid_factory",
-    "uuid_freezer",
     "spy_uuid",
     "UUIDMocker",
     "UUIDSpy",

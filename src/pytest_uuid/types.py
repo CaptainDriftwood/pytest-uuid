@@ -49,8 +49,8 @@ class UUIDCall:
 class UUIDMockerProtocol(Protocol):
     """Protocol for UUID mocker fixtures.
 
-    This protocol defines the interface for `mock_uuid` and `uuid_freezer`
-    fixtures, enabling proper type checking and IDE autocomplete.
+    This protocol defines the interface for the `mock_uuid` fixture,
+    enabling proper type checking and IDE autocomplete.
 
     Example:
         def test_with_types(mock_uuid: UUIDMockerProtocol) -> None:

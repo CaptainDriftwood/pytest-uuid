@@ -1074,11 +1074,10 @@ class TestPluginDiscovery:
         """Test that pytest-uuid plugin is auto-discovered."""
         pytester.makepyfile(
             test_discovery="""
-            def test_fixtures_available(mock_uuid, spy_uuid, uuid_freezer, mock_uuid_factory):
+            def test_fixtures_available(mock_uuid, spy_uuid, mock_uuid_factory):
                 # All fixtures should be available without explicit configuration
                 assert mock_uuid is not None
                 assert spy_uuid is not None
-                assert uuid_freezer is not None
                 assert mock_uuid_factory is not None
             """
         )
