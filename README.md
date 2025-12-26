@@ -377,7 +377,8 @@ just sync
 ```bash
 just              # List all commands
 just test         # Run tests
-just test-all     # Run tests across all Python versions
+just nox          # Run tests across all Python versions with nox
+just nox 3.12     # Run tests for a specific Python version
 just lint         # Run linting
 just format       # Format code
 just check        # Run all checks

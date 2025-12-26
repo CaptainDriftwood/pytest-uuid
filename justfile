@@ -22,13 +22,14 @@ test-verbose:
 test-cov:
     uv run pytest --cov=pytest_uuid --cov-report=term-missing
 
-# Run tests across all Python versions with nox
-test-all:
-    uvx --with nox-uv nox -s tests
-
-# Run tests for a specific Python version (e.g., just test-py 3.12)
-test-py version:
-    uvx --with nox-uv nox -s tests-{{ version }}
+# Run tests with nox (optionally specify Python version, e.g., just nox 3.12)
+nox version="":
+    #!/usr/bin/env bash
+    if [ -z "{{ version }}" ]; then
+        uvx --with nox-uv nox -s tests
+    else
+        uvx --with nox-uv nox -s tests-{{ version }}
+    fi
 
 # Run linting
 lint:
