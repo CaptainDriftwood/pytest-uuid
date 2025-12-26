@@ -24,6 +24,10 @@ test-cov:
     uv run coverage combine
     uv run coverage report --show-missing
 
+# Run tests in random order using pytest-randomly
+test-randomly *args:
+    uv run --with pytest-randomly pytest {{ args }}
+
 # Run tests with nox (optionally specify Python version, e.g., just nox 3.12)
 nox version="":
     #!/usr/bin/env bash
