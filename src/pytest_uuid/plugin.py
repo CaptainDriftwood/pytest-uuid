@@ -161,7 +161,7 @@ def mock_uuid_factory(
     def factory(module_path: str) -> Iterator[UUIDMocker]:
         mocker = UUIDMocker()
         module = sys.modules[module_path]
-        original = getattr(module, "uuid4")
+        original = module.uuid4  # type: ignore[attr-defined]
         monkeypatch.setattr(module, "uuid4", mocker)
         try:
             yield mocker
