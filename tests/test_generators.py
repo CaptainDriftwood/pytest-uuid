@@ -181,6 +181,35 @@ class TestSequenceUUIDGenerator:
         assert isinstance(result, uuid.UUID)
         assert result.version == 4
 
+    def test_empty_sequence_sets_exhausted(self):
+        """Test that empty sequence sets is_exhausted on first call."""
+        generator = SequenceUUIDGenerator([])
+
+        assert not generator.is_exhausted
+        generator()  # First call
+        assert generator.is_exhausted
+
+    def test_empty_sequence_with_raise_raises(self):
+        """Test that empty sequence with RAISE raises on first call."""
+        generator = SequenceUUIDGenerator([], on_exhausted=ExhaustionBehavior.RAISE)
+
+        with pytest.raises(UUIDsExhaustedError) as exc_info:
+            generator()
+
+        assert exc_info.value.count == 0
+        assert generator.is_exhausted
+
+    def test_empty_sequence_with_random_returns_random(self):
+        """Test that empty sequence with RANDOM returns random UUIDs."""
+        rng = random.Random(42)
+        generator = SequenceUUIDGenerator(
+            [], on_exhausted=ExhaustionBehavior.RANDOM, fallback_rng=rng
+        )
+
+        result = generator()
+        assert isinstance(result, uuid.UUID)
+        assert generator.is_exhausted
+
 
 class TestSeededUUIDGenerator:
     """Tests for SeededUUIDGenerator."""

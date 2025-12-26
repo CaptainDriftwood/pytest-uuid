@@ -93,18 +93,18 @@ class SequenceUUIDGenerator(UUIDGenerator):
         self._exhausted = False
 
     def __call__(self) -> uuid.UUID:
-        if not self._uuids:
-            # Empty sequence - behave like random
-            return generate_uuid_from_random(self._fallback_rng)
-
         if self._index < len(self._uuids):
             result = self._uuids[self._index]
             self._index += 1
             return result
 
+        # Sequence exhausted (or was empty from the start)
         self._exhausted = True
 
         if self._on_exhausted == ExhaustionBehavior.CYCLE:
+            if not self._uuids:
+                # Empty sequence can't cycle - fall back to random
+                return generate_uuid_from_random(self._fallback_rng)
             self._index = 1  # Reset to second element (we return first below)
             return self._uuids[0]
         if self._on_exhausted == ExhaustionBehavior.RANDOM:
