@@ -156,3 +156,6 @@ Thumbs.db
 # Project specific
 *.egg-info/
 CLAUDE.md
+
+# Local documentation
+docs/

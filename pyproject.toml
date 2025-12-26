@@ -1,6 +1,6 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["uv_build>=0.7.19,<0.8.0"]
+build-backend = "uv_build"
 
 [project]
 name = "pytest-uuid"
@@ -53,14 +53,7 @@ Issues = "https://github.com/CaptainDriftwood/pytest-uuid/issues"
 [project.entry-points.pytest11]
 uuid = "pytest_uuid.plugin"
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/pytest_uuid"]
-
-[tool.hatch.build.targets.sdist]
-include = [
-    "/src",
-    "/tests",
-]
+# uv_build auto-detects src/ layout
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
