@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -12,8 +13,12 @@ from pytest_uuid.generators import ExhaustionBehavior
 # TOML parsing - use stdlib on 3.11+, fallback to tomli
 if sys.version_info >= (3, 11):
     import tomllib
+
+    TOMLDecodeError = tomllib.TOMLDecodeError
 else:
     import tomli as tomllib
+
+    TOMLDecodeError = tomllib.TOMLDecodeError
 
 
 @dataclass
@@ -120,8 +125,21 @@ def _load_pyproject_config(rootdir: Path | None = None) -> dict[str, Any]:
         with open(pyproject_path, "rb") as f:
             data = tomllib.load(f)
         return data.get("tool", {}).get("pytest_uuid", {})
-    except Exception:
-        # Silently ignore parse errors - don't break pytest
+    except TOMLDecodeError as e:
+        warnings.warn(
+            f"pytest-uuid: Failed to parse {pyproject_path}: {e}. "
+            f"Using default configuration.",
+            UserWarning,
+            stacklevel=2,
+        )
+        return {}
+    except OSError as e:
+        warnings.warn(
+            f"pytest-uuid: Failed to read {pyproject_path}: {e}. "
+            f"Using default configuration.",
+            UserWarning,
+            stacklevel=2,
+        )
         return {}
 
 

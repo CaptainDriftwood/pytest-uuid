@@ -210,13 +210,14 @@ default_exhaustion_behavior = "random"
         assert config.default_ignore_list == ["pkg1"]
         assert config.default_exhaustion_behavior == ExhaustionBehavior.RANDOM
 
-    def test_invalid_toml_silently_ignored(self, tmp_path: Path):
-        """Test that invalid TOML doesn't crash."""
+    def test_invalid_toml_warns_and_uses_defaults(self, tmp_path: Path):
+        """Test that invalid TOML emits a warning and uses defaults."""
         pyproject = tmp_path / "pyproject.toml"
         pyproject.write_text("invalid [ toml content")
 
-        # Should not raise
-        result = _load_pyproject_config(tmp_path)
+        # Should not raise, but should warn
+        with pytest.warns(UserWarning, match="Failed to parse"):
+            result = _load_pyproject_config(tmp_path)
         assert result == {}
 
     def test_programmatic_config_overrides_file(self, tmp_path: Path):
