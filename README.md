@@ -451,6 +451,7 @@ just sync
 ```bash
 just              # List all commands
 just test         # Run tests
+just test-cov     # Run tests with coverage
 just nox          # Run tests across all Python versions with nox
 just nox 3.12     # Run tests for a specific Python version
 just lint         # Run linting
@@ -458,6 +459,55 @@ just format       # Format code
 just check        # Run all checks
 just build        # Build the package
 ```
+
+### Coverage with Pytester
+
+This project uses [pytester](https://docs.pytest.org/en/stable/reference/reference.html#pytester) for integration testing. Getting accurate coverage for pytest plugins requires special handling because plugins are imported before coverage can start measuring.
+
+**The Problem:**
+
+When running `pytest --cov=pytest_uuid`, the plugin is loaded when pytest starts—*before* pytest-cov begins measuring. This causes incomplete coverage and the warning:
+
+```
+CoverageWarning: Module pytest_uuid was previously imported, but not measured
+```
+
+**The Solution:**
+
+Use `coverage run -m pytest` instead of `pytest --cov`:
+
+```bash
+# Instead of this:
+pytest --cov=pytest_uuid --cov-report=term-missing
+
+# Use this:
+coverage run -m pytest
+coverage combine
+coverage report --show-missing
+```
+
+This works because `coverage run` starts measuring *before* Python imports anything, so the plugin import is captured.
+
+**Configuration (`pyproject.toml`):**
+
+```toml
+[tool.coverage.run]
+source = ["src/pytest_uuid"]
+branch = true
+parallel = true           # Required for combining coverage files
+patch = ["subprocess"]    # Enables coverage in subprocesses
+sigterm = true            # Ensures coverage is saved on SIGTERM
+```
+
+**Why `parallel = true`?**
+
+When coverage patches subprocesses, each subprocess writes its own `.coverage.<hostname>.<pid>.<random>` file. The `coverage combine` command merges these into a single `.coverage` file for reporting.
+
+**References:**
+
+- [pytest-cov Subprocess Support](https://pytest-cov.readthedocs.io/en/latest/subprocess-support.html)
+- [coverage.py Subprocess Measurement](https://coverage.readthedocs.io/en/latest/subprocess.html)
+- [pytest-cov Issue #587 - Plugin Coverage](https://github.com/pytest-dev/pytest-cov/issues/587)
 
 ## License
 

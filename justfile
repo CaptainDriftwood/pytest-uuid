@@ -20,7 +20,9 @@ test-verbose:
 
 # Run tests with coverage
 test-cov:
-    uv run pytest --cov=pytest_uuid --cov-report=term-missing
+    uv run coverage run -m pytest
+    uv run coverage combine
+    uv run coverage report --show-missing
 
 # Run tests with nox (optionally specify Python version, e.g., just nox 3.12)
 nox version="":
@@ -54,6 +56,7 @@ clean:
     rm -rf build dist *.egg-info src/*.egg-info .pytest_cache .ruff_cache .nox .coverage htmlcov
     find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
     find . -type f -name "*.pyc" -delete
+    find . -maxdepth 1 -name ".coverage.*" -delete 2>/dev/null || true
 
 # Build the package
 build: clean

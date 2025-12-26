@@ -93,6 +93,9 @@ line-ending = "auto"
 [tool.coverage.run]
 source = ["src/pytest_uuid"]
 branch = true
+parallel = true
+patch = ["subprocess"]
+sigterm = true
 
 [tool.coverage.report]
 exclude_lines = [
