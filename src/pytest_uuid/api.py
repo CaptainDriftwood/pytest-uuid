@@ -21,6 +21,7 @@ from pytest_uuid.generators import (
     parse_uuid,
     parse_uuids,
 )
+from pytest_uuid.types import UUIDCall
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -74,10 +75,37 @@ def _find_uuid4_imports(original_uuid4: object) -> list[tuple[object, str]]:
                     attr = getattr(module, attr_name, None)
                     if attr is original_uuid4:
                         imports.append((module, attr_name))
-        except Exception:  # noqa: BLE001
+        except Exception:
             # Some modules may raise errors when accessing attributes
             continue
     return imports
+
+
+def _get_caller_info(skip_frames: int = 2) -> tuple[str | None, str | None]:
+    """Get caller module and file information.
+
+    Args:
+        skip_frames: Number of frames to skip (default 2 skips this function
+                    and the calling function).
+
+    Returns:
+        Tuple of (module_name, file_path) or (None, None) if unavailable.
+    """
+    frame = inspect.currentframe()
+    try:
+        # Skip the specified number of frames
+        for _ in range(skip_frames):
+            if frame is not None:
+                frame = frame.f_back
+
+        if frame is None:
+            return None, None
+
+        module_name = frame.f_globals.get("__name__")
+        file_path = frame.f_code.co_filename
+        return module_name, file_path
+    finally:
+        del frame
 
 
 class UUIDFreezer:
@@ -128,6 +156,11 @@ class UUIDFreezer:
         self._original_uuid4: Callable[[], uuid.UUID] | None = None
         self._patched_locations: list[tuple[object, str, object]] = []
 
+        # Call tracking
+        self._call_count: int = 0
+        self._generated_uuids: list[uuid.UUID] = []
+        self._calls: list[UUIDCall] = []
+
     def _create_generator(self) -> UUIDGenerator:
         """Create the appropriate UUID generator based on configuration."""
         # Seeded mode takes precedence
@@ -140,46 +173,52 @@ class UUIDFreezer:
                     )
                 actual_seed = _get_node_seed(self._node_id)
                 return SeededUUIDGenerator(actual_seed)
-            elif isinstance(self._seed, random.Random):
+            if isinstance(self._seed, random.Random):
                 return SeededUUIDGenerator(self._seed)
-            else:
-                return SeededUUIDGenerator(self._seed)
+            return SeededUUIDGenerator(self._seed)
 
         if self._uuids is not None:
             if isinstance(self._uuids, (str, uuid.UUID)):
                 # Single UUID as string/UUID - use static generator
                 return StaticUUIDGenerator(parse_uuid(self._uuids))
-            else:
-                uuid_list = parse_uuids(self._uuids)
-                # Only use static generator for single UUID if exhaustion is CYCLE
-                # Otherwise, keep sequence behavior for proper exhaustion handling
-                if (
-                    len(uuid_list) == 1
-                    and self._on_exhausted == ExhaustionBehavior.CYCLE
-                ):
-                    return StaticUUIDGenerator(uuid_list[0])
-                return SequenceUUIDGenerator(
-                    uuid_list,
-                    on_exhausted=self._on_exhausted,
-                )
+            uuid_list = parse_uuids(self._uuids)
+            # Only use static generator for single UUID if exhaustion is CYCLE
+            # Otherwise, keep sequence behavior for proper exhaustion handling
+            if len(uuid_list) == 1 and self._on_exhausted == ExhaustionBehavior.CYCLE:
+                return StaticUUIDGenerator(uuid_list[0])
+            return SequenceUUIDGenerator(
+                uuid_list,
+                on_exhausted=self._on_exhausted,
+            )
 
         # Default: random UUIDs (but we still need to patch for ignore list support)
         return RandomUUIDGenerator(self._original_uuid4)
 
     def _create_patched_uuid4(self) -> Callable[[], uuid.UUID]:
-        """Create the patched uuid4 function with ignore list support."""
+        """Create the patched uuid4 function with ignore list and call tracking."""
         generator = self._generator
         ignore_list = self._ignore_list
         original_uuid4 = self._original_uuid4
+        freezer = self  # Capture self for tracking
 
         if not ignore_list:
 
             def patched_uuid4() -> uuid.UUID:
-                return generator()  # type: ignore[misc]
+                caller_module, caller_file = _get_caller_info(skip_frames=2)
+                result = generator()  # type: ignore[misc]
+                freezer._record_call(
+                    result,
+                    was_mocked=True,
+                    caller_module=caller_module,
+                    caller_file=caller_file,
+                )
+                return result
 
             return patched_uuid4
 
         def patched_uuid4_with_ignore() -> uuid.UUID:
+            caller_module, caller_file = _get_caller_info(skip_frames=2)
+
             # Walk up the call stack to check for ignored modules
             frame = inspect.currentframe()
             try:
@@ -191,14 +230,47 @@ class UUIDFreezer:
                 # Check if any caller should be ignored
                 while frame is not None:
                     if _should_ignore_frame(frame, ignore_list):
-                        return original_uuid4()  # type: ignore[misc]
+                        result = original_uuid4()  # type: ignore[misc]
+                        freezer._record_call(
+                            result,
+                            was_mocked=False,
+                            caller_module=caller_module,
+                            caller_file=caller_file,
+                        )
+                        return result
                     frame = frame.f_back
             finally:
                 del frame
 
-            return generator()  # type: ignore[misc]
+            result = generator()  # type: ignore[misc]
+            freezer._record_call(
+                result,
+                was_mocked=True,
+                caller_module=caller_module,
+                caller_file=caller_file,
+            )
+            return result
 
         return patched_uuid4_with_ignore
+
+    def _record_call(
+        self,
+        result: uuid.UUID,
+        was_mocked: bool,
+        caller_module: str | None,
+        caller_file: str | None,
+    ) -> None:
+        """Record a uuid4 call for tracking."""
+        self._call_count += 1
+        self._generated_uuids.append(result)
+        self._calls.append(
+            UUIDCall(
+                uuid=result,
+                was_mocked=was_mocked,
+                caller_module=caller_module,
+                caller_file=caller_file,
+            )
+        )
 
     def __enter__(self) -> UUIDFreezer:
         """Start freezing uuid.uuid4()."""
@@ -290,10 +362,74 @@ class UUIDFreezer:
         """Get the current generator (only available while frozen)."""
         return self._generator
 
+    @property
+    def call_count(self) -> int:
+        """Get the number of times uuid4 was called."""
+        return self._call_count
+
+    @property
+    def generated_uuids(self) -> list[uuid.UUID]:
+        """Get a list of all UUIDs that have been generated.
+
+        Returns a copy to prevent external modification.
+        """
+        return list(self._generated_uuids)
+
+    @property
+    def last_uuid(self) -> uuid.UUID | None:
+        """Get the most recently generated UUID, or None if none generated."""
+        return self._generated_uuids[-1] if self._generated_uuids else None
+
+    @property
+    def calls(self) -> list[UUIDCall]:
+        """Get detailed metadata for all uuid4 calls.
+
+        Returns a copy to prevent external modification.
+        """
+        return list(self._calls)
+
+    @property
+    def mocked_calls(self) -> list[UUIDCall]:
+        """Get only the calls that returned mocked UUIDs."""
+        return [c for c in self._calls if c.was_mocked]
+
+    @property
+    def real_calls(self) -> list[UUIDCall]:
+        """Get only the calls that returned real UUIDs (e.g., ignored modules)."""
+        return [c for c in self._calls if not c.was_mocked]
+
+    @property
+    def mocked_count(self) -> int:
+        """Get the number of calls that returned mocked UUIDs."""
+        return sum(1 for c in self._calls if c.was_mocked)
+
+    @property
+    def real_count(self) -> int:
+        """Get the number of calls that returned real UUIDs."""
+        return sum(1 for c in self._calls if not c.was_mocked)
+
+    def calls_from(self, module_prefix: str) -> list[UUIDCall]:
+        """Get calls from modules matching the given prefix.
+
+        Args:
+            module_prefix: Module name prefix to filter by (e.g., "myapp.models").
+
+        Returns:
+            List of UUIDCall records from matching modules.
+        """
+        return [
+            c
+            for c in self._calls
+            if c.caller_module and c.caller_module.startswith(module_prefix)
+        ]
+
     def reset(self) -> None:
-        """Reset the generator to its initial state."""
+        """Reset the generator and tracking data to initial state."""
         if self._generator is not None:
             self._generator.reset()
+        self._call_count = 0
+        self._generated_uuids.clear()
+        self._calls.clear()
 
 
 # Convenience function for creating freezers

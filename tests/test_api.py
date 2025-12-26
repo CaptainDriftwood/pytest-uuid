@@ -136,7 +136,6 @@ class TestFreezeUUIDDecorator:
         @freeze_uuid("12345678-1234-5678-1234-567812345678")
         def my_function():
             """My docstring."""
-            pass
 
         assert my_function.__name__ == "my_function"
         assert my_function.__doc__ == "My docstring."
@@ -272,6 +271,141 @@ class TestUUIDFreezer:
             assert freezer.generator is not None
 
         assert freezer.generator is None
+
+
+class TestUUIDFreezerCallTracking:
+    """Tests for UUIDFreezer call tracking functionality."""
+
+    def test_call_count_starts_at_zero(self):
+        """Test that call_count starts at zero."""
+        with freeze_uuid("12345678-1234-5678-1234-567812345678") as freezer:
+            assert freezer.call_count == 0
+
+    def test_call_count_increments(self):
+        """Test that call_count increments with each call."""
+        with freeze_uuid("12345678-1234-5678-1234-567812345678") as freezer:
+            uuid.uuid4()
+            assert freezer.call_count == 1
+
+            uuid.uuid4()
+            assert freezer.call_count == 2
+
+    def test_generated_uuids_empty_initially(self):
+        """Test that generated_uuids starts empty."""
+        with freeze_uuid("12345678-1234-5678-1234-567812345678") as freezer:
+            assert freezer.generated_uuids == []
+
+    def test_generated_uuids_tracks_all(self):
+        """Test that generated_uuids tracks all generated UUIDs."""
+        with freeze_uuid(
+            [
+                "11111111-1111-1111-1111-111111111111",
+                "22222222-2222-2222-2222-222222222222",
+            ]
+        ) as freezer:
+            uuid.uuid4()
+            uuid.uuid4()
+
+            assert len(freezer.generated_uuids) == 2
+            assert freezer.generated_uuids[0] == uuid.UUID(
+                "11111111-1111-1111-1111-111111111111"
+            )
+            assert freezer.generated_uuids[1] == uuid.UUID(
+                "22222222-2222-2222-2222-222222222222"
+            )
+
+    def test_generated_uuids_returns_copy(self):
+        """Test that generated_uuids returns a copy (defensive)."""
+        with freeze_uuid("12345678-1234-5678-1234-567812345678") as freezer:
+            uuid.uuid4()
+
+            result = freezer.generated_uuids
+            result.clear()  # Modify the copy
+
+            # Original should be unchanged
+            assert len(freezer.generated_uuids) == 1
+
+    def test_last_uuid_none_initially(self):
+        """Test that last_uuid is None before any calls."""
+        with freeze_uuid("12345678-1234-5678-1234-567812345678") as freezer:
+            assert freezer.last_uuid is None
+
+    def test_last_uuid_returns_most_recent(self):
+        """Test that last_uuid returns the most recent UUID."""
+        with freeze_uuid(
+            [
+                "11111111-1111-1111-1111-111111111111",
+                "22222222-2222-2222-2222-222222222222",
+            ]
+        ) as freezer:
+            uuid.uuid4()
+            assert freezer.last_uuid == uuid.UUID(
+                "11111111-1111-1111-1111-111111111111"
+            )
+
+            uuid.uuid4()
+            assert freezer.last_uuid == uuid.UUID(
+                "22222222-2222-2222-2222-222222222222"
+            )
+
+    def test_calls_property(self):
+        """Test that calls property tracks call metadata."""
+        with freeze_uuid("12345678-1234-5678-1234-567812345678") as freezer:
+            result = uuid.uuid4()
+
+            calls = freezer.calls
+            assert len(calls) == 1
+            assert calls[0].uuid == result
+            assert calls[0].was_mocked is True
+            assert calls[0].caller_module is not None
+            assert "test_api" in calls[0].caller_module
+
+    def test_calls_returns_copy(self):
+        """Test that calls property returns a defensive copy."""
+        with freeze_uuid("12345678-1234-5678-1234-567812345678") as freezer:
+            uuid.uuid4()
+
+            calls = freezer.calls
+            calls.clear()
+
+            # Original should be unchanged
+            assert len(freezer.calls) == 1
+
+    def test_mocked_calls_and_counts(self):
+        """Test mocked_calls property and mocked_count."""
+        with freeze_uuid("12345678-1234-5678-1234-567812345678") as freezer:
+            uuid.uuid4()
+            uuid.uuid4()
+
+            assert len(freezer.mocked_calls) == 2
+            assert freezer.mocked_count == 2
+            assert all(c.was_mocked for c in freezer.mocked_calls)
+
+    def test_calls_from_filter(self):
+        """Test filtering calls by module prefix."""
+        with freeze_uuid("12345678-1234-5678-1234-567812345678") as freezer:
+            uuid.uuid4()
+
+            # Filter by this test module
+            matching = freezer.calls_from("tests")
+            assert len(matching) == 1
+
+            # Filter by non-matching prefix
+            non_matching = freezer.calls_from("nonexistent")
+            assert len(non_matching) == 0
+
+    def test_reset_clears_tracking_data(self):
+        """Test that reset clears all tracking data."""
+        with freeze_uuid("12345678-1234-5678-1234-567812345678") as freezer:
+            uuid.uuid4()
+            uuid.uuid4()
+
+            freezer.reset()
+
+            assert freezer.call_count == 0
+            assert freezer.generated_uuids == []
+            assert freezer.calls == []
+            assert freezer.last_uuid is None
 
 
 class TestFreezeUUIDWithDirectImport:

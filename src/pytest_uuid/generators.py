@@ -9,7 +9,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
 
 
 class ExhaustionBehavior(Enum):
@@ -107,10 +107,10 @@ class SequenceUUIDGenerator(UUIDGenerator):
         if self._on_exhausted == ExhaustionBehavior.CYCLE:
             self._index = 1  # Reset to second element (we return first below)
             return self._uuids[0]
-        elif self._on_exhausted == ExhaustionBehavior.RANDOM:
+        if self._on_exhausted == ExhaustionBehavior.RANDOM:
             return generate_uuid_from_random(self._fallback_rng)
-        else:  # RAISE
-            raise UUIDsExhaustedError(len(self._uuids))
+        # RAISE
+        raise UUIDsExhaustedError(len(self._uuids))
 
     def reset(self) -> None:
         self._index = 0
@@ -146,7 +146,7 @@ class SeededUUIDGenerator(UUIDGenerator):
 class RandomUUIDGenerator(UUIDGenerator):
     """Generator that produces random UUIDs (delegates to uuid.uuid4)."""
 
-    def __init__(self, original_uuid4: callable | None = None) -> None:
+    def __init__(self, original_uuid4: Callable[[], uuid.UUID] | None = None) -> None:
         self._original_uuid4 = original_uuid4 or uuid.uuid4
 
     def __call__(self) -> uuid.UUID:

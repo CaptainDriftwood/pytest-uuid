@@ -123,11 +123,7 @@ class TestPluginIntegration:
         assert mock_uuid_factory is not None
         assert callable(mock_uuid_factory)
 
-    def test_multiple_tests_are_isolated(self, mock_uuid):
-        """Test that each test gets a fresh mocker."""
-        # Set a UUID in this test
-        mock_uuid.set("99999999-9999-9999-9999-999999999999")
-        assert str(uuid.uuid4()) == "99999999-9999-9999-9999-999999999999"
+    # Note: Test isolation is thoroughly tested in test_pytester_integration.py::TestTestIsolation
 
 
 class TestEdgeCases:

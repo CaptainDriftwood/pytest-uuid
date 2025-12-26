@@ -83,19 +83,22 @@ class TestUUIDMockerEnhanced:
 
 
 class TestUUIDFreezerFixture:
-    """Tests for the uuid_freezer fixture (alias)."""
+    """Tests for the uuid_freezer fixture (alias for mock_uuid)."""
 
-    def test_uuid_freezer_exists(self, uuid_freezer):
-        """Test that uuid_freezer fixture exists."""
+    def test_uuid_freezer_has_same_api_as_mock_uuid(self, uuid_freezer):
+        """Test that uuid_freezer has the same API as mock_uuid."""
+        # Verify fixture exists and has the same UUIDMocker API
         assert uuid_freezer is not None
 
-    def test_uuid_freezer_has_same_api(self, uuid_freezer):
-        """Test that uuid_freezer has the same API as mock_uuid."""
+        # Test set() method
         uuid_freezer.set("12345678-1234-5678-1234-567812345678")
         assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
 
-    def test_uuid_freezer_set_seed(self, uuid_freezer):
-        """Test uuid_freezer with seed."""
+        # Test set_seed() method
         uuid_freezer.set_seed(42)
         result = uuid.uuid4()
         assert isinstance(result, uuid.UUID)
+
+        # Test reset() method
+        uuid_freezer.reset()
+        assert uuid_freezer.generator is None
