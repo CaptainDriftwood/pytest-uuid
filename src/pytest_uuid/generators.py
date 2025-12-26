@@ -45,10 +45,25 @@ def generate_uuid_from_random(rng: random.Random) -> uuid.UUID:
         A valid UUID v4 object
     """
     random_bits = rng.getrandbits(128)
-    # Set version to 4 (bits 76-79)
+
+    # UUID v4 structure (128 bits total):
+    #   Bits 0-47:   time_low + time_mid (48 bits) - random
+    #   Bits 48-51:  time_hi (4 bits) - random
+    #   Bits 52-55:  version (4 bits) - must be 0100 (4) for UUID v4
+    #   Bits 56-61:  clock_seq (6 bits) - random
+    #   Bits 62-63:  variant (2 bits) - must be 10 for RFC 4122
+    #   Bits 64-127: node (64 bits) - random
+    #
+    # Note: Bit numbering is from LSB (0) to MSB (127)
+
+    # Set version to 4: clear bits 76-79 (0xF mask), then set to 4
+    # Position 76 = 128 - 52 where version field starts in UUID spec
     random_bits = (random_bits & ~(0xF << 76)) | (4 << 76)
-    # Set variant to RFC 4122 (bits 62-63 = 10)
+
+    # Set variant to RFC 4122 (binary 10): clear bits 62-63, then set to 2
+    # Position 62 = 128 - 66 where variant field starts in UUID spec
     random_bits = (random_bits & ~(0x3 << 62)) | (0x2 << 62)
+
     return uuid.UUID(int=random_bits)
 
 

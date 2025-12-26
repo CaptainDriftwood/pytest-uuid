@@ -86,6 +86,13 @@ class CallTrackingMixin:
         self._call_count: int = 0
         self._generated_uuids: list[uuid.UUID] = []
         self._calls: list[UUIDCall] = []
+
+    Note:
+        This class is NOT thread-safe. The tracking methods modify shared
+        state without synchronization. This is acceptable for typical pytest
+        usage where tests run sequentially, but concurrent uuid4() calls
+        from multiple threads may result in race conditions. If thread-safe
+        tracking is needed, consider using threading.Lock in your code.
     """
 
     _call_count: int
