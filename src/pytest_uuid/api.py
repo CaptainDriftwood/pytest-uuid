@@ -173,6 +173,7 @@ class UUIDFreezer:
         original_uuid4 = self._original_uuid4
 
         if not ignore_list:
+
             def patched_uuid4() -> uuid.UUID:
                 return generator()  # type: ignore[misc]
 
