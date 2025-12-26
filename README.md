@@ -30,6 +30,8 @@ A pytest plugin for mocking `uuid.uuid4()` calls in your tests.
 - Decorator, marker, and fixture APIs (inspired by freezegun)
 - Configurable exhaustion behavior for sequences
 - Ignore list for packages that should use real UUIDs
+- Spy mode to track calls without mocking
+- Detailed call tracking with caller module/file info
 - Automatic cleanup after each test
 - Zero configuration required - just use the fixture
 
@@ -365,6 +367,73 @@ Factory for module-specific mocking.
 ```python
 with mock_uuid_factory("module.path") as mocker:
     mocker.set("...")
+```
+
+#### `spy_uuid`
+
+Spy fixture that tracks `uuid.uuid4()` calls without mocking them.
+
+```python
+def test_spy(spy_uuid):
+    result = uuid.uuid4()  # Returns real random UUID
+
+    assert spy_uuid.call_count == 1
+    assert spy_uuid.last_uuid == result
+```
+
+**Properties:**
+- `call_count` - Number of times uuid4 was called
+- `generated_uuids` - List of all generated UUIDs
+- `last_uuid` - Most recently generated UUID
+- `calls` - List of `UUIDCall` records with metadata
+
+**Methods:**
+- `reset()` - Reset tracking data
+- `calls_from(module_prefix)` - Filter calls by module prefix
+
+### Call Tracking
+
+Both `mock_uuid` and `spy_uuid` fixtures provide detailed call tracking via the `UUIDCall` dataclass:
+
+```python
+from pytest_uuid.types import UUIDCall
+
+def test_call_tracking(mock_uuid):
+    mock_uuid.set("12345678-1234-5678-1234-567812345678")
+    uuid.uuid4()
+
+    call = mock_uuid.calls[0]
+    assert call.uuid == uuid.UUID("12345678-1234-5678-1234-567812345678")
+    assert call.was_mocked is True
+    assert call.caller_module is not None
+    assert call.caller_file is not None
+```
+
+**`UUIDCall` Fields:**
+- `uuid` - The UUID that was returned
+- `was_mocked` - `True` if mocked, `False` if real (spy mode or ignored module)
+- `caller_module` - Name of the module that made the call
+- `caller_file` - File path where the call originated
+
+**Additional `mock_uuid` Properties:**
+- `calls` - All call records
+- `mocked_calls` - Only calls that returned mocked UUIDs
+- `real_calls` - Only calls that returned real UUIDs (spy mode)
+- `mocked_count` - Number of mocked calls
+- `real_count` - Number of real calls
+
+#### Filtering Calls by Module
+
+```python
+def test_filter_calls(mock_uuid):
+    mock_uuid.set("12345678-1234-5678-1234-567812345678")
+
+    uuid.uuid4()  # Call from test module
+    mymodule.do_something()  # Calls uuid4 internally
+
+    # Filter calls by module prefix
+    test_calls = mock_uuid.calls_from("tests")
+    module_calls = mock_uuid.calls_from("mymodule")
 ```
 
 ### Decorator/Context Manager
