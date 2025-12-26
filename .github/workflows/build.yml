@@ -47,6 +47,8 @@ jobs:
               # Enums and Exceptions
               ExhaustionBehavior,
               UUIDsExhaustedError,
+              # Type annotations
+              UUIDMockerProtocol,
               # Fixtures
               UUIDMocker,
           )

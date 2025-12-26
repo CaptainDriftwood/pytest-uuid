@@ -12,6 +12,7 @@ from pytest_uuid.generators import (
     UUIDsExhaustedError,
 )
 from pytest_uuid.plugin import UUIDMocker, mock_uuid, mock_uuid_factory, uuid_freezer
+from pytest_uuid.types import UUIDMockerProtocol
 
 __version__ = "0.1.0"
 __all__ = [
@@ -31,6 +32,8 @@ __all__ = [
     # Enums and Exceptions
     "ExhaustionBehavior",
     "UUIDsExhaustedError",
+    # Type annotations
+    "UUIDMockerProtocol",
     # Fixtures (for documentation - actual fixtures registered via plugin)
     "mock_uuid",
     "mock_uuid_factory",
