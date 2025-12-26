@@ -86,3 +86,53 @@ class TestFindUuid4Imports:
                 sys.modules.pop(test_key, None)
             else:
                 sys.modules[test_key] = original_value
+
+    def test_handles_module_that_raises_on_dir(self):
+        """Test that modules that raise on dir() are handled gracefully."""
+        original_uuid4 = uuid.uuid4
+
+        # Create a module that raises when dir() is called
+        class BadModule(types.ModuleType):
+            def __dir__(self):
+                raise RuntimeError("Cannot list attributes")
+
+        test_key = "_test_bad_dir_module_"
+        bad_module = BadModule(test_key)
+        original_value = sys.modules.get(test_key)
+        try:
+            sys.modules[test_key] = bad_module
+            # Should not raise - the exception should be caught
+            imports = _find_uuid4_imports(original_uuid4)
+            assert isinstance(imports, list)
+        finally:
+            if original_value is None:
+                sys.modules.pop(test_key, None)
+            else:
+                sys.modules[test_key] = original_value
+
+    def test_handles_module_that_raises_on_getattr(self):
+        """Test that modules that raise on getattr are handled gracefully."""
+        original_uuid4 = uuid.uuid4
+
+        # Create a module that raises when accessing certain attributes
+        class BadGetAttrModule(types.ModuleType):
+            def __getattr__(self, name):
+                if name == "uuid4":
+                    raise AttributeError("Cannot access uuid4")
+                return super().__getattribute__(name)
+
+        test_key = "_test_bad_getattr_module_"
+        bad_module = BadGetAttrModule(test_key)
+        # Add a uuid4 entry to make dir() return it
+        bad_module.__dict__["uuid4"] = "dummy"
+        original_value = sys.modules.get(test_key)
+        try:
+            sys.modules[test_key] = bad_module
+            # Should not raise - the exception should be caught
+            imports = _find_uuid4_imports(original_uuid4)
+            assert isinstance(imports, list)
+        finally:
+            if original_value is None:
+                sys.modules.pop(test_key, None)
+            else:
+                sys.modules[test_key] = original_value
