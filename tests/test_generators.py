@@ -33,7 +33,7 @@ class TestGenerateUUIDFromRandom:
         assert result.variant == uuid.RFC_4122
 
     @pytest.mark.parametrize(
-        "seed1,seed2,should_be_equal",
+        ("seed1", "seed2", "should_be_equal"),
         [
             (42, 42, True),
             (42, 43, False),
@@ -101,7 +101,7 @@ class TestSequenceUUIDGenerator:
         assert generator() == uuids[2]
 
     @pytest.mark.parametrize(
-        "behavior,should_raise",
+        ("behavior", "should_raise"),
         [
             (ExhaustionBehavior.CYCLE, False),
             (ExhaustionBehavior.RANDOM, False),
@@ -160,7 +160,7 @@ class TestSequenceUUIDGenerator:
         assert generator() == uuids[0]  # Back to first
 
     @pytest.mark.parametrize(
-        "behavior,should_raise",
+        ("behavior", "should_raise"),
         [
             (ExhaustionBehavior.CYCLE, False),
             (ExhaustionBehavior.RANDOM, False),
@@ -260,7 +260,7 @@ class TestParseUUID:
     """Tests for parse_uuid function."""
 
     @pytest.mark.parametrize(
-        "input_value,expected_uuid",
+        ("input_value", "expected_uuid"),
         [
             ("12345678-1234-5678-1234-567812345678", "12345678-1234-5678-1234-567812345678"),
             ("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),

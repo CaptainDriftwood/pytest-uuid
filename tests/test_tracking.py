@@ -347,7 +347,7 @@ class TestGetCallerInfo:
         list(filter(capture_info, [1]))
 
         assert len(results) == 1
-        module, file = results[0]
+        _module, file = results[0]
         # The frame should still be accessible
         assert file is not None
 
@@ -377,7 +377,6 @@ class TestFindUuid4Imports:
     def test_finds_dynamically_imported_module(self):
         """Test that _find_uuid4_imports finds uuid4 in dynamically imported modules."""
         import importlib
-        import sys
 
         # Dynamically import the uuid module with a fresh reference
         uuid_module = importlib.import_module("uuid")
