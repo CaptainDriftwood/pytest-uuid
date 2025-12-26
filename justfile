@@ -16,7 +16,7 @@ test *args:
 
 # Run tests with verbose output
 test-verbose:
-    uv run pytest -v
+    just test -v
 
 # Run tests with coverage
 test-cov:
@@ -48,8 +48,8 @@ format:
 
 # Run all code quality checks (lint + import sorting + format)
 check:
-    uv run ruff check src tests noxfile.py
-    uv run ruff format --check src tests noxfile.py
+    just lint
+    just format-check
 
 # Clean build artifacts
 clean:
