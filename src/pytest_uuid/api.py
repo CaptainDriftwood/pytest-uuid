@@ -6,10 +6,14 @@ import functools
 import hashlib
 import inspect
 import random
-import sys
 import uuid
 from typing import TYPE_CHECKING, Literal, overload
 
+from pytest_uuid._tracking import (
+    CallTrackingMixin,
+    _find_uuid4_imports,
+    _get_caller_info,
+)
 from pytest_uuid.config import get_config
 from pytest_uuid.generators import (
     ExhaustionBehavior,
@@ -59,56 +63,7 @@ def _should_ignore_frame(frame: object, ignore_list: tuple[str, ...]) -> bool:
     return any(module_name.startswith(prefix) for prefix in ignore_list)
 
 
-def _find_uuid4_imports(original_uuid4: object) -> list[tuple[object, str]]:
-    """Find all modules that have imported uuid4 directly.
-
-    Returns a list of (module, attribute_name) tuples for modules that have
-    the original uuid4 function as an attribute.
-    """
-    imports = []
-    for module in sys.modules.values():
-        if module is None:
-            continue
-        try:
-            for attr_name in dir(module):
-                if attr_name == "uuid4":
-                    attr = getattr(module, attr_name, None)
-                    if attr is original_uuid4:
-                        imports.append((module, attr_name))
-        except Exception:
-            # Some modules may raise errors when accessing attributes
-            continue
-    return imports
-
-
-def _get_caller_info(skip_frames: int = 2) -> tuple[str | None, str | None]:
-    """Get caller module and file information.
-
-    Args:
-        skip_frames: Number of frames to skip (default 2 skips this function
-                    and the calling function).
-
-    Returns:
-        Tuple of (module_name, file_path) or (None, None) if unavailable.
-    """
-    frame = inspect.currentframe()
-    try:
-        # Skip the specified number of frames
-        for _ in range(skip_frames):
-            if frame is not None:
-                frame = frame.f_back
-
-        if frame is None:
-            return None, None
-
-        module_name = frame.f_globals.get("__name__")
-        file_path = frame.f_code.co_filename
-        return module_name, file_path
-    finally:
-        del frame
-
-
-class UUIDFreezer:
+class UUIDFreezer(CallTrackingMixin):
     """Context manager and decorator for freezing uuid.uuid4() calls.
 
     This class provides fine-grained control over UUID generation during tests.
@@ -253,25 +208,6 @@ class UUIDFreezer:
 
         return patched_uuid4_with_ignore
 
-    def _record_call(
-        self,
-        result: uuid.UUID,
-        was_mocked: bool,
-        caller_module: str | None,
-        caller_file: str | None,
-    ) -> None:
-        """Record a uuid4 call for tracking."""
-        self._call_count += 1
-        self._generated_uuids.append(result)
-        self._calls.append(
-            UUIDCall(
-                uuid=result,
-                was_mocked=was_mocked,
-                caller_module=caller_module,
-                caller_file=caller_file,
-            )
-        )
-
     def __enter__(self) -> UUIDFreezer:
         """Start freezing uuid.uuid4()."""
         self._original_uuid4 = uuid.uuid4
@@ -362,74 +298,11 @@ class UUIDFreezer:
         """Get the current generator (only available while frozen)."""
         return self._generator
 
-    @property
-    def call_count(self) -> int:
-        """Get the number of times uuid4 was called."""
-        return self._call_count
-
-    @property
-    def generated_uuids(self) -> list[uuid.UUID]:
-        """Get a list of all UUIDs that have been generated.
-
-        Returns a copy to prevent external modification.
-        """
-        return list(self._generated_uuids)
-
-    @property
-    def last_uuid(self) -> uuid.UUID | None:
-        """Get the most recently generated UUID, or None if none generated."""
-        return self._generated_uuids[-1] if self._generated_uuids else None
-
-    @property
-    def calls(self) -> list[UUIDCall]:
-        """Get detailed metadata for all uuid4 calls.
-
-        Returns a copy to prevent external modification.
-        """
-        return list(self._calls)
-
-    @property
-    def mocked_calls(self) -> list[UUIDCall]:
-        """Get only the calls that returned mocked UUIDs."""
-        return [c for c in self._calls if c.was_mocked]
-
-    @property
-    def real_calls(self) -> list[UUIDCall]:
-        """Get only the calls that returned real UUIDs (e.g., ignored modules)."""
-        return [c for c in self._calls if not c.was_mocked]
-
-    @property
-    def mocked_count(self) -> int:
-        """Get the number of calls that returned mocked UUIDs."""
-        return sum(1 for c in self._calls if c.was_mocked)
-
-    @property
-    def real_count(self) -> int:
-        """Get the number of calls that returned real UUIDs."""
-        return sum(1 for c in self._calls if not c.was_mocked)
-
-    def calls_from(self, module_prefix: str) -> list[UUIDCall]:
-        """Get calls from modules matching the given prefix.
-
-        Args:
-            module_prefix: Module name prefix to filter by (e.g., "myapp.models").
-
-        Returns:
-            List of UUIDCall records from matching modules.
-        """
-        return [
-            c
-            for c in self._calls
-            if c.caller_module and c.caller_module.startswith(module_prefix)
-        ]
-
     def reset(self) -> None:
         """Reset the generator and tracking data to initial state."""
         if self._generator is not None:
             self._generator.reset()
-        self._call_count = 0
-        self._generated_uuids.clear()
-        self._calls.clear()
+        self._reset_tracking()
 
 
 # Convenience function for creating freezers

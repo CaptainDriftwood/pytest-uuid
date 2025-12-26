@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import inspect
 import random
 import sys
 import uuid
@@ -13,6 +12,11 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from pytest_uuid._tracking import (
+    CallTrackingMixin,
+    _find_uuid4_imports,
+    _get_caller_info,
+)
 from pytest_uuid.api import UUIDFreezer
 from pytest_uuid.config import get_config, load_config_from_pyproject
 from pytest_uuid.generators import (
@@ -36,34 +40,7 @@ def _get_node_seed(node_id: str) -> int:
     return int(hashlib.md5(node_id.encode()).hexdigest()[:8], 16)  # noqa: S324
 
 
-def _get_caller_info(skip_frames: int = 2) -> tuple[str | None, str | None]:
-    """Get caller module and file information.
-
-    Args:
-        skip_frames: Number of frames to skip (default 2 skips this function
-                    and the calling function).
-
-    Returns:
-        Tuple of (module_name, file_path) or (None, None) if unavailable.
-    """
-    frame = inspect.currentframe()
-    try:
-        # Skip the specified number of frames
-        for _ in range(skip_frames):
-            if frame is not None:
-                frame = frame.f_back
-
-        if frame is None:
-            return None, None
-
-        module_name = frame.f_globals.get("__name__")
-        file_path = frame.f_code.co_filename
-        return module_name, file_path
-    finally:
-        del frame
-
-
-class UUIDMocker:
+class UUIDMocker(CallTrackingMixin):
     """A class to manage mocked UUID values.
 
     This class provides a way to control the UUIDs returned by uuid.uuid4()
@@ -163,9 +140,7 @@ class UUIDMocker:
     def reset(self) -> None:
         """Reset the mocker to its initial state."""
         self._generator = None
-        self._call_count = 0
-        self._generated_uuids.clear()
-        self._calls.clear()
+        self._reset_tracking()
 
     def __call__(self) -> uuid.UUID:
         """Return the next mocked UUID.
@@ -183,83 +158,13 @@ class UUIDMocker:
             result = self._original_uuid4()
             was_mocked = False
 
-        self._call_count += 1
-        self._generated_uuids.append(result)
-        self._calls.append(
-            UUIDCall(
-                uuid=result,
-                was_mocked=was_mocked,
-                caller_module=caller_module,
-                caller_file=caller_file,
-            )
-        )
+        self._record_call(result, was_mocked, caller_module, caller_file)
         return result
 
     @property
     def generator(self) -> UUIDGenerator | None:
         """Get the current UUID generator."""
         return self._generator
-
-    @property
-    def call_count(self) -> int:
-        """Get the number of times uuid4 was called."""
-        return self._call_count
-
-    @property
-    def generated_uuids(self) -> list[uuid.UUID]:
-        """Get a list of all UUIDs that have been generated.
-
-        Returns a copy to prevent external modification.
-        """
-        return list(self._generated_uuids)
-
-    @property
-    def last_uuid(self) -> uuid.UUID | None:
-        """Get the most recently generated UUID, or None if none generated."""
-        return self._generated_uuids[-1] if self._generated_uuids else None
-
-    @property
-    def calls(self) -> list[UUIDCall]:
-        """Get detailed metadata for all uuid4 calls.
-
-        Returns a copy to prevent external modification.
-        """
-        return list(self._calls)
-
-    @property
-    def mocked_calls(self) -> list[UUIDCall]:
-        """Get only the calls that returned mocked UUIDs."""
-        return [c for c in self._calls if c.was_mocked]
-
-    @property
-    def real_calls(self) -> list[UUIDCall]:
-        """Get only the calls that returned real UUIDs (e.g., spy mode)."""
-        return [c for c in self._calls if not c.was_mocked]
-
-    @property
-    def mocked_count(self) -> int:
-        """Get the number of calls that returned mocked UUIDs."""
-        return sum(1 for c in self._calls if c.was_mocked)
-
-    @property
-    def real_count(self) -> int:
-        """Get the number of calls that returned real UUIDs."""
-        return sum(1 for c in self._calls if not c.was_mocked)
-
-    def calls_from(self, module_prefix: str) -> list[UUIDCall]:
-        """Get calls from modules matching the given prefix.
-
-        Args:
-            module_prefix: Module name prefix to filter by (e.g., "myapp.models").
-
-        Returns:
-            List of UUIDCall records from matching modules.
-        """
-        return [
-            c
-            for c in self._calls
-            if c.caller_module and c.caller_module.startswith(module_prefix)
-        ]
 
     def spy(self) -> None:
         """Enable spy mode - track calls but return real UUIDs.
@@ -279,7 +184,7 @@ class UUIDMocker:
         self._generator = None
 
 
-class UUIDSpy:
+class UUIDSpy(CallTrackingMixin):
     """A class to spy on UUID generation without mocking.
 
     This class wraps uuid.uuid4() to track calls while still returning
@@ -295,88 +200,18 @@ class UUIDSpy:
     def __call__(self) -> uuid.UUID:
         """Generate a real UUID and track it."""
         caller_module, caller_file = _get_caller_info(skip_frames=2)
-
         result = self._original_uuid4()
-        self._call_count += 1
-        self._generated_uuids.append(result)
-        self._calls.append(
-            UUIDCall(
-                uuid=result,
-                was_mocked=False,  # Spy always returns real UUIDs
-                caller_module=caller_module,
-                caller_file=caller_file,
-            )
+        self._record_call(
+            result,
+            was_mocked=False,
+            caller_module=caller_module,
+            caller_file=caller_file,
         )
         return result
 
-    @property
-    def call_count(self) -> int:
-        """Get the number of times uuid4 was called."""
-        return self._call_count
-
-    @property
-    def generated_uuids(self) -> list[uuid.UUID]:
-        """Get a list of all UUIDs that have been generated.
-
-        Returns a copy to prevent external modification.
-        """
-        return list(self._generated_uuids)
-
-    @property
-    def last_uuid(self) -> uuid.UUID | None:
-        """Get the most recently generated UUID, or None if none generated."""
-        return self._generated_uuids[-1] if self._generated_uuids else None
-
-    @property
-    def calls(self) -> list[UUIDCall]:
-        """Get detailed metadata for all uuid4 calls.
-
-        Returns a copy to prevent external modification.
-        """
-        return list(self._calls)
-
-    def calls_from(self, module_prefix: str) -> list[UUIDCall]:
-        """Get calls from modules matching the given prefix.
-
-        Args:
-            module_prefix: Module name prefix to filter by (e.g., "myapp.models").
-
-        Returns:
-            List of UUIDCall records from matching modules.
-        """
-        return [
-            c
-            for c in self._calls
-            if c.caller_module and c.caller_module.startswith(module_prefix)
-        ]
-
     def reset(self) -> None:
         """Reset tracking data."""
-        self._call_count = 0
-        self._generated_uuids.clear()
-        self._calls.clear()
-
-
-def _find_uuid4_imports(original_uuid4: object) -> list[tuple[object, str]]:
-    """Find all modules that have imported uuid4 directly.
-
-    Returns a list of (module, attribute_name) tuples for modules that have
-    the original uuid4 function as an attribute.
-    """
-    imports = []
-    for module in sys.modules.values():
-        if module is None:
-            continue
-        try:
-            for attr_name in dir(module):
-                if attr_name == "uuid4":
-                    attr = getattr(module, attr_name, None)
-                    if attr is original_uuid4:
-                        imports.append((module, attr_name))
-        except Exception:
-            # Some modules may raise errors when accessing attributes
-            continue
-    return imports
+        self._reset_tracking()
 
 
 def pytest_configure(config: pytest.Config) -> None:

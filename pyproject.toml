@@ -87,6 +87,7 @@ ignore = [
     "S112",   # try-except-continue (acceptable when silently ignoring inspection errors)
     "ANN",    # type annotations (to be added in follow-on commit)
     "RUF022", # unsorted __all__ (organized by category intentionally)
+    "TC001",  # TYPE_CHECKING imports (UUIDCall needed at runtime)
     "TC003",  # TYPE_CHECKING imports (some modules need runtime access)
     "PLC0415",  # import not at top level (some are intentional in tests/plugins)
     "PT011",  # pytest.raises too broad (match not always needed)
