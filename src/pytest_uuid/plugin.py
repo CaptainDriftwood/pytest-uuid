@@ -297,6 +297,13 @@ def mock_uuid(
     Returns:
         UUIDMocker: An object to control the mocked UUIDs.
     """
+    # Check for fixture conflict - detect if spy_uuid already patched uuid.uuid4
+    if isinstance(uuid.uuid4, UUIDSpy):
+        raise pytest.UsageError(
+            "Cannot use both 'mock_uuid' and 'spy_uuid' fixtures in the same test. "
+            "Use mock_uuid.spy() to switch to spy mode instead."
+        )
+
     mocker = UUIDMocker(monkeypatch, node_id=request.node.nodeid)
     original_uuid4 = uuid.uuid4
     uuid4_imports = _find_uuid4_imports(original_uuid4)
@@ -382,6 +389,13 @@ def spy_uuid(
     Returns:
         UUIDSpy: An object to inspect uuid4 calls.
     """
+    # Check for fixture conflict - detect if mock_uuid already patched uuid.uuid4
+    if isinstance(uuid.uuid4, UUIDMocker):
+        raise pytest.UsageError(
+            "Cannot use both 'mock_uuid' and 'spy_uuid' fixtures in the same test. "
+            "Use mock_uuid.spy() to switch to spy mode instead."
+        )
+
     original_uuid4 = uuid.uuid4
     spy = UUIDSpy(original_uuid4)
     uuid4_imports = _find_uuid4_imports(original_uuid4)

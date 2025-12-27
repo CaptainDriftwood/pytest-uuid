@@ -574,6 +574,57 @@ class TestEdgeCases:
 
     # Note: Nested context tests are covered by TestDeepNesting (3 and 5 levels)
 
+    def test_mock_uuid_and_spy_uuid_mutual_exclusion(self, pytester):
+        """Test that using both mock_uuid and spy_uuid raises UsageError."""
+        pytester.makepyfile(
+            test_both_fixtures="""
+            def test_both_fixtures(mock_uuid, spy_uuid):
+                pass  # Should never get here
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(errors=1)
+        result.stdout.fnmatch_lines(
+            ["*Cannot use both 'mock_uuid' and 'spy_uuid' fixtures*"]
+        )
+
+    def test_spy_uuid_and_mock_uuid_mutual_exclusion(self, pytester):
+        """Test mutual exclusion works regardless of fixture order."""
+        pytester.makepyfile(
+            test_both_fixtures_reversed="""
+            def test_both_fixtures(spy_uuid, mock_uuid):
+                pass  # Should never get here
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(errors=1)
+        result.stdout.fnmatch_lines(
+            ["*Cannot use both 'mock_uuid' and 'spy_uuid' fixtures*"]
+        )
+
+    def test_mock_uuid_spy_method_works(self, pytester):
+        """Test that mock_uuid.spy() is the correct alternative."""
+        pytester.makepyfile(
+            test_spy_method="""
+            import uuid
+
+            def test_mock_uuid_spy_mode(mock_uuid):
+                mock_uuid.spy()  # Switch to spy mode
+
+                result = uuid.uuid4()
+
+                assert mock_uuid.call_count == 1
+                assert mock_uuid.last_uuid == result
+                # Real UUID, so version should be 4
+                assert result.version == 4
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
     def test_marker_and_fixture_together(self, pytester):
         """Test using marker and fixture in the same test."""
         pytester.makepyfile(

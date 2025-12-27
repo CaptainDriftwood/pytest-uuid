@@ -120,16 +120,21 @@ class TestPluginDiscovery:
         """Test that pytest-uuid plugin is auto-discovered."""
         pytester.makepyfile(
             test_discovery="""
-            def test_fixtures_available(mock_uuid, spy_uuid, mock_uuid_factory):
-                # All fixtures should be available without explicit configuration
+            # Note: mock_uuid and spy_uuid are mutually exclusive,
+            # so we test them in separate tests
+            def test_mock_uuid_available(mock_uuid):
                 assert mock_uuid is not None
+
+            def test_spy_uuid_available(spy_uuid):
                 assert spy_uuid is not None
+
+            def test_mock_uuid_factory_available(mock_uuid_factory):
                 assert mock_uuid_factory is not None
             """
         )
 
         result = pytester.runpytest("-v")
-        result.assert_outcomes(passed=1)
+        result.assert_outcomes(passed=3)
 
     def test_marker_no_warning(self, pytester):
         """Test that freeze_uuid marker doesn't produce unknown marker warning."""
@@ -555,7 +560,6 @@ class TestRandomInstanceSeed:
 
 
 class TestParametrizeInteraction:
-
     def test_parametrize_with_freeze_uuid_marker(self, pytester):
         """Test that parametrize works with freeze_uuid marker."""
         pytester.makepyfile(
