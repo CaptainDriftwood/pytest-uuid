@@ -564,6 +564,10 @@ pytest_uuid.configure(
 )
 ```
 
+### References
+
+- [RFC 9562 - UUID Specification](https://datatracker.ietf.org/doc/html/rfc9562)
+
 ## Development
 
 This project uses [uv](https://docs.astral.sh/uv/) for package management and [just](https://just.systems/) as a command runner.
