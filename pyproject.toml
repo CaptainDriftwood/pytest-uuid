@@ -51,6 +51,11 @@ uuid = "pytest_uuid.plugin"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "thread: marks tests that use multiple threads",
+    "parallel: marks tests that use multiple processes (e.g., xdist)",
+]
 
 [tool.ruff]
 target-version = "py39"

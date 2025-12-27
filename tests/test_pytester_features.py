@@ -6,6 +6,8 @@ parallel execution, and parametrize interaction.
 
 from __future__ import annotations
 
+import pytest
+
 
 class TestSpyIntegration:
     """Tests for spy functionality in realistic scenarios."""
@@ -420,6 +422,7 @@ class TestUUIDCallDataclass:
         result.assert_outcomes(passed=1)
 
 
+@pytest.mark.parallel
 class TestParallelExecution:
     """Tests for parallel execution with pytest-xdist."""
 

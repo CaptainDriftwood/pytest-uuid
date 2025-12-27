@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import uuid
 
+import pytest
+
 from pytest_uuid._tracking import (
     CallTrackingMixin,
     _find_uuid4_imports,
@@ -474,6 +476,7 @@ class TestFindUuid4Imports:
                 sys.modules["__none_test__"] = original_value
 
 
+@pytest.mark.thread
 class TestThreadSafety:
     """Tests for thread safety behavior of tracking utilities.
 
@@ -589,6 +592,7 @@ class TestThreadSafety:
         # Readers should have successfully read multiple times
         assert len(read_counts) > 0
 
+    @pytest.mark.slow
     def test_reset_during_concurrent_writes(self):
         """Test that reset can be called during concurrent writes without crashing."""
         import threading
