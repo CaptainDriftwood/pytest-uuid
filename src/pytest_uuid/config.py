@@ -6,9 +6,12 @@ import sys
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pytest_uuid.generators import ExhaustionBehavior
+
+if TYPE_CHECKING:
+    import pytest
 
 # TOML parsing - use stdlib on 3.11+, fallback to tomli
 if sys.version_info >= (3, 11):
@@ -44,7 +47,19 @@ class PytestUUIDConfig:
         return tuple(self.default_ignore_list + self.extend_ignore_list)
 
 
+# StashKey for storing configuration in pytest.Config
+# We use a try/except for compatibility with older pytest versions
+try:
+    import pytest
+
+    _config_key = pytest.StashKey[PytestUUIDConfig]()  # type: ignore[attr-defined]
+    _has_stash = True
+except (ImportError, AttributeError):
+    _config_key = None  # type: ignore[assignment]
+    _has_stash = False
+
 _config: PytestUUIDConfig = PytestUUIDConfig()
+_pytest_config: pytest.Config | None = None
 
 
 def configure(
@@ -93,14 +108,37 @@ def configure(
 
 
 def get_config() -> PytestUUIDConfig:
-    """Get the current global configuration."""
+    """Get the current global configuration.
+
+    Returns configuration from pytest.Config.stash if available,
+    otherwise returns the global configuration.
+    """
+    global _pytest_config
+    if (
+        _has_stash
+        and _pytest_config is not None
+        and _config_key is not None
+        and hasattr(_pytest_config, "stash")
+        and _config_key in _pytest_config.stash
+    ):
+        return _pytest_config.stash[_config_key]
     return _config
 
 
 def reset_config() -> None:
     """Reset configuration to defaults. Primarily for testing."""
-    global _config
+    global _config, _pytest_config
     _config = PytestUUIDConfig()
+    _pytest_config = None
+
+
+def _set_pytest_config(config: pytest.Config) -> None:
+    """Set the pytest config reference for stash-based storage.
+
+    This is called by pytest_configure to enable config storage in stash.
+    """
+    global _pytest_config
+    _pytest_config = config
 
 
 def _load_pyproject_config(rootdir: Path | None = None) -> dict[str, Any]:
