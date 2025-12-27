@@ -16,23 +16,34 @@ test *args:
 
 # Run tests with verbose output
 test-verbose:
-    uv run pytest -v
+    just test -v
 
 # Run tests with coverage
 test-cov:
-    uv run pytest --cov=pytest_uuid --cov-report=term-missing
+    uv run coverage run -m pytest
+    uv run coverage combine
+    uv run coverage report --show-missing
 
-# Run tests across all Python versions with nox
-test-all:
-    uvx --with nox-uv nox -s tests
+# Run tests in random order using pytest-randomly
+test-randomly *args:
+    uv run --with pytest-randomly pytest {{ args }}
 
-# Run tests for a specific Python version (e.g., just test-py 3.12)
-test-py version:
-    uvx --with nox-uv nox -s tests-{{ version }}
+# Run tests with nox (optionally specify Python version, e.g., just nox 3.12)
+nox version="":
+    #!/usr/bin/env bash
+    if [ -z "{{ version }}" ]; then
+        uvx --with nox-uv nox -s tests
+    else
+        uvx --with nox-uv nox -s tests-{{ version }}
+    fi
 
 # Run linting
 lint:
     uv run ruff check src tests noxfile.py
+
+# Run type checking
+type:
+    uv run ty check src/
 
 # Run formatter check
 format-check:
@@ -43,16 +54,19 @@ format:
     uv run ruff check --select I --fix src tests noxfile.py
     uv run ruff format src tests noxfile.py
 
-# Run all code quality checks (lint + import sorting + format)
+# Run all code quality checks (format + lint + type + test)
 check:
-    uv run ruff check src tests noxfile.py
-    uv run ruff format --check src tests noxfile.py
+    just format-check
+    just lint
+    just type
+    just test
 
 # Clean build artifacts
 clean:
     rm -rf build dist *.egg-info src/*.egg-info .pytest_cache .ruff_cache .nox .coverage htmlcov
     find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
     find . -type f -name "*.pyc" -delete
+    find . -maxdepth 1 -name ".coverage.*" -delete 2>/dev/null || true
 
 # Build the package
 build: clean

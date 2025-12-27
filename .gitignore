@@ -43,6 +43,7 @@ htmlcov/
 .cache
 nosetests.xml
 coverage.xml
+coverage.json
 *.cover
 *.py,cover
 .hypothesis/
@@ -92,9 +93,6 @@ poetry.lock
 .pdm.toml
 .pdm-python
 .pdm-build/
-
-# uv
-uv.lock
 
 # PEP 582
 __pypackages__/
@@ -156,3 +154,7 @@ Thumbs.db
 # Project specific
 *.egg-info/
 CLAUDE.md
+
+# Local documentation
+docs/*
+!docs/images/
