@@ -61,6 +61,9 @@ format:
     uv run ruff check --select I --fix src tests noxfile.py
     uv run ruff format src tests noxfile.py
 
+# Alias for format
+fmt: format
+
 # Run all code quality checks (format + lint + type + test)
 check:
     just format-check
