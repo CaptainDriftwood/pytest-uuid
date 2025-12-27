@@ -499,8 +499,62 @@ class TestParallelExecution:
         result.assert_outcomes(passed=3)
 
 
+class TestRandomInstanceSeed:
+    """Tests for freeze_uuid with random.Random instance as seed."""
+
+    def test_context_manager_with_random_instance_seed(self, pytester):
+        """Test freeze_uuid context manager with random.Random instance."""
+        pytester.makepyfile(
+            test_random_instance="""
+            import uuid
+            import random
+            from pytest_uuid import freeze_uuid
+
+            def test_random_instance_seed():
+                # Create a Random instance with a known seed
+                rng = random.Random(42)
+
+                with freeze_uuid(seed=rng):
+                    first = uuid.uuid4()
+                    second = uuid.uuid4()
+
+                # Create another Random instance with same seed
+                rng2 = random.Random(42)
+
+                with freeze_uuid(seed=rng2):
+                    # Should produce same sequence
+                    assert uuid.uuid4() == first
+                    assert uuid.uuid4() == second
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_decorator_with_random_instance_seed(self, pytester):
+        """Test @freeze_uuid decorator with random.Random instance."""
+        pytester.makepyfile(
+            test_decorator_random="""
+            import uuid
+            import random
+            from pytest_uuid import freeze_uuid
+
+            # Create a reusable Random instance
+            rng = random.Random(99)
+
+            @freeze_uuid(seed=rng)
+            def test_decorated_random_instance():
+                result = uuid.uuid4()
+                assert result.version == 4
+                # Same rng should produce deterministic output
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+
 class TestParametrizeInteraction:
-    """Tests for interaction with pytest.mark.parametrize."""
 
     def test_parametrize_with_freeze_uuid_marker(self, pytester):
         """Test that parametrize works with freeze_uuid marker."""

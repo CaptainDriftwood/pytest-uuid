@@ -400,3 +400,45 @@ class TestMarkerVariants:
 
         result = pytester.runpytest("-v")
         result.assert_outcomes(passed=1)
+
+    def test_marker_with_uuids_keyword_argument(self, pytester):
+        """Test marker using the uuids keyword argument instead of positional."""
+        pytester.makepyfile(
+            test_uuids_kwarg="""
+            import uuid
+            import pytest
+
+            @pytest.mark.freeze_uuid(uuids="12345678-1234-5678-1234-567812345678")
+            def test_uuids_keyword():
+                assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+                assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_marker_with_uuids_keyword_sequence(self, pytester):
+        """Test marker using uuids keyword with a sequence."""
+        pytester.makepyfile(
+            test_uuids_kwarg_seq="""
+            import uuid
+            import pytest
+
+            @pytest.mark.freeze_uuid(
+                uuids=[
+                    "11111111-1111-1111-1111-111111111111",
+                    "22222222-2222-2222-2222-222222222222",
+                ],
+                on_exhausted="cycle"
+            )
+            def test_uuids_keyword_sequence():
+                assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
+                assert str(uuid.uuid4()) == "22222222-2222-2222-2222-222222222222"
+                # Cycles back
+                assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)

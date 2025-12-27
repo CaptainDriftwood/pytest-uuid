@@ -277,6 +277,116 @@ def get_uuid():
         result = pytester.runpytest("-v")
         result.assert_outcomes(passed=1)
 
+    def test_decorator_with_ignore_list(self, pytester):
+        """Test that @freeze_uuid decorator respects ignore list."""
+        pytester.makepyfile(
+            ignored_service="""
+            import uuid
+
+            def get_request_id():
+                return uuid.uuid4()
+            """
+        )
+
+        pytester.makepyfile(
+            test_decorator_ignore="""
+            import uuid
+            from pytest_uuid import freeze_uuid
+            import ignored_service
+
+            @freeze_uuid("12345678-1234-5678-1234-567812345678", ignore=["ignored_service"])
+            def test_decorator_with_ignore():
+                # Direct call should be mocked
+                mocked = uuid.uuid4()
+                assert str(mocked) == "12345678-1234-5678-1234-567812345678"
+
+                # Call from ignored module should be real
+                real = ignored_service.get_request_id()
+                assert str(real) != "12345678-1234-5678-1234-567812345678"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_decorator_on_class_with_ignore_list(self, pytester):
+        """Test that @freeze_uuid on class respects ignore list."""
+        pytester.makepyfile(
+            external_lib="""
+            import uuid
+
+            def generate():
+                return uuid.uuid4()
+            """
+        )
+
+        pytester.makepyfile(
+            test_class_decorator_ignore="""
+            import uuid
+            from pytest_uuid import freeze_uuid
+            import external_lib
+
+            @freeze_uuid("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", ignore=["external_lib"])
+            class TestWithIgnore:
+                def test_method_one(self):
+                    # Direct call mocked
+                    assert str(uuid.uuid4()) == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+                    # Ignored module returns real
+                    real = external_lib.generate()
+                    assert str(real) != "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+
+                def test_method_two(self):
+                    # Same behavior in another method
+                    assert str(uuid.uuid4()) == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+                    real = external_lib.generate()
+                    assert str(real) != "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=2)
+
+    def test_decorator_with_multiple_ignore_prefixes(self, pytester):
+        """Test decorator with multiple module prefixes in ignore list."""
+        pytester.makepyfile(
+            lib_a="""
+            import uuid
+            def get_uuid():
+                return uuid.uuid4()
+            """
+        )
+
+        pytester.makepyfile(
+            lib_b="""
+            import uuid
+            def get_uuid():
+                return uuid.uuid4()
+            """
+        )
+
+        pytester.makepyfile(
+            test_multi_ignore_decorator="""
+            import uuid
+            from pytest_uuid import freeze_uuid
+            import lib_a
+            import lib_b
+
+            @freeze_uuid("12345678-1234-5678-1234-567812345678", ignore=["lib_a", "lib_b"])
+            def test_multiple_ignores():
+                # Direct call mocked
+                assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+
+                # Both ignored modules get real UUIDs
+                real_a = lib_a.get_uuid()
+                real_b = lib_b.get_uuid()
+                assert str(real_a) != "12345678-1234-5678-1234-567812345678"
+                assert str(real_b) != "12345678-1234-5678-1234-567812345678"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
 
 class TestDirectImportPatching:
     """Tests for patching 'from uuid import uuid4' pattern."""
@@ -380,6 +490,78 @@ class TestDirectImportPatching:
                 # Should return real UUIDs now
                 result = uuid.uuid4()
                 assert str(result) != "12345678-1234-5678-1234-567812345678"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_direct_import_in_test_file_with_fixture(self, pytester):
+        """Test that direct import in test file itself is patched by mock_uuid."""
+        pytester.makepyfile(
+            test_direct_in_test="""
+            from uuid import uuid4
+
+            def test_direct_import_in_test_file(mock_uuid):
+                mock_uuid.set("12345678-1234-5678-1234-567812345678")
+
+                # Direct import in THIS test file should be patched
+                result = uuid4()
+                assert str(result) == "12345678-1234-5678-1234-567812345678"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_direct_import_in_test_file_with_marker(self, pytester):
+        """Test that direct import in test file is patched by marker."""
+        pytester.makepyfile(
+            test_direct_marker="""
+            import pytest
+            from uuid import uuid4
+
+            @pytest.mark.freeze_uuid("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+            def test_direct_import_with_marker():
+                # Direct import in THIS test file should be patched
+                result = uuid4()
+                assert str(result) == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_direct_import_in_test_file_with_decorator(self, pytester):
+        """Test that direct import in test file is patched by @freeze_uuid."""
+        pytester.makepyfile(
+            test_direct_decorator="""
+            from uuid import uuid4
+            from pytest_uuid import freeze_uuid
+
+            @freeze_uuid("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+            def test_direct_import_with_decorator():
+                # Direct import in THIS test file should be patched
+                result = uuid4()
+                assert str(result) == "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_direct_import_in_test_file_with_context_manager(self, pytester):
+        """Test that direct import in test file is patched by context manager."""
+        pytester.makepyfile(
+            test_direct_context="""
+            from uuid import uuid4
+            from pytest_uuid import freeze_uuid
+
+            def test_direct_import_with_context():
+                with freeze_uuid("cccccccc-cccc-cccc-cccc-cccccccccccc"):
+                    # Direct import in THIS test file should be patched
+                    result = uuid4()
+                    assert str(result) == "cccccccc-cccc-cccc-cccc-cccccccccccc"
             """
         )
 
@@ -631,6 +813,85 @@ def generate():
                     # custom_lib is in extend_ignore_list
                     real = custom_lib.generate()
                     assert str(real) != "12345678-1234-5678-1234-567812345678"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_marker_with_ignore_list_via_pyproject(self, pytester):
+        """Test that @pytest.mark.freeze_uuid respects pyproject.toml ignore list."""
+        pytester.makefile(
+            ".toml",
+            pyproject="""
+            [tool.pytest_uuid]
+            default_ignore_list = ["ignored_via_config"]
+            """,
+        )
+
+        pytester.makepyfile(
+            ignored_via_config="""
+            import uuid
+
+            def get_uuid():
+                return uuid.uuid4()
+            """
+        )
+
+        pytester.makepyfile(
+            test_marker_config_ignore="""
+            import uuid
+            import pytest
+            import ignored_via_config
+
+            @pytest.mark.freeze_uuid("12345678-1234-5678-1234-567812345678")
+            def test_marker_respects_config_ignore():
+                # Direct call should be mocked
+                mocked = uuid.uuid4()
+                assert str(mocked) == "12345678-1234-5678-1234-567812345678"
+
+                # Module in default_ignore_list should get real UUID
+                real = ignored_via_config.get_uuid()
+                assert str(real) != "12345678-1234-5678-1234-567812345678"
+            """
+        )
+
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_marker_with_extend_ignore_list_via_pyproject(self, pytester):
+        """Test that marker respects extend_ignore_list from pyproject.toml."""
+        pytester.makefile(
+            ".toml",
+            pyproject="""
+            [tool.pytest_uuid]
+            extend_ignore_list = ["extended_lib"]
+            """,
+        )
+
+        pytester.makepyfile(
+            extended_lib="""
+            import uuid
+
+            def generate():
+                return uuid.uuid4()
+            """
+        )
+
+        pytester.makepyfile(
+            test_marker_extend_ignore="""
+            import uuid
+            import pytest
+            import extended_lib
+
+            @pytest.mark.freeze_uuid("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+            def test_marker_extends_ignore():
+                # Direct call mocked
+                assert str(uuid.uuid4()) == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+
+                # extended_lib is in extend_ignore_list
+                real = extended_lib.generate()
+                assert str(real) != "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
             """
         )
 
@@ -899,8 +1160,6 @@ class TestLargeSequences:
 
 
 class TestDeepNesting:
-    """Tests for deeply nested freeze_uuid contexts."""
-
     def test_three_level_nesting(self, pytester):
         """Test three levels of nested freeze_uuid contexts."""
         pytester.makepyfile(
