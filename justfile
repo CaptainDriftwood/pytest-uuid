@@ -54,10 +54,12 @@ format:
     uv run ruff check --select I --fix src tests noxfile.py
     uv run ruff format src tests noxfile.py
 
-# Run all code quality checks (lint + import sorting + format)
+# Run all code quality checks (format + lint + type + test)
 check:
-    just lint
     just format-check
+    just lint
+    just type
+    just test
 
 # Clean build artifacts
 clean:
