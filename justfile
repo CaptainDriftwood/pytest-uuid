@@ -24,6 +24,13 @@ test-cov:
     uv run coverage combine
     uv run coverage report --show-missing
 
+# Run tests with coverage and open HTML report
+test-cov-html:
+    uv run coverage run -m pytest
+    uv run coverage combine
+    uv run coverage html
+    open htmlcov/index.html
+
 # Run tests in random order using pytest-randomly
 test-randomly *args:
     uv run --with pytest-randomly pytest {{ args }}
@@ -61,12 +68,30 @@ check:
     just type
     just test
 
-# Clean build artifacts
+# Show what ignored files would be cleaned (dry run)
+clean-dry-run:
+    git clean -Xdn | grep -v -E '\.venv|\.idea|\.claude|CLAUDE\.md' || true
+
+# Clean ignored files (excluding .venv, .idea, .claude, CLAUDE.md)
 clean:
-    rm -rf build dist *.egg-info src/*.egg-info .pytest_cache .ruff_cache .nox .coverage htmlcov
-    find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-    find . -type f -name "*.pyc" -delete
-    find . -maxdepth 1 -name ".coverage.*" -delete 2>/dev/null || true
+    #!/usr/bin/env bash
+    git clean -Xdn | grep -v -E '\.venv|\.idea|\.claude|CLAUDE\.md' | sed 's/Would remove //' | while read -r f; do [ -n "$f" ] && rm -rf "$f"; done
+
+# Show what untracked files would be cleaned (dry run)
+clean-untracked-dry-run:
+    git clean -dn -e .venv -e .idea -e .claude -e CLAUDE.md
+
+# Clean only untracked files (excluding .venv, .idea, .claude, CLAUDE.md)
+clean-untracked:
+    git clean -df -e .venv -e .idea -e .claude -e CLAUDE.md
+
+# Show what all files would be cleaned (dry run)
+clean-all-dry-run:
+    git clean -xdn -e .venv -e .idea -e .claude -e CLAUDE.md
+
+# Clean all files: ignored + untracked (excluding .venv, .idea, .claude, CLAUDE.md)
+clean-all:
+    git clean -xdf -e .venv -e .idea -e .claude -e CLAUDE.md
 
 # Build the package
 build: clean
