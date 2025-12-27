@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/images/logo.svg" alt="pytest-uuid logo" width="300">
+  <img src="https://raw.githubusercontent.com/CaptainDriftwood/pytest-uuid/master/docs/images/logo.svg" alt="pytest-uuid logo" width="300">
 </p>
 
 <h1 align="center">pytest-uuid</h1>
