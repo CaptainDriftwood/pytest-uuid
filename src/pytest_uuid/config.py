@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextvars
 import sys
 import warnings
 from dataclasses import dataclass, field
@@ -58,8 +59,37 @@ except (ImportError, AttributeError):
     _config_key = None  # type: ignore[assignment]
     _has_stash = False
 
-_config: PytestUUIDConfig = PytestUUIDConfig()
-_pytest_config: pytest.Config | None = None
+# ContextVar to track the active pytest.Config reference
+# This replaces the module-level global and provides proper isolation
+_active_pytest_config: contextvars.ContextVar[pytest.Config | None] = (
+    contextvars.ContextVar("_active_pytest_config", default=None)
+)
+
+# Stack of tokens for nested pytest sessions (e.g., pytester in-process runs)
+_config_tokens: list[contextvars.Token[pytest.Config | None]] = []
+
+
+def get_config() -> PytestUUIDConfig:
+    """Get the current configuration from pytest.Config.stash.
+
+    Returns:
+        The current PytestUUIDConfig instance.
+
+    Raises:
+        RuntimeError: If called outside of a pytest session or if pytest
+            doesn't support stash (requires pytest 7.0+).
+    """
+    pytest_config = _active_pytest_config.get()
+    if pytest_config is None:
+        raise RuntimeError(
+            "pytest-uuid configuration is only available within a pytest session. "
+            "Ensure pytest has been configured before accessing config."
+        )
+    if not (_has_stash and _config_key is not None and hasattr(pytest_config, "stash")):
+        raise RuntimeError(
+            "pytest-uuid requires pytest with stash support (pytest 7.0+)."
+        )
+    return pytest_config.stash[_config_key]
 
 
 def configure(
@@ -68,7 +98,7 @@ def configure(
     extend_ignore_list: list[str] | None = None,
     default_exhaustion_behavior: ExhaustionBehavior | str | None = None,
 ) -> None:
-    """Configure global pytest-uuid settings.
+    """Configure pytest-uuid settings in the current pytest session.
 
     This function allows you to set global defaults that apply to all
     UUID mocking unless overridden at the individual test level.
@@ -81,6 +111,9 @@ def configure(
         default_exhaustion_behavior: Default behavior when a UUID sequence
             is exhausted. Can be "cycle", "random", or "raise".
 
+    Raises:
+        RuntimeError: If called outside of a pytest session.
+
     Example:
         import pytest_uuid
 
@@ -90,55 +123,54 @@ def configure(
             default_exhaustion_behavior="raise",
         )
     """
-    global _config
+    config = get_config()
 
     if default_ignore_list is not None:
-        _config.default_ignore_list = list(default_ignore_list)
+        config.default_ignore_list = list(default_ignore_list)
 
     if extend_ignore_list is not None:
-        _config.extend_ignore_list = list(extend_ignore_list)
+        config.extend_ignore_list = list(extend_ignore_list)
 
     if default_exhaustion_behavior is not None:
         if isinstance(default_exhaustion_behavior, str):
-            _config.default_exhaustion_behavior = ExhaustionBehavior(
+            config.default_exhaustion_behavior = ExhaustionBehavior(
                 default_exhaustion_behavior
             )
         else:
-            _config.default_exhaustion_behavior = default_exhaustion_behavior
-
-
-def get_config() -> PytestUUIDConfig:
-    """Get the current global configuration.
-
-    Returns configuration from pytest.Config.stash if available,
-    otherwise returns the global configuration.
-    """
-    global _pytest_config
-    if (
-        _has_stash
-        and _pytest_config is not None
-        and _config_key is not None
-        and hasattr(_pytest_config, "stash")
-        and _config_key in _pytest_config.stash
-    ):
-        return _pytest_config.stash[_config_key]
-    return _config
+            config.default_exhaustion_behavior = default_exhaustion_behavior
 
 
 def reset_config() -> None:
     """Reset configuration to defaults. Primarily for testing."""
-    global _config, _pytest_config
-    _config = PytestUUIDConfig()
-    _pytest_config = None
+    pytest_config = _active_pytest_config.get()
+    if (
+        pytest_config is not None
+        and _has_stash
+        and _config_key is not None
+        and hasattr(pytest_config, "stash")
+    ):
+        pytest_config.stash[_config_key] = PytestUUIDConfig()
 
 
-def _set_pytest_config(config: pytest.Config) -> None:
-    """Set the pytest config reference for stash-based storage.
+def _set_active_pytest_config(config: pytest.Config) -> None:
+    """Set the active pytest config reference.
 
     This is called by pytest_configure to enable config storage in stash.
+    Uses a token stack to support nested pytest sessions (e.g., pytester).
     """
-    global _pytest_config
-    _pytest_config = config
+    token = _active_pytest_config.set(config)
+    _config_tokens.append(token)
+
+
+def _clear_active_pytest_config() -> None:
+    """Restore the previous pytest config reference.
+
+    This is called by pytest_unconfigure for cleanup.
+    Restores the previous value from the token stack to support nested sessions.
+    """
+    if _config_tokens:
+        token = _config_tokens.pop()
+        _active_pytest_config.reset(token)
 
 
 def _load_pyproject_config(rootdir: Path | None = None) -> dict[str, Any]:

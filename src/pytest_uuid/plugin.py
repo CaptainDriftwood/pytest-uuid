@@ -20,7 +20,11 @@ from pytest_uuid._tracking import (
 )
 from pytest_uuid.api import UUIDFreezer, _should_ignore_frame
 from pytest_uuid.config import (
-    _set_pytest_config,
+    PytestUUIDConfig,
+    _clear_active_pytest_config,
+    _config_key,
+    _has_stash,
+    _set_active_pytest_config,
     get_config,
     load_config_from_pyproject,
 )
@@ -264,22 +268,15 @@ def pytest_configure(config: pytest.Config) -> None:
     """Load config from pyproject.toml and register the freeze_uuid marker."""
     from pathlib import Path
 
-    # Set pytest config reference for stash-based storage
-    _set_pytest_config(config)
+    # Set active pytest config FIRST (enables get_config() to work)
+    _set_active_pytest_config(config)
 
-    # Load configuration from pyproject.toml
+    # Initialize stash with default config
+    if _has_stash and _config_key is not None and hasattr(config, "stash"):
+        config.stash[_config_key] = PytestUUIDConfig()
+
+    # Load configuration from pyproject.toml (updates stash via configure())
     load_config_from_pyproject(Path(config.rootdir))  # type: ignore[unresolved-attribute]
-
-    # Store configuration in stash if available
-    try:
-        from pytest_uuid.config import _config_key, _has_stash
-
-        if _has_stash and _config_key is not None and hasattr(config, "stash"):
-            from pytest_uuid.config import get_config
-
-            config.stash[_config_key] = get_config()
-    except (ImportError, AttributeError):
-        pass  # Stash not available in this pytest version
 
     config.addinivalue_line(
         "markers",
@@ -290,6 +287,11 @@ def pytest_configure(config: pytest.Config) -> None:
         "on_exhausted: 'cycle', 'random', or 'raise' when sequence exhausted. "
         "ignore: module prefixes to exclude from patching.",
     )
+
+
+def pytest_unconfigure(config: pytest.Config) -> None:  # noqa: ARG001
+    """Clean up when pytest exits."""
+    _clear_active_pytest_config()
 
 
 @pytest.hookimpl(tryfirst=True)
