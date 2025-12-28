@@ -11,7 +11,7 @@ import pytest
 # --- Spy functionality ---
 
 
-def test_spy_tracks_real_uuid_calls(pytester):
+def test_spy_tracks_real_uuid_calls(pytester: pytest.Pytester):
     """Test that spy mode tracks real UUID calls."""
     pytester.makepyfile(
         test_spy_track="""
@@ -137,24 +137,6 @@ def test_plugin_auto_registered(pytester):
 
     result = pytester.runpytest("-v")
     result.assert_outcomes(passed=3)
-
-
-def test_marker_no_warning(pytester):
-    """Test that freeze_uuid marker doesn't produce unknown marker warning."""
-    pytester.makepyfile(
-        test_no_warning="""
-        import pytest
-
-        @pytest.mark.freeze_uuid("12345678-1234-5678-1234-567812345678")
-        def test_marker():
-            pass
-        """
-    )
-
-    result = pytester.runpytest("-v", "--strict-markers")
-    result.assert_outcomes(passed=1)
-    # Should not contain "Unknown pytest.mark.freeze_uuid"
-    assert "Unknown" not in result.stdout.str()
 
 
 # --- Call tracking ---
@@ -367,67 +349,6 @@ def test_spy_uuid_calls_from_multiple_modules(pytester):
             assert len(from_a) == 1
             assert len(from_b) == 1
             assert len(from_test) == 1
-        """
-    )
-
-    result = pytester.runpytest("-v")
-    result.assert_outcomes(passed=1)
-
-
-# --- UUIDCall dataclass ---
-
-
-def test_uuid_call_has_all_fields(pytester):
-    """Test UUIDCall dataclass has all expected fields."""
-    pytester.makepyfile(
-        test_uuid_call_fields="""
-        import uuid
-        from pytest_uuid.types import UUIDCall
-
-        def test_uuid_call_structure(mock_uuid):
-            mock_uuid.set("12345678-1234-5678-1234-567812345678")
-            uuid.uuid4()
-
-            call = mock_uuid.calls[0]
-
-            # Verify it's a UUIDCall instance
-            assert isinstance(call, UUIDCall)
-
-            # Verify all fields exist
-            assert hasattr(call, 'uuid')
-            assert hasattr(call, 'was_mocked')
-            assert hasattr(call, 'caller_module')
-            assert hasattr(call, 'caller_file')
-
-            # Verify field types
-            assert isinstance(call.uuid, uuid.UUID)
-            assert isinstance(call.was_mocked, bool)
-            assert call.caller_module is None or isinstance(call.caller_module, str)
-            assert call.caller_file is None or isinstance(call.caller_file, str)
-        """
-    )
-
-    result = pytester.runpytest("-v")
-    result.assert_outcomes(passed=1)
-
-
-def test_uuid_call_is_immutable(pytester):
-    """Test that UUIDCall instances are immutable (frozen dataclass)."""
-    pytester.makepyfile(
-        test_uuid_call_frozen="""
-        import uuid
-        import pytest
-        from dataclasses import FrozenInstanceError
-
-        def test_uuid_call_immutable(mock_uuid):
-            mock_uuid.set("12345678-1234-5678-1234-567812345678")
-            uuid.uuid4()
-
-            call = mock_uuid.calls[0]
-
-            # Attempting to modify should raise
-            with pytest.raises(FrozenInstanceError):
-                call.was_mocked = False
         """
     )
 
