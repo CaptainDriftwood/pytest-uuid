@@ -45,7 +45,7 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          uv run coverage run -m pytest
+          uv run coverage run -m pytest -p no:randomly
           uv run coverage combine
           uv run coverage xml
 

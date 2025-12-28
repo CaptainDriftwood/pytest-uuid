@@ -10,30 +10,30 @@ install:
 install-prod:
     uv pip install -e .
 
-# Run tests
+# Run tests (deterministic order)
 test *args:
-    uv run pytest {{ args }}
+    uv run pytest -p no:randomly {{ args }}
 
 # Run tests with verbose output
 test-verbose:
     just test -v
 
-# Run tests with coverage
+# Run tests with coverage (deterministic order)
 test-cov:
-    uv run coverage run -m pytest
+    uv run coverage run -m pytest -p no:randomly
     uv run coverage combine
     uv run coverage report --show-missing
 
-# Run tests with coverage and open HTML report
+# Run tests with coverage and open HTML report (deterministic order)
 test-cov-html:
-    uv run coverage run -m pytest
+    uv run coverage run -m pytest -p no:randomly
     uv run coverage combine
     uv run coverage html
     open htmlcov/index.html
 
 # Run tests in random order using pytest-randomly
 test-randomly *args:
-    uv run --with pytest-randomly pytest {{ args }}
+    uv run pytest {{ args }}
 
 # Run tests with nox (optionally specify Python version, e.g., just nox 3.12)
 nox version="":
