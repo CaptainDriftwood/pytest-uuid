@@ -265,6 +265,51 @@ Exhaustion behaviors:
 - `"random"`: Fall back to generating random UUIDs
 - `"raise"`: Raise `UUIDsExhaustedError`
 
+### Spy Mode
+
+Track `uuid.uuid4()` calls without mocking them. Useful when you need to verify UUID generation happens without controlling the output.
+
+#### Using `spy_uuid` Fixture
+
+```python
+# myapp/models.py
+from uuid import uuid4
+
+class User:
+    def __init__(self, name):
+        self.id = str(uuid4())
+        self.name = name
+
+# tests/test_models.py
+def test_user_generates_uuid(spy_uuid):
+    """Verify User creates a UUID without controlling its value."""
+    user = User("Alice")
+
+    assert spy_uuid.call_count == 1
+    assert user.id == str(spy_uuid.last_uuid)
+```
+
+#### Using `mock_uuid.spy()`
+
+Switch from mocked to real UUIDs mid-test:
+
+```python
+def test_start_mocked_then_spy(mock_uuid):
+    """Start with mocked UUIDs, then switch to real ones."""
+    mock_uuid.set("12345678-1234-5678-1234-567812345678")
+    first = uuid.uuid4()  # Mocked
+
+    mock_uuid.spy()  # Switch to spy mode
+    second = uuid.uuid4()  # Real random UUID
+
+    assert str(first) == "12345678-1234-5678-1234-567812345678"
+    assert first != second  # second is random
+    assert mock_uuid.mocked_count == 1
+    assert mock_uuid.real_count == 1
+```
+
+> **When to use which:** Use `spy_uuid` when you never need mocking in the test. Use `mock_uuid.spy()` when you need to switch between mocked and real UUIDs within the same test.
+
 ### Ignoring Modules
 
 Exclude specific packages from UUID mocking so they receive real UUIDs. This is useful for third-party libraries like SQLAlchemy or Celery that need real UUIDs for internal operations.
@@ -534,12 +579,72 @@ def test_call_tracking(mock_uuid):
 - `caller_module` - Name of the module that made the call
 - `caller_file` - File path where the call originated
 
+**Tracking Properties** (available on both `mock_uuid` and `spy_uuid`):
+- `call_count` - Total number of uuid4 calls
+- `generated_uuids` - List of all UUIDs returned
+- `last_uuid` - Most recently returned UUID
+- `calls` - List of `UUIDCall` records with full metadata
+
 **Additional `mock_uuid` Properties:**
-- `calls` - All call records
 - `mocked_calls` - Only calls that returned mocked UUIDs
 - `real_calls` - Only calls that returned real UUIDs (spy mode or ignored modules)
 - `mocked_count` - Number of mocked calls
 - `real_count` - Number of real calls
+
+#### Interrogating Multiple Calls
+
+```python
+def test_interrogate_calls(mock_uuid):
+    """Inspect detailed metadata for all uuid4 calls."""
+    mock_uuid.set(
+        "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+    )
+
+    first = uuid.uuid4()
+    second = uuid.uuid4()
+
+    # Check all UUIDs generated
+    assert len(mock_uuid.generated_uuids) == 2
+    assert mock_uuid.generated_uuids[0] == first
+    assert mock_uuid.generated_uuids[1] == second
+
+    # Get the last UUID quickly
+    assert mock_uuid.last_uuid == second
+
+    # Iterate through call details
+    for i, call in enumerate(mock_uuid.calls):
+        print(f"Call {i}: {call.uuid}")
+        print(f"  Module: {call.caller_module}")
+        print(f"  File: {call.caller_file}")
+        print(f"  Mocked: {call.was_mocked}")
+```
+
+#### Distinguishing Mocked vs Real Calls
+
+```python
+def test_mixed_mocked_and_real(mock_uuid):
+    """Track both mocked calls and real calls from ignored modules."""
+    mock_uuid.set("12345678-1234-5678-1234-567812345678")
+    mock_uuid.set_ignore("mylib")
+
+    uuid.uuid4()              # Mocked (direct call)
+    mylib.create_record()     # Real (from ignored module)
+    uuid.uuid4()              # Mocked (direct call)
+
+    # Count by type
+    assert mock_uuid.call_count == 3
+    assert mock_uuid.mocked_count == 2
+    assert mock_uuid.real_count == 1
+
+    # Access only real calls
+    for call in mock_uuid.real_calls:
+        print(f"Real UUID from {call.caller_module}: {call.uuid}")
+
+    # Access only mocked calls
+    for call in mock_uuid.mocked_calls:
+        assert call.was_mocked is True
+```
 
 #### Filtering Calls by Module
 
@@ -553,6 +658,9 @@ def test_filter_calls(mock_uuid):
     # Filter calls by module prefix
     test_calls = mock_uuid.calls_from("tests")
     module_calls = mock_uuid.calls_from("mymodule")
+
+    # Useful for verifying specific modules made expected calls
+    assert len(module_calls) == 1
 ```
 
 ### Decorator/Context Manager
