@@ -7,7 +7,7 @@ import sys
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 from pytest_uuid.generators import ExhaustionBehavior
 
@@ -61,12 +61,12 @@ except (ImportError, AttributeError):
 
 # ContextVar to track the active pytest.Config reference
 # This replaces the module-level global and provides proper isolation
-_active_pytest_config: contextvars.ContextVar[pytest.Config | None] = (
+_active_pytest_config: contextvars.ContextVar[Optional["pytest.Config"]] = (
     contextvars.ContextVar("_active_pytest_config", default=None)
 )
 
 # Stack of tokens for nested pytest sessions (e.g., pytester in-process runs)
-_config_tokens: list[contextvars.Token[pytest.Config | None]] = []
+_config_tokens: list[contextvars.Token[Optional["pytest.Config"]]] = []
 
 
 def get_config() -> PytestUUIDConfig:
