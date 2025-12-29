@@ -44,7 +44,7 @@ Repository = "https://github.com/CaptainDriftwood/pytest-uuid"
 Issues = "https://github.com/CaptainDriftwood/pytest-uuid/issues"
 
 [project.entry-points.pytest11]
-uuid = "pytest_uuid.plugin"
+pytest_uuid = "pytest_uuid.plugin"
 
 # uv_build auto-detects src/ layout
 
