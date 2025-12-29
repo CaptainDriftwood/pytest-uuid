@@ -195,6 +195,8 @@ ExhaustionBehavior.RAISE   # Raise UUIDsExhaustedError
 Raised when UUID sequence is exhausted and behavior is `"raise"`.
 
 ```python
+import uuid
+import pytest
 from pytest_uuid import UUIDsExhaustedError
 
 with pytest.raises(UUIDsExhaustedError):

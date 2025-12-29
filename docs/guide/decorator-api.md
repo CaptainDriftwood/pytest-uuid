@@ -60,6 +60,8 @@ def test_custom_rng():
 Control what happens when UUIDs are exhausted:
 
 ```python
+import uuid
+import pytest
 from pytest_uuid import freeze_uuid, UUIDsExhaustedError
 
 @freeze_uuid(
