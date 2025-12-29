@@ -154,6 +154,3 @@ Thumbs.db
 # Project specific
 CLAUDE.md
 
-# Local documentation
-docs/*
-!docs/images/
