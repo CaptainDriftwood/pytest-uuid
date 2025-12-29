@@ -1,23 +1,32 @@
 ---
-name: Bug report
-about: Create a report to help us improve
+name: Bug Report
+about: Report a bug or unexpected behavior
 title: ''
 labels: bug
 assignees: ''
 ---
 
-**Description**
-A clear and concise description of what the bug is.
-
-**Steps to reproduce**
-1. Go to '...'
-2. Run command '....'
-3. See error
-
-**Expected vs actual behavior**
-Describe what you expected to happen vs what actually happened.
-
+**pytest-uuid version**
 **Environment**
-- OS: [e.g. macOS]
-- Python version: [e.g. 3.9]
-- pytest version: [e.g. 7.0]
+- Python version:
+- pytest version:
+- OS:
+
+**Which API are you using?**
+- [ ] `mock_uuid` fixture
+- [ ] `spy_uuid` fixture
+- [ ] `@freeze_uuid` decorator
+- [ ] `@pytest.mark.freeze_uuid` marker
+- [ ] `freeze_uuid` context manager
+
+**Description**
+A clear description of the bug.
+
+**Minimal Reproducible Example**
+```python
+# Paste a minimal test that reproduces the issue
+import uuid
+
+def test_example(mock_uuid):
+    mock_uuid.set("...")
+    # ...

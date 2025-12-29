@@ -1,16 +1,19 @@
 ---
-name: Feature request
-about: Suggest an idea for this project
+name: Feature Request
+about: Suggest a new feature or enhancement
 title: ''
 labels: enhancement
 assignees: ''
 ---
 
-**Problem/use case**
-Is your feature request related to a problem? Please describe.
+**Problem / Use Case**
+Describe the problem you're trying to solve or the use case for this feature.
 
-**Proposed solution**
-Describe the solution you'd like.
+**Proposed Solution**
+Describe what you'd like to see implemented.
 
-**Alternatives considered**
-Describe any alternative solutions or features you've considered.
+**Example**
+```python
+# Optional: Show how you'd imagine using this feature
+def test_example(mock_uuid):
+    # ...
