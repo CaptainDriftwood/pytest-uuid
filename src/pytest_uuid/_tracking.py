@@ -57,23 +57,23 @@ def _find_uuid4_imports(original_uuid4: object) -> list[tuple[object, str]]:
     """Find all modules that have imported uuid4 directly.
 
     Returns a list of (module, attribute_name) tuples for modules that have
-    the original uuid4 function as an attribute.
+    the original uuid4 function as an attribute. This handles both standard
+    imports (from uuid import uuid4) and aliased imports
+    (from uuid import uuid4 as my_uuid).
     """
     imports = []
     for module in sys.modules.values():
         if module is None:
             continue
         try:
-            # Use __dict__ directly instead of dir() for performance.
-            # dir() iterates all attributes, handles inheritance, and sorts.
-            # For uuid4 imports (simple assignments), __dict__ lookup suffices.
             module_dict = getattr(module, "__dict__", None)
-            if (
-                module_dict is not None
-                and "uuid4" in module_dict
-                and module_dict["uuid4"] is original_uuid4
-            ):
-                imports.append((module, "uuid4"))
+            if module_dict is None:
+                continue
+            # Scan all attributes to find any that reference the original uuid4.
+            # This handles aliased imports like: from uuid import uuid4 as my_uuid
+            for attr_name, attr_value in module_dict.items():
+                if attr_value is original_uuid4:
+                    imports.append((module, attr_name))
         except (TypeError, AttributeError, RuntimeError):
             # TypeError: unusual module types
             # AttributeError: module attributes inaccessible during teardown

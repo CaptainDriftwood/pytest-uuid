@@ -577,6 +577,156 @@ def test_direct_import_in_test_file_with_context_manager(pytester):
     result.assert_outcomes(passed=1)
 
 
+# --- Aliased import patching ---
+
+
+def test_aliased_import_is_patched(pytester):
+    """Test that 'from uuid import uuid4 as alias' is patched."""
+    pytester.makepyfile(
+        mymodule="""
+        from uuid import uuid4 as generate_id
+
+        def create_entity():
+            return str(generate_id())
+        """
+    )
+
+    pytester.makepyfile(
+        test_alias="""
+        import mymodule
+
+        def test_aliased_import(mock_uuid):
+            mock_uuid.set("12345678-1234-5678-1234-567812345678")
+            result = mymodule.create_entity()
+            assert result == "12345678-1234-5678-1234-567812345678"
+        """
+    )
+
+    result = pytester.runpytest("-v")
+    result.assert_outcomes(passed=1)
+
+
+def test_aliased_import_with_freeze_uuid_decorator(pytester):
+    """Test that aliased imports are patched by @freeze_uuid decorator."""
+    pytester.makepyfile(
+        helper="""
+        from uuid import uuid4 as make_uuid
+
+        def get_id():
+            return str(make_uuid())
+        """
+    )
+
+    pytester.makepyfile(
+        test_alias_decorator="""
+        from pytest_uuid import freeze_uuid
+        import helper
+
+        @freeze_uuid("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        def test_aliased_import_with_decorator():
+            result = helper.get_id()
+            assert result == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+        """
+    )
+
+    result = pytester.runpytest("-v")
+    result.assert_outcomes(passed=1)
+
+
+def test_aliased_import_in_test_file(pytester):
+    """Test that aliased import in the test file itself is patched."""
+    pytester.makepyfile(
+        test_alias_in_test="""
+        from uuid import uuid4 as my_uuid
+
+        def test_aliased_import_in_test_file(mock_uuid):
+            mock_uuid.set("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+            result = my_uuid()
+            assert str(result) == "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+        """
+    )
+
+    result = pytester.runpytest("-v")
+    result.assert_outcomes(passed=1)
+
+
+def test_multiple_aliases_same_module(pytester):
+    """Test that multiple aliases in the same module are all patched."""
+    pytester.makepyfile(
+        multi_alias="""
+        from uuid import uuid4 as id1
+        from uuid import uuid4 as id2
+        from uuid import uuid4  # standard import too
+
+        def get_ids():
+            return str(id1()), str(id2()), str(uuid4())
+        """
+    )
+
+    pytester.makepyfile(
+        test_multi_alias="""
+        import multi_alias
+
+        def test_multiple_aliases(mock_uuid):
+            mock_uuid.set("cccccccc-cccc-cccc-cccc-cccccccccccc")
+            a, b, c = multi_alias.get_ids()
+            assert a == "cccccccc-cccc-cccc-cccc-cccccccccccc"
+            assert b == "cccccccc-cccc-cccc-cccc-cccccccccccc"
+            assert c == "cccccccc-cccc-cccc-cccc-cccccccccccc"
+        """
+    )
+
+    result = pytester.runpytest("-v")
+    result.assert_outcomes(passed=1)
+
+
+def test_module_alias_import_uuid_as_alias(pytester):
+    """Test that 'import uuid as my_uuid' is patched.
+
+    This works because module aliasing still references the same module object,
+    so patching uuid.uuid4 automatically affects my_uuid.uuid4.
+    """
+    pytester.makepyfile(
+        mymodule="""
+        import uuid as my_uuid
+
+        def create_id():
+            return str(my_uuid.uuid4())
+        """
+    )
+
+    pytester.makepyfile(
+        test_module_alias="""
+        import mymodule
+
+        def test_module_alias(mock_uuid):
+            mock_uuid.set("12345678-1234-5678-1234-567812345678")
+            result = mymodule.create_id()
+            assert result == "12345678-1234-5678-1234-567812345678"
+        """
+    )
+
+    result = pytester.runpytest("-v")
+    result.assert_outcomes(passed=1)
+
+
+def test_module_alias_in_test_file(pytester):
+    """Test that 'import uuid as alias' in test file itself is patched."""
+    pytester.makepyfile(
+        test_alias_in_test="""
+        import uuid as u
+
+        def test_module_alias_in_test(mock_uuid):
+            mock_uuid.set("dddddddd-dddd-dddd-dddd-dddddddddddd")
+            result = u.uuid4()
+            assert str(result) == "dddddddd-dddd-dddd-dddd-dddddddddddd"
+        """
+    )
+
+    result = pytester.runpytest("-v")
+    result.assert_outcomes(passed=1)
+
+
 # --- Edge cases and error handling ---
 
 
