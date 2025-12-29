@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "pytest-uuid"
-version = "0.1.0"
+version = "0.2.0"
 description = "A pytest plugin for mocking uuid.uuid4() calls"
 readme = "README.md"
 license = "MIT"
