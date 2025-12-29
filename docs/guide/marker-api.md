@@ -95,6 +95,10 @@ def test_create_admin():
 ## Exhaustion Behavior
 
 ```python
+import uuid
+import pytest
+from pytest_uuid import UUIDsExhaustedError
+
 @pytest.mark.freeze_uuid(
     "11111111-1111-1111-1111-111111111111",
     on_exhausted="raise",

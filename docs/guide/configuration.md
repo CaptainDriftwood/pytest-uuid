@@ -88,6 +88,8 @@ default_exhaustion_behavior = "raise"
 ```
 
 ```python
+import uuid
+import pytest
 from pytest_uuid import UUIDsExhaustedError
 
 def test_strict(mock_uuid):
@@ -104,6 +106,9 @@ def test_strict(mock_uuid):
 Configuration can be overridden per-test:
 
 ```python
+import uuid
+import pytest
+
 # Global config: on_exhausted="raise"
 
 @pytest.mark.freeze_uuid(

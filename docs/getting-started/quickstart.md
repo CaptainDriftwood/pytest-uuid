@@ -35,6 +35,7 @@ def test_multiple_uuids(mock_uuid):
 If you prefer decorators over fixtures:
 
 ```python
+import uuid
 from pytest_uuid import freeze_uuid
 
 @freeze_uuid("12345678-1234-5678-1234-567812345678")
@@ -47,6 +48,7 @@ def test_with_decorator():
 Or use pytest markers for configuration:
 
 ```python
+import uuid
 import pytest
 
 @pytest.mark.freeze_uuid("12345678-1234-5678-1234-567812345678")
@@ -59,6 +61,9 @@ def test_with_marker():
 For reproducible but not hardcoded UUIDs, use seeding:
 
 ```python
+import uuid
+from pytest_uuid import freeze_uuid
+
 @freeze_uuid(seed=42)
 def test_seeded():
     # Same seed always produces the same UUIDs
@@ -71,6 +76,9 @@ def test_seeded():
 The recommended approach - each test gets deterministic UUIDs based on its name:
 
 ```python
+import uuid
+import pytest
+
 @pytest.mark.freeze_uuid(seed="node")
 def test_node_seeded():
     # This test always produces the same UUIDs

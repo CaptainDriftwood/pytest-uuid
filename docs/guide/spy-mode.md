@@ -29,6 +29,8 @@ def test_user_generates_uuid(spy_uuid):
 Use `mock_uuid.spy()` to switch from mocked to real UUIDs mid-test:
 
 ```python
+import uuid
+
 def test_start_mocked_then_spy(mock_uuid):
     """Start with mocked UUIDs, then switch to real ones."""
     mock_uuid.set("12345678-1234-5678-1234-567812345678")
@@ -51,6 +53,8 @@ def test_start_mocked_then_spy(mock_uuid):
 Both fixtures provide detailed call tracking:
 
 ```python
+import uuid
+
 def test_call_tracking(spy_uuid):
     first = uuid.uuid4()
     second = uuid.uuid4()
@@ -65,6 +69,8 @@ def test_call_tracking(spy_uuid):
 Access detailed metadata for each call:
 
 ```python
+import uuid
+
 def test_call_details(spy_uuid):
     uuid.uuid4()
 
@@ -78,6 +84,8 @@ def test_call_details(spy_uuid):
 ## Filtering Calls by Module
 
 ```python
+import uuid
+
 def test_filter_calls(spy_uuid):
     uuid.uuid4()  # Call from test module
     mymodule.do_something()  # Calls uuid4 internally
@@ -111,6 +119,8 @@ def test_filter_calls(spy_uuid):
 When using `mock_uuid` with ignored modules, track both types:
 
 ```python
+import uuid
+
 def test_mixed_mocked_and_real(mock_uuid):
     """Track both mocked calls and real calls from ignored modules."""
     mock_uuid.set("12345678-1234-5678-1234-567812345678")

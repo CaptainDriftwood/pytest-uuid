@@ -70,6 +70,8 @@ def test_node_seeded(mock_uuid):
 Control what happens when a UUID sequence is exhausted:
 
 ```python
+import uuid
+import pytest
 from pytest_uuid import UUIDsExhaustedError
 
 def test_exhaustion_raise(mock_uuid):
