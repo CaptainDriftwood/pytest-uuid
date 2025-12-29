@@ -265,6 +265,52 @@ Exhaustion behaviors:
 - `"random"`: Fall back to generating random UUIDs
 - `"raise"`: Raise `UUIDsExhaustedError`
 
+### Ignoring Modules
+
+Exclude specific packages from UUID mocking so they receive real UUIDs. This is useful for third-party libraries like SQLAlchemy or Celery that need real UUIDs for internal operations.
+
+#### Fixture API
+
+```python
+def test_with_ignored_modules(mock_uuid):
+    mock_uuid.set("12345678-1234-5678-1234-567812345678")
+    mock_uuid.set_ignore("sqlalchemy", "celery")
+
+    # Direct calls are mocked
+    assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+
+    # Calls from sqlalchemy/celery get real UUIDs
+    # (the ignore check walks the entire call stack)
+```
+
+#### Decorator/Marker API
+
+```python
+@freeze_uuid("12345678-1234-5678-1234-567812345678", ignore=["sqlalchemy"])
+def test_with_decorator():
+    assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+
+@pytest.mark.freeze_uuid("...", ignore=["celery"])
+def test_with_marker():
+    pass
+```
+
+> **How it works:** The ignore check inspects the entire call stack, not just the immediate caller. If any frame in the call chain is from an ignored module, real UUIDs are returned. This handles cases where your code calls a library that internally calls `uuid.uuid4()`.
+
+#### Tracking Ignored Calls
+
+```python
+def test_tracking(mock_uuid):
+    mock_uuid.set("12345678-1234-5678-1234-567812345678")
+    mock_uuid.set_ignore("mylib")
+
+    uuid.uuid4()           # mocked
+    mylib.create_record()  # real (from ignored module)
+
+    assert mock_uuid.mocked_count == 1
+    assert mock_uuid.real_count == 1
+```
+
 ### Global Configuration
 
 Configure default behavior for all tests via `pyproject.toml`:
@@ -431,6 +477,7 @@ Main fixture for controlling `uuid.uuid4()` calls.
 - `set_exhaustion_behavior(behavior)` - Set behavior when sequence exhausted
 - `spy()` - Switch to spy mode (return real UUIDs while still tracking)
 - `reset()` - Reset to initial state
+- `set_ignore(*module_prefixes)` - Set modules to ignore (returns real UUIDs)
 
 #### `mock_uuid_factory`
 
@@ -490,7 +537,7 @@ def test_call_tracking(mock_uuid):
 **Additional `mock_uuid` Properties:**
 - `calls` - All call records
 - `mocked_calls` - Only calls that returned mocked UUIDs
-- `real_calls` - Only calls that returned real UUIDs (spy mode)
+- `real_calls` - Only calls that returned real UUIDs (spy mode or ignored modules)
 - `mocked_count` - Number of mocked calls
 - `real_count` - Number of real calls
 
