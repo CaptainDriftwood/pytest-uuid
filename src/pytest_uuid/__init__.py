@@ -1,5 +1,7 @@
 """pytest-uuid - A pytest plugin for mocking uuid.uuid4() calls."""
 
+from importlib.metadata import PackageNotFoundError, version
+
 from pytest_uuid.api import UUIDFreezer, freeze_uuid
 from pytest_uuid.config import (
     configure,
@@ -25,7 +27,10 @@ from pytest_uuid.plugin import (
 )
 from pytest_uuid.types import UUIDMockerProtocol, UUIDSpyProtocol
 
-__version__ = "0.1.0"
+try:
+    __version__ = version("pytest-uuid")
+except PackageNotFoundError:
+    __version__ = "0.0.0+dev"
 __all__ = [
     # Main API
     "freeze_uuid",

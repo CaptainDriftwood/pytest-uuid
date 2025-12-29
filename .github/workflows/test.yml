@@ -45,13 +45,14 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          uv run coverage run -m pytest
+          uv run coverage run -m pytest -p no:randomly
           uv run coverage combine
           uv run coverage xml
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
           fail_ci_if_error: false
           verbose: true

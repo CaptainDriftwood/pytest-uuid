@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "pytest-uuid"
-version = "0.1.0"
+version = "0.2.0"
 description = "A pytest plugin for mocking uuid.uuid4() calls"
 readme = "README.md"
 license = "MIT"
@@ -44,13 +44,16 @@ Repository = "https://github.com/CaptainDriftwood/pytest-uuid"
 Issues = "https://github.com/CaptainDriftwood/pytest-uuid/issues"
 
 [project.entry-points.pytest11]
-uuid = "pytest_uuid.plugin"
+pytest_uuid = "pytest_uuid.plugin"
 
 # uv_build auto-detects src/ layout
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+# Use subprocess mode for pytester to avoid pytest 8.x sys.modules pollution issues
+# See: https://github.com/pytest-dev/pytest/discussions/13353
+addopts = "--runpytest=subprocess"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "thread: marks tests that use multiple threads",

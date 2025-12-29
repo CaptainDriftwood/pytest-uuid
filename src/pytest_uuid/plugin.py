@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import random
 import sys
 import uuid
@@ -17,8 +18,16 @@ from pytest_uuid._tracking import (
     _get_caller_info,
     _get_node_seed,
 )
-from pytest_uuid.api import UUIDFreezer
-from pytest_uuid.config import get_config, load_config_from_pyproject
+from pytest_uuid.api import UUIDFreezer, _should_ignore_frame
+from pytest_uuid.config import (
+    PytestUUIDConfig,
+    _clear_active_pytest_config,
+    _config_key,
+    _has_stash,
+    _set_active_pytest_config,
+    get_config,
+    load_config_from_pyproject,
+)
 from pytest_uuid.generators import (
     ExhaustionBehavior,
     SeededUUIDGenerator,
@@ -47,6 +56,7 @@ class UUIDMocker(CallTrackingMixin):
         self,
         monkeypatch: pytest.MonkeyPatch,
         node_id: str | None = None,
+        ignore: list[str] | None = None,
     ) -> None:
         self._monkeypatch = monkeypatch
         self._node_id = node_id
@@ -59,6 +69,11 @@ class UUIDMocker(CallTrackingMixin):
         self._call_count: int = 0
         self._generated_uuids: list[uuid.UUID] = []
         self._calls: list[UUIDCall] = []
+
+        # Ignore list handling
+        config = get_config()
+        self._ignore_extra = tuple(ignore) if ignore else ()
+        self._ignore_list = config.get_ignore_list() + self._ignore_extra
 
     def set(self, *uuids: str | uuid.UUID) -> None:
         """Set the UUID(s) to return.
@@ -132,10 +147,32 @@ class UUIDMocker(CallTrackingMixin):
         if isinstance(self._generator, SequenceUUIDGenerator):
             self._generator._on_exhausted = self._on_exhausted
 
+    def set_ignore(self, *module_prefixes: str) -> None:
+        """Set modules to ignore when mocking uuid.uuid4().
+
+        Args:
+            *module_prefixes: Module name prefixes to exclude from patching.
+                             Calls from these modules will return real UUIDs.
+
+        Example:
+            def test_something(mock_uuid):
+                mock_uuid.set("12345678-1234-5678-1234-567812345678")
+                mock_uuid.set_ignore("sqlalchemy", "celery")
+                # uuid4() calls from sqlalchemy or celery will be real
+                # Other calls will be mocked
+        """
+        config = get_config()
+        base_ignore = config.get_ignore_list()
+        self._ignore_extra = module_prefixes
+        self._ignore_list = base_ignore + module_prefixes
+
     def reset(self) -> None:
         """Reset the mocker to its initial state."""
         self._generator = None
         self._reset_tracking()
+        # Reset ignore list to defaults
+        config = get_config()
+        self._ignore_list = config.get_ignore_list() + self._ignore_extra
 
     def __call__(self) -> uuid.UUID:
         """Return the next mocked UUID.
@@ -145,6 +182,24 @@ class UUIDMocker(CallTrackingMixin):
             generator is configured.
         """
         caller_module, caller_file = _get_caller_info(skip_frames=2)
+
+        # Check if any frame in the call stack should be ignored
+        if self._ignore_list:
+            frame = inspect.currentframe()
+            try:
+                # Skip only this frame (__call__)
+                if frame is not None:
+                    frame = frame.f_back
+
+                # Check if any caller should be ignored
+                while frame is not None:
+                    if _should_ignore_frame(frame, self._ignore_list):
+                        result = self._original_uuid4()
+                        self._record_call(result, False, caller_module, caller_file)
+                        return result
+                    frame = frame.f_back
+            finally:
+                del frame
 
         if self._generator is not None:
             result = self._generator()
@@ -213,6 +268,14 @@ def pytest_configure(config: pytest.Config) -> None:
     """Load config from pyproject.toml and register the freeze_uuid marker."""
     from pathlib import Path
 
+    # Set active pytest config FIRST (enables get_config() to work)
+    _set_active_pytest_config(config)
+
+    # Initialize stash with default config
+    if _has_stash and _config_key is not None and hasattr(config, "stash"):
+        config.stash[_config_key] = PytestUUIDConfig()
+
+    # Load configuration from pyproject.toml (updates stash via configure())
     load_config_from_pyproject(Path(config.rootdir))  # type: ignore[unresolved-attribute]
 
     config.addinivalue_line(
@@ -224,6 +287,11 @@ def pytest_configure(config: pytest.Config) -> None:
         "on_exhausted: 'cycle', 'random', or 'raise' when sequence exhausted. "
         "ignore: module prefixes to exclude from patching.",
     )
+
+
+def pytest_unconfigure(config: pytest.Config) -> None:  # noqa: ARG001
+    """Clean up when pytest exits."""
+    _clear_active_pytest_config()
 
 
 @pytest.hookimpl(tryfirst=True)

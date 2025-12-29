@@ -100,6 +100,15 @@ class UUIDMockerProtocol(Protocol):
         """
         ...
 
+    def set_ignore(self, *module_prefixes: str) -> None:
+        """Set modules to ignore when mocking uuid.uuid4().
+
+        Args:
+            *module_prefixes: Module name prefixes to exclude from patching.
+                             Calls from these modules will return real UUIDs.
+        """
+        ...
+
     def reset(self) -> None:
         """Reset the mocker to its initial state."""
         ...

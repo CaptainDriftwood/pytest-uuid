@@ -152,7 +152,6 @@ Thumbs.db
 .ruff_cache/
 
 # Project specific
-*.egg-info/
 CLAUDE.md
 
 # Local documentation
