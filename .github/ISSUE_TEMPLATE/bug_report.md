@@ -29,4 +29,15 @@ import uuid
 
 def test_example(mock_uuid):
     mock_uuid.set("...")
-    # ...
+# ...
+```
+**Expected behavior**
+What you expected to happen.
+
+**Actual behavior**
+What actually happened. Include any error messages or tracebacks.
+
+**Configuration (if applicable)**
+```toml
+# Any [tool.pytest_uuid] settings from pyproject.toml
+```

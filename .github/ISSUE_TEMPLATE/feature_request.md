@@ -17,3 +17,6 @@ Describe what you'd like to see implemented.
 # Optional: Show how you'd imagine using this feature
 def test_example(mock_uuid):
     # ...
+```
+**Alternatives Considered**
+Describe any workarounds or alternative approaches you've considered.
