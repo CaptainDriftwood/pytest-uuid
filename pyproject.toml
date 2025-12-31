@@ -1,10 +1,10 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["uv_build>=0.7.19,<0.10.0"]
+build-backend = "uv_build"
 
 [project]
 name = "pytest-uuid"
-version = "0.1.0"
+version = "0.2.0"
 description = "A pytest plugin for mocking uuid.uuid4() calls"
 readme = "README.md"
 license = "MIT"
@@ -27,41 +27,38 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Software Development :: Testing",
+    "Topic :: Software Development :: Testing :: Mocking",
+    "Topic :: Software Development :: Testing :: Unit",
 ]
 dependencies = [
     "pytest>=7.0.0",
-]
-
-[project.optional-dependencies]
-dev = [
-    "nox",
-    "nox-uv",
-    "ruff",
-    "twine",
-    "pytest-cov",
+    "tomli>=2.0.0; python_version < '3.11'",
 ]
 
 [project.urls]
 Homepage = "https://github.com/CaptainDriftwood/pytest-uuid"
+Documentation = "https://github.com/CaptainDriftwood/pytest-uuid#readme"
 Repository = "https://github.com/CaptainDriftwood/pytest-uuid"
 Issues = "https://github.com/CaptainDriftwood/pytest-uuid/issues"
 
 [project.entry-points.pytest11]
-uuid = "pytest_uuid.plugin"
+pytest_uuid = "pytest_uuid.plugin"
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/pytest_uuid"]
-
-[tool.hatch.build.targets.sdist]
-include = [
-    "/src",
-    "/tests",
-]
+# uv_build auto-detects src/ layout
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+# Use subprocess mode for pytester to avoid pytest 8.x sys.modules pollution issues
+# See: https://github.com/pytest-dev/pytest/discussions/13353
+addopts = "--runpytest=subprocess"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "thread: marks tests that use multiple threads",
+    "parallel: marks tests that use multiple processes (e.g., xdist)",
+]
 
 [tool.ruff]
 target-version = "py39"
@@ -79,16 +76,79 @@ select = [
     "UP",     # pyupgrade
     "ARG",    # flake8-unused-arguments
     "SIM",    # flake8-simplify
+    "ANN",    # flake8-annotations - enforce type hints
+    "PT",     # flake8-pytest-style - pytest best practices
+    "RUF",    # Ruff-specific rules
+    "S",      # flake8-bandit - security
+    "T20",    # flake8-print - no print statements
+    "TCH",    # flake8-type-checking - TYPE_CHECKING imports
+    "PIE",    # flake8-pie - misc improvements
+    "RET",    # flake8-return - return statement issues
+    "PERF",   # Perflint - performance anti-patterns
+    "PLC",    # Pylint conventions
+    "PLE",    # Pylint errors
 ]
 ignore = [
     "E501",   # line too long (handled by formatter)
+    "S101",   # assert usage (needed in tests)
+    "S311",   # pseudo-random generators (OK for testing library, not cryptographic)
+    "S112",   # try-except-continue (acceptable when silently ignoring inspection errors)
+    "ANN401", # Dynamically typed expressions (Any) - sometimes necessary
+    "RUF022", # unsorted __all__ (organized by category intentionally)
+    "TC001",  # TYPE_CHECKING imports (UUIDCall needed at runtime)
+    "TC003",  # TYPE_CHECKING imports (some modules need runtime access)
+    "PLC0415",  # import not at top level (some are intentional in tests/plugins)
+    "PT011",  # pytest.raises too broad (match not always needed)
 ]
 
 [tool.ruff.lint.isort]
 known-first-party = ["pytest_uuid"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "ANN",    # Test functions don't need type annotations
+]
+"noxfile.py" = [
+    "ANN",    # Nox sessions don't need type annotations
+]
 
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
+
+[tool.coverage.run]
+source = ["src/pytest_uuid"]
+branch = true
+parallel = true
+patch = ["subprocess"]
+sigterm = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "@abstractmethod",
+    "\\.\\.\\.",
+]
+show_missing = true
+
+[dependency-groups]
+dev = [
+    "nox>=2024.4.15",
+    "nox-uv>=0.2.0",
+    "pytest-cov>=4.0.0",
+    "pytest-randomly>=3.12.0",
+    "pytest-xdist>=3.5.0",
+    "ruff>=0.8.0",
+    "ty>=0.0.1a0",  # experimental type checker
+]
+
+[tool.ty.environment]
+python-version = "3.9"
+
+[tool.ty.rules]
+# tomli is only installed on Python < 3.11 (conditional dependency)
+unresolved-import = "warn"

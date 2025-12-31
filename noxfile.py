@@ -1,18 +1,17 @@
 """Nox configuration for testing across Python versions."""
 
 import nox
+import nox_uv
 
-# Use uv as the package installer
 nox.options.default_venv_backend = "uv"
 
 PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 
 
-@nox.session(python=PYTHON_VERSIONS)
+@nox_uv.session(python=PYTHON_VERSIONS, uv_groups=["dev"])
 def tests(session: nox.Session) -> None:
-    """Run the test suite."""
-    session.install(".", "pytest")
-    session.run("pytest", *session.posargs)
+    """Run the test suite (deterministic order)."""
+    session.run("pytest", "-p", "no:randomly", *session.posargs)
 
 
 @nox.session(python="3.12")

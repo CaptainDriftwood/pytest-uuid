@@ -1,0 +1,25 @@
+name: Format & Lint
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  format-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Run ruff check
+        run: uvx ruff check src tests noxfile.py
+
+      - name: Run ruff format check
+        run: uvx ruff format --check src tests noxfile.py
