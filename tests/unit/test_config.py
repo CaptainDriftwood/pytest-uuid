@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from pytest_uuid.config import (
+    DEFAULT_IGNORE_PACKAGES,
     PytestUUIDConfig,
     _load_pyproject_config,
     configure,
@@ -23,7 +24,7 @@ def test_config_default_values():
     """Test default configuration values."""
     config = PytestUUIDConfig()
 
-    assert config.default_ignore_list == []
+    assert config.default_ignore_list == list(DEFAULT_IGNORE_PACKAGES)
     assert config.extend_ignore_list == []
     assert config.default_exhaustion_behavior == ExhaustionBehavior.CYCLE
 
@@ -39,10 +40,10 @@ def test_config_get_ignore_list_combines_lists():
     assert result == ("pkg1", "pkg2", "pkg3")
 
 
-def test_config_get_ignore_list_empty():
-    """Test get_ignore_list with empty lists."""
+def test_config_get_ignore_list_defaults():
+    """Test get_ignore_list returns default packages."""
     config = PytestUUIDConfig()
-    assert config.get_ignore_list() == ()
+    assert config.get_ignore_list() == tuple(DEFAULT_IGNORE_PACKAGES)
 
 
 # --- configure ---
@@ -127,7 +128,7 @@ def test_reset_config_restores_defaults():
     reset_config()
     config = get_config()
 
-    assert config.default_ignore_list == []
+    assert config.default_ignore_list == list(DEFAULT_IGNORE_PACKAGES)
     assert config.extend_ignore_list == []
     assert config.default_exhaustion_behavior == ExhaustionBehavior.CYCLE
 
@@ -260,5 +261,5 @@ extend_ignore_list = ["only_extend"]
     # Only extend_ignore_list should be set
     assert config.extend_ignore_list == ["only_extend"]
     # Others should remain defaults
-    assert config.default_ignore_list == []
+    assert config.default_ignore_list == list(DEFAULT_IGNORE_PACKAGES)
     assert config.default_exhaustion_behavior == ExhaustionBehavior.CYCLE
