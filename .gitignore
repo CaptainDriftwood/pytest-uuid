@@ -157,3 +157,4 @@ CLAUDE.md
 # Local documentation
 docs/*
 !docs/images/
+!docs/FREEZEGUN_COMPARISON.md
