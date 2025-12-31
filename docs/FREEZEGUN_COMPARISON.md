@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-After a thorough analysis of both `freezegun` and `pytest-uuid`, I can confirm that **pytest-uuid's implementation follows a very similar approach to freezegun's methodology** for mocking system functions. Both libraries use the same fundamental patching strategies, with pytest-uuid being a focused, modern implementation specifically designed for UUID mocking.
+After a thorough analysis of both `freezegun` and `pytest-uuid`, this comparison confirms that **pytest-uuid's implementation follows a very similar approach to freezegun's methodology** for mocking system functions. Both libraries use the same fundamental patching strategies, with pytest-uuid being a focused, modern implementation specifically designed for UUID mocking.
 
 ## High-Level Comparison
 

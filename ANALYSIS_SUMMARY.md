@@ -65,4 +65,4 @@ See [docs/FREEZEGUN_COMPARISON.md](docs/FREEZEGUN_COMPARISON.md) for:
 
 ## Test Results
 
-All unit tests pass (157/157), confirming the implementation works correctly.
+All unit tests pass, confirming the implementation works correctly.
