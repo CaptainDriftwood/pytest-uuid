@@ -10,13 +10,17 @@ install:
 install-prod:
     uv pip install -e .
 
-# Run tests in parallel (deterministic order)
+# Run tests (excludes slow tests for fast iteration)
 test *args:
+    uv run pytest tests/ -p no:randomly -n auto --dist loadscope -m "not slow" {{ args }}
+
+# Run all tests including slow ones
+test-all *args:
     uv run pytest tests/ -p no:randomly -n auto --dist loadscope {{ args }}
 
-# Run tests excluding slow tests
-test-fast *args:
-    uv run pytest tests/ -p no:randomly -n auto --dist loadscope -m "not slow" {{ args }}
+# Run only slow tests
+test-slow *args:
+    uv run pytest tests/ -p no:randomly -n auto --dist loadscope -m "slow" {{ args }}
 
 # Run tests with verbose output
 test-verbose:
@@ -38,6 +42,15 @@ test-cov-html:
 # Run tests in random order using pytest-randomly
 test-randomly *args:
     uv run pytest {{ args }}
+
+# Run stress tests for parallel execution (catches race conditions)
+test-stress *args:
+    uv run pytest tests/integration/test_stress_parallel.py -n auto --dist loadscope -v {{ args }}
+
+# Run aggressive parallel stress tests (multiple pytest processes via Make -j)
+# Usage: just test-stress-parallel 4  (runs 4 parallel pytest processes)
+test-stress-parallel jobs="4":
+    make -j{{ jobs }} stress-test XDIST_WORKERS=2
 
 # Run tests with nox (optionally specify Python version, e.g., just nox 3.12)
 nox version="":

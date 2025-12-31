@@ -50,7 +50,7 @@ pytest_uuid = "pytest_uuid.plugin"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "tests/fixtures/uuid_testpkg/src"]
 # Use subprocess mode for pytester to avoid pytest 8.x sys.modules pollution issues
 # See: https://github.com/pytest-dev/pytest/discussions/13353
 addopts = "--runpytest=subprocess"

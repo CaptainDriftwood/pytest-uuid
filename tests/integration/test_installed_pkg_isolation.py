@@ -49,11 +49,14 @@ def write_test_files(test_dir: Path, test_content: str, conftest_content=None):
     (test_dir / "test_isolation.py").write_text(test_content)
 
 
-def run_pytest_in_venv(venv, test_dir: Path, *extra_args) -> subprocess.CompletedProcess:
+def run_pytest_in_venv(
+    venv, test_dir: Path, *extra_args
+) -> subprocess.CompletedProcess:
     """Run pytest inside the venv and return the result."""
     cmd = [
         str(venv.python),
-        "-m", "pytest",
+        "-m",
+        "pytest",
         str(test_dir),
         "-v",
         "--tb=short",
@@ -129,7 +132,9 @@ def test_installed_pkg_mock_isolation_sequential(venv_with_packages, tmp_path):
 
     result = run_pytest_in_venv(venv_with_packages, test_dir, "-p", "no:randomly")
 
-    assert result.returncode == 0, f"Tests failed:\\nSTDOUT:\\n{result.stdout}\\nSTDERR:\\n{result.stderr}"
+    assert result.returncode == 0, (
+        f"Tests failed:\\nSTDOUT:\\n{result.stdout}\\nSTDERR:\\n{result.stderr}"
+    )
     assert "5 passed" in result.stdout
 
 
@@ -166,7 +171,9 @@ def test_installed_pkg_alt_service_sequential(venv_with_packages, tmp_path):
 
     result = run_pytest_in_venv(venv_with_packages, test_dir, "-p", "no:randomly")
 
-    assert result.returncode == 0, f"Tests failed:\\nSTDOUT:\\n{result.stdout}\\nSTDERR:\\n{result.stderr}"
+    assert result.returncode == 0, (
+        f"Tests failed:\\nSTDOUT:\\n{result.stdout}\\nSTDERR:\\n{result.stderr}"
+    )
     assert "3 passed" in result.stdout
 
 
@@ -216,7 +223,9 @@ def test_installed_pkg_first_unmocked_then_mocked(venv_with_packages, tmp_path):
 
     result = run_pytest_in_venv(venv_with_packages, test_dir, "-p", "no:randomly")
 
-    assert result.returncode == 0, f"Tests failed:\\nSTDOUT:\\n{result.stdout}\\nSTDERR:\\n{result.stderr}"
+    assert result.returncode == 0, (
+        f"Tests failed:\\nSTDOUT:\\n{result.stdout}\\nSTDERR:\\n{result.stderr}"
+    )
     assert "4 passed" in result.stdout
 
 
@@ -273,7 +282,9 @@ def test_installed_pkg_mock_isolation_parallel(venv_with_packages, tmp_path):
     # Run with xdist parallel mode
     result = run_pytest_in_venv(venv_with_packages, test_dir, "-n", "auto")
 
-    assert result.returncode == 0, f"Tests failed:\\nSTDOUT:\\n{result.stdout}\\nSTDERR:\\n{result.stderr}"
+    assert result.returncode == 0, (
+        f"Tests failed:\\nSTDOUT:\\n{result.stdout}\\nSTDERR:\\n{result.stderr}"
+    )
     assert "6 passed" in result.stdout
 
 
@@ -295,11 +306,11 @@ def test_{i:02d}_mocked():
 ''')
         else:
             # Unmocked test
-            test_funcs.append(f'''
+            test_funcs.append(f"""
 def test_{i:02d}_not_mocked():
     result = generate_id()
     assert result.version == 4
-''')
+""")
 
     test_content = textwrap.dedent('''
         """Many tests for parallel distribution."""
@@ -313,7 +324,9 @@ def test_{i:02d}_not_mocked():
 
     result = run_pytest_in_venv(venv_with_packages, test_dir, "-n", "4")
 
-    assert result.returncode == 0, f"Tests failed:\\nSTDOUT:\\n{result.stdout}\\nSTDERR:\\n{result.stderr}"
+    assert result.returncode == 0, (
+        f"Tests failed:\\nSTDOUT:\\n{result.stdout}\\nSTDERR:\\n{result.stderr}"
+    )
     assert "20 passed" in result.stdout
 
 
@@ -389,7 +402,9 @@ def test_installed_pkg_conftest_module_import(venv_with_packages, tmp_path):
 
     result = run_pytest_in_venv(venv_with_packages, test_dir, "-p", "no:randomly")
 
-    assert result.returncode == 0, f"Tests failed:\\nSTDOUT:\\n{result.stdout}\\nSTDERR:\\n{result.stderr}"
+    assert result.returncode == 0, (
+        f"Tests failed:\\nSTDOUT:\\n{result.stdout}\\nSTDERR:\\n{result.stderr}"
+    )
     assert "5 passed" in result.stdout
 
 
@@ -428,7 +443,9 @@ def test_installed_pkg_conftest_import_parallel(venv_with_packages, tmp_path):
 
     result = run_pytest_in_venv(venv_with_packages, test_dir, "-n", "auto")
 
-    assert result.returncode == 0, f"Tests failed:\\nSTDOUT:\\n{result.stdout}\\nSTDERR:\\n{result.stderr}"
+    assert result.returncode == 0, (
+        f"Tests failed:\\nSTDOUT:\\n{result.stdout}\\nSTDERR:\\n{result.stderr}"
+    )
     assert "4 passed" in result.stdout
 
 
@@ -466,7 +483,9 @@ def test_installed_pkg_ignore_list(venv_with_packages, tmp_path):
 
     result = run_pytest_in_venv(venv_with_packages, test_dir)
 
-    assert result.returncode == 0, f"Tests failed:\\nSTDOUT:\\n{result.stdout}\\nSTDERR:\\n{result.stderr}"
+    assert result.returncode == 0, (
+        f"Tests failed:\\nSTDOUT:\\n{result.stdout}\\nSTDERR:\\n{result.stderr}"
+    )
     assert "1 passed" in result.stdout
 
 
@@ -505,7 +524,9 @@ def test_installed_pkg_ignore_submodule(venv_with_packages, tmp_path):
 
     result = run_pytest_in_venv(venv_with_packages, test_dir)
 
-    assert result.returncode == 0, f"Tests failed:\\nSTDOUT:\\n{result.stdout}\\nSTDERR:\\n{result.stderr}"
+    assert result.returncode == 0, (
+        f"Tests failed:\\nSTDOUT:\\n{result.stdout}\\nSTDERR:\\n{result.stderr}"
+    )
     assert "1 passed" in result.stdout
 
 
@@ -598,7 +619,9 @@ def test_installed_pkg_alternating_many_times(venv_with_packages, tmp_path):
 
     result = run_pytest_in_venv(venv_with_packages, test_dir, "-p", "no:randomly")
 
-    assert result.returncode == 0, f"Tests failed:\\nSTDOUT:\\n{result.stdout}\\nSTDERR:\\n{result.stderr}"
+    assert result.returncode == 0, (
+        f"Tests failed:\\nSTDOUT:\\n{result.stdout}\\nSTDERR:\\n{result.stderr}"
+    )
     assert "11 passed" in result.stdout
 
 
@@ -654,5 +677,7 @@ def test_installed_pkg_both_import_patterns(venv_with_packages, tmp_path):
 
     result = run_pytest_in_venv(venv_with_packages, test_dir, "-p", "no:randomly")
 
-    assert result.returncode == 0, f"Tests failed:\\nSTDOUT:\\n{result.stdout}\\nSTDERR:\\n{result.stderr}"
+    assert result.returncode == 0, (
+        f"Tests failed:\\nSTDOUT:\\n{result.stdout}\\nSTDERR:\\n{result.stderr}"
+    )
     assert "3 passed" in result.stdout
