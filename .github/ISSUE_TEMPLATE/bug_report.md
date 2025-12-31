@@ -31,7 +31,9 @@ import uuid
 
 def test_example(mock_uuid):
     mock_uuid.set("...")
-    # ...```
+    # ...
+```
+
 **Expected behavior**
 What you expected to happen.
 
