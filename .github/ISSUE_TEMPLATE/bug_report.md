@@ -7,6 +7,8 @@ assignees: ''
 ---
 
 **pytest-uuid version**
+<!-- Run: pip show pytest-uuid -->
+
 **Environment**
 - Python version:
 - pytest version:
@@ -29,8 +31,7 @@ import uuid
 
 def test_example(mock_uuid):
     mock_uuid.set("...")
-# ...
-```
+    # ...```
 **Expected behavior**
 What you expected to happen.
 
