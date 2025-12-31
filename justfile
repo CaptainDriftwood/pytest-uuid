@@ -10,9 +10,13 @@ install:
 install-prod:
     uv pip install -e .
 
-# Run tests (deterministic order)
+# Run tests in parallel (deterministic order)
 test *args:
-    uv run pytest -p no:randomly {{ args }}
+    uv run pytest tests/ -p no:randomly -n auto --dist loadscope {{ args }}
+
+# Run tests excluding slow tests
+test-fast *args:
+    uv run pytest tests/ -p no:randomly -n auto --dist loadscope -m "not slow" {{ args }}
 
 # Run tests with verbose output
 test-verbose:
