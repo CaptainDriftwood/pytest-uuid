@@ -1,0 +1,73 @@
+# Configuration for release-drafter/release-drafter
+# https://github.com/release-drafter/release-drafter
+
+name-template: 'v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+
+categories:
+  - title: 'Breaking Changes'
+    labels:
+      - 'breaking change'
+  - title: 'Features'
+    labels:
+      - 'enhancement'
+  - title: 'Bug Fixes'
+    labels:
+      - 'bug'
+  - title: 'Performance'
+    labels:
+      - 'performance'
+  - title: 'Security'
+    labels:
+      - 'security'
+  - title: 'Documentation'
+    labels:
+      - 'documentation'
+  - title: 'Testing'
+    labels:
+      - 'testing'
+  - title: 'CI/CD'
+    labels:
+      - 'ci'
+      - 'github_actions'
+  - title: 'Dependencies'
+    labels:
+      - 'dependencies'
+
+# PRs with these labels are excluded from release notes
+exclude-labels:
+  - 'skip-changelog'
+  - 'duplicate'
+  - 'invalid'
+  - 'wontfix'
+
+# How each change line is formatted
+change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
+change-title-escapes: '\<*_&'
+
+# Version resolver based on labels
+version-resolver:
+  major:
+    labels:
+      - 'breaking change'
+  minor:
+    labels:
+      - 'enhancement'
+  patch:
+    labels:
+      - 'bug'
+      - 'documentation'
+      - 'ci'
+      - 'dependencies'
+      - 'testing'
+      - 'performance'
+      - 'security'
+  default: patch
+
+# Release notes template
+template: |
+  ## Changes
+
+  $CHANGES
+
+  **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
