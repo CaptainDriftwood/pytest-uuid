@@ -4,6 +4,33 @@
 name-template: 'v$RESOLVED_VERSION'
 tag-template: 'v$RESOLVED_VERSION'
 
+# Auto-label PRs based on conventional commit prefixes in title
+autolabeler:
+  - label: 'enhancement'
+    title:
+      - '/^feat(\(.+\))?:/i'
+  - label: 'bug'
+    title:
+      - '/^fix(\(.+\))?:/i'
+  - label: 'documentation'
+    title:
+      - '/^docs(\(.+\))?:/i'
+  - label: 'testing'
+    title:
+      - '/^test(\(.+\))?:/i'
+  - label: 'ci'
+    title:
+      - '/^ci(\(.+\))?:/i'
+  - label: 'dependencies'
+    title:
+      - '/^build(\(.+\))?:/i'
+  - label: 'performance'
+    title:
+      - '/^perf(\(.+\))?:/i'
+  - label: 'security'
+    title:
+      - '/^security(\(.+\))?:/i'
+
 categories:
   - title: 'Breaking Changes'
     labels:
