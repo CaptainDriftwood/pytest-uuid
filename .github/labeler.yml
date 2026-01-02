@@ -1,0 +1,33 @@
+# Configuration for actions/labeler
+# Labels are applied to PRs based on changed file paths
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'docs/**'
+          - '*.md'
+          - 'mkdocs.yml'
+
+testing:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'tests/**'
+          - 'noxfile.py'
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/workflows/**'
+          - '.github/labeler.yml'
+          - '.github/release-drafter.yml'
+
+python:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/**/*.py'
+
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'pyproject.toml'
+          - 'uv.lock'
