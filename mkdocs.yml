@@ -6,7 +6,6 @@ repo_name: CaptainDriftwood/pytest-uuid
 
 theme:
   name: material
-  logo: images/logo.svg
   favicon: images/logo.png
   palette:
     - media: "(prefers-color-scheme: light)"
@@ -37,8 +36,6 @@ theme:
 
 plugins:
   - search
-  - mkdocs-jupyter:
-      include_source: true
 
 markdown_extensions:
   - admonition
