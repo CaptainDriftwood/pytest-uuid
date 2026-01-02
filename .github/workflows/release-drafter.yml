@@ -17,6 +17,19 @@ jobs:
       contents: write
       pull-requests: write
     steps:
+      - name: Check if config exists on default branch
+        id: config-check
+        run: |
+          if gh api repos/${{ github.repository }}/contents/.github/release-drafter.yml?ref=${{ github.event.repository.default_branch }} --silent 2>/dev/null; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "::warning::release-drafter.yml not found on default branch. Skipping until config is merged."
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - uses: release-drafter/release-drafter@v6
+        if: steps.config-check.outputs.exists == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
