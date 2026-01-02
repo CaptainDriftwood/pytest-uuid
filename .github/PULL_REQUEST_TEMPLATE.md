@@ -1,3 +1,25 @@
+<!--
+PR Title Format: Use conventional commit format
+  type: description
+
+Allowed types:
+  feat:     New feature
+  fix:      Bug fix
+  docs:     Documentation only
+  test:     Adding/updating tests
+  ci:       CI/workflow changes
+  build:    Build system changes
+  refactor: Code refactoring
+  chore:    Maintenance tasks
+  perf:     Performance improvements
+  security: Security fixes
+
+Examples:
+  feat: add user authentication
+  fix: resolve race condition in cache
+  docs: update installation guide
+-->
+
 ## Description
 
 <!-- Briefly describe what this PR does -->
