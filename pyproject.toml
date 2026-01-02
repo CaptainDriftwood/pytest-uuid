@@ -39,7 +39,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/CaptainDriftwood/pytest-uuid"
-Documentation = "https://github.com/CaptainDriftwood/pytest-uuid#readme"
+Documentation = "https://captaindriftwood.github.io/pytest-uuid/"
 Repository = "https://github.com/CaptainDriftwood/pytest-uuid"
 Issues = "https://github.com/CaptainDriftwood/pytest-uuid/issues"
 
@@ -145,6 +145,10 @@ dev = [
     "pytest-xdist>=3.5.0",
     "ruff>=0.8.0",
     "ty>=0.0.1a0",  # experimental type checker
+]
+docs = [
+    "mkdocs>=1.6.0",
+    "mkdocs-material>=9.5.0",
 ]
 
 [tool.ty.environment]

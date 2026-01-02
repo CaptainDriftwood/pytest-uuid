@@ -115,3 +115,13 @@ publish: build
 # Publish to TestPyPI
 publish-test: build
     uv run twine upload --repository testpypi dist/*
+
+# Serve documentation locally
+docs:
+    uv sync --group docs
+    uv run mkdocs serve
+
+# Build documentation
+docs-build:
+    uv sync --group docs
+    uv run mkdocs build --strict
