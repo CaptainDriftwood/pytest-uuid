@@ -15,9 +15,12 @@ default_exhaustion_behavior = "raise"
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `default_ignore_list` | `list[str]` | `[]` | Modules that always receive real UUIDs |
+| `default_ignore_list` | `list[str]` | `["botocore"]` | Modules that always receive real UUIDs |
 | `extend_ignore_list` | `list[str]` | `[]` | Additional modules to add to ignore list |
 | `default_exhaustion_behavior` | `str` | `"cycle"` | Default behavior when UUIDs exhausted |
+
+!!! note "Default Ignore List"
+    By default, `botocore` is ignored because it uses `uuid.uuid4()` internally for generating idempotent ClientTokens in AWS API operations. Patching this can interfere with AWS SDK retry logic. Use `extend_ignore_list` to add additional packages without overriding this default.
 
 ## Programmatic Configuration
 
