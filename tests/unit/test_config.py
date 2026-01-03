@@ -46,6 +46,16 @@ def test_config_get_ignore_list_defaults():
     assert config.get_ignore_list() == tuple(DEFAULT_IGNORE_PACKAGES)
 
 
+def test_botocore_in_default_ignore_packages():
+    """Verify botocore is included in the default ignore list.
+
+    botocore uses uuid.uuid4() internally for generating idempotent
+    ClientTokens in AWS API operations. Patching this can interfere
+    with AWS SDK retry logic and idempotency guarantees.
+    """
+    assert "botocore" in DEFAULT_IGNORE_PACKAGES
+
+
 # --- configure ---
 
 
