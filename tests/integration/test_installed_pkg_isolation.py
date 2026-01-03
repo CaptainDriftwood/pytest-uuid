@@ -681,3 +681,162 @@ def test_installed_pkg_both_import_patterns(venv_with_packages, tmp_path):
         f"Tests failed:\\nSTDOUT:\\n{result.stdout}\\nSTDERR:\\n{result.stderr}"
     )
     assert "3 passed" in result.stdout
+
+
+# --- Botocore default ignore tests ---
+
+
+@pytest.fixture
+def venv_with_botocore(venv):
+    """Create a venv with pytest-uuid and botocore installed."""
+    venv.create()
+
+    # Install pytest-uuid from local source (editable)
+    venv.install(str(PYTEST_UUID_ROOT), editable=True)
+
+    # Install botocore (lightweight, no need for full boto3)
+    venv.install("botocore")
+
+    return venv
+
+
+@pytest.mark.slow
+def test_botocore_ignored_by_default(venv_with_botocore, tmp_path):
+    """Test that botocore receives real UUIDs when freeze_uuid is active.
+
+    This verifies the DEFAULT_IGNORE_PACKAGES functionality works correctly
+    with a real botocore installation. botocore uses uuid.uuid4() internally
+    for generating idempotent ClientTokens in AWS API operations.
+
+    We test this by calling botocore.handlers.generate_idempotent_uuid()
+    with a mock model, which triggers botocore's internal uuid.uuid4() call.
+    """
+    test_content = textwrap.dedent('''
+        """Test botocore is ignored by default in freeze_uuid."""
+        import uuid
+        from pytest_uuid import freeze_uuid
+
+        # Import botocore's internal UUID generator
+        from botocore.handlers import generate_idempotent_uuid
+
+        class MockModel:
+            """Mock AWS operation model with idempotent member."""
+            idempotent_members = ["ClientToken"]
+
+        def test_botocore_gets_real_uuid_when_mocking_active():
+            """Verify botocore generates real UUIDs even when freeze_uuid is active."""
+            with freeze_uuid("11111111-1111-1111-1111-111111111111"):
+                # Direct uuid.uuid4() should return mocked value
+                direct_uuid = uuid.uuid4()
+                assert str(direct_uuid) == "11111111-1111-1111-1111-111111111111"
+
+                # botocore's generate_idempotent_uuid should get a REAL UUID
+                # because botocore is in DEFAULT_IGNORE_PACKAGES
+                params = {}
+                generate_idempotent_uuid(params, MockModel())
+
+                botocore_uuid = params["ClientToken"]
+
+                # Should NOT be our mocked UUID
+                assert botocore_uuid != "11111111-1111-1111-1111-111111111111"
+
+                # Should be a valid v4 UUID
+                parsed = uuid.UUID(botocore_uuid)
+                assert parsed.version == 4
+
+        def test_botocore_can_be_explicitly_mocked_by_overriding_ignore():
+            """Verify botocore CAN be mocked if explicitly removed from ignore list."""
+            with freeze_uuid(
+                "22222222-2222-2222-2222-222222222222",
+                ignore=[]  # Override to empty - no packages ignored
+            ):
+                params = {}
+                generate_idempotent_uuid(params, MockModel())
+
+                botocore_uuid = params["ClientToken"]
+
+                # NOW it should be mocked since we cleared the ignore list
+                assert botocore_uuid == "22222222-2222-2222-2222-222222222222"
+
+        def test_botocore_ignored_with_decorator():
+            """Test @freeze_uuid decorator also respects default ignore list."""
+            @freeze_uuid("33333333-3333-3333-3333-333333333333")
+            def inner():
+                params = {}
+                generate_idempotent_uuid(params, MockModel())
+                return params["ClientToken"]
+
+            result = inner()
+
+            # Should be a real UUID, not the mocked one
+            assert result != "33333333-3333-3333-3333-333333333333"
+            assert uuid.UUID(result).version == 4
+    ''')
+
+    test_dir = tmp_path / "tests"
+    write_test_files(test_dir, test_content)
+
+    result = run_pytest_in_venv(venv_with_botocore, test_dir, "-p", "no:randomly")
+
+    assert result.returncode == 0, (
+        f"Tests failed:\\nSTDOUT:\\n{result.stdout}\\nSTDERR:\\n{result.stderr}"
+    )
+    assert "3 passed" in result.stdout
+
+
+@pytest.mark.slow
+def test_botocore_spy_tracks_real_uuid_calls(venv_with_botocore, tmp_path):
+    """Test that uuid_spy correctly tracks botocore's real UUID calls.
+
+    When botocore is ignored, the spy should still record the call but
+    mark it as was_mocked=False and show the caller_module as botocore.
+    """
+    test_content = textwrap.dedent('''
+        """Test spy tracking of botocore UUID calls."""
+        import uuid
+        from pytest_uuid import freeze_uuid
+
+        from botocore.handlers import generate_idempotent_uuid
+
+        class MockModel:
+            idempotent_members = ["ClientToken"]
+
+        def test_spy_tracks_botocore_real_calls(uuid_spy):
+            """Verify spy tracks botocore calls as real (not mocked)."""
+            with freeze_uuid("44444444-4444-4444-4444-444444444444"):
+                # First, a direct call (should be mocked)
+                direct = uuid.uuid4()
+                assert str(direct) == "44444444-4444-4444-4444-444444444444"
+
+                # Then a botocore call (should be real)
+                params = {}
+                generate_idempotent_uuid(params, MockModel())
+                botocore_uuid = params["ClientToken"]
+
+            # Check spy recorded both calls
+            assert uuid_spy.call_count == 2
+
+            # Check the mocked vs real distinction
+            mocked_calls = uuid_spy.mocked_calls
+            real_calls = uuid_spy.real_calls
+
+            assert len(mocked_calls) == 1
+            assert len(real_calls) == 1
+
+            # Mocked call should be our direct uuid.uuid4()
+            assert str(mocked_calls[0].uuid) == "44444444-4444-4444-4444-444444444444"
+
+            # Real call should be from botocore
+            assert str(real_calls[0].uuid) == botocore_uuid
+            assert real_calls[0].caller_module.startswith("botocore")
+    ''')
+
+    test_dir = tmp_path / "tests"
+    write_test_files(test_dir, test_content)
+
+    result = run_pytest_in_venv(venv_with_botocore, test_dir, "-p", "no:randomly")
+
+    assert result.returncode == 0, (
+        f"Tests failed:\\nSTDOUT:\\n{result.stdout}\\nSTDERR:\\n{result.stderr}"
+    )
+    assert "1 passed" in result.stdout
