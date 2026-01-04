@@ -80,15 +80,15 @@ def test_external_module_unmocked(_iteration):
 @pytest.mark.parametrize(
     ("should_mock", "test_uuid"),
     [
-        (True, "10101010-1010-1010-1010-101010101010"),
+        (True, "10101010-1010-4010-8010-101010101010"),
         (False, None),
-        (True, "20202020-2020-2020-2020-202020202020"),
+        (True, "20202020-2020-4020-8020-202020202020"),
         (False, None),
-        (True, "30303030-3030-3030-3030-303030303030"),
+        (True, "30303030-3030-4030-8030-303030303030"),
         (False, None),
-        (True, "40404040-4040-4040-4040-404040404040"),
+        (True, "40404040-4040-4040-9040-404040404040"),
         (False, None),
-        (True, "50505050-5050-5050-5050-505050505050"),
+        (True, "50505050-5050-4050-9050-505050505050"),
         (False, None),
     ]
     * 3,  # Repeat 3 times for more coverage
@@ -108,8 +108,8 @@ def test_external_module_interleaved(should_mock, test_uuid):
         assert result.version == 4
         # CRITICAL: Should not be any mock UUID from this or other tests
         assert str(result) not in MOCK_UUIDS
-        assert str(result) != "10101010-1010-1010-1010-101010101010"
-        assert str(result) != "20202020-2020-2020-2020-202020202020"
+        assert str(result) != "10101010-1010-4010-8010-101010101010"
+        assert str(result) != "20202020-2020-4020-8020-202020202020"
 
 
 # --- Service class tests (OOP pattern) ---
@@ -151,16 +151,16 @@ def test_fixture_with_external_module(mock_uuid, expected_uuid):
     ("outer_uuid", "inner_uuid"),
     [
         (
-            "aaaa0000-0000-0000-0000-000000000000",
-            "bbbb0000-0000-0000-0000-000000000000",
+            "aaaa0000-0000-4000-8000-000000000000",
+            "bbbb0000-0000-4000-8000-000000000000",
         ),
         (
-            "aaaa1111-1111-1111-1111-111111111111",
-            "bbbb1111-1111-1111-1111-111111111111",
+            "aaaa1111-1111-4111-8111-111111111111",
+            "bbbb1111-1111-4111-8111-111111111111",
         ),
         (
-            "aaaa2222-2222-2222-2222-222222222222",
-            "bbbb2222-2222-2222-2222-222222222222",
+            "aaaa2222-2222-4222-8222-222222222222",
+            "bbbb2222-2222-4222-8222-222222222222",
         ),
     ],
 )
@@ -224,10 +224,10 @@ def test_rapid_external_module_mocked(batch_num):
 def test_worker_isolation_mocked_01():
     """Mocked test 1 - stores result for verification."""
     worker = get_worker_id()
-    with freeze_uuid("a0a0a0a0-1111-1111-1111-111111111111"):
+    with freeze_uuid("a0a0a0a0-1111-4111-8111-111111111111"):
         result = generate_id()
         _isolation_results[f"{worker}_mocked_01"] = str(result)
-        assert str(result) == "a0a0a0a0-1111-1111-1111-111111111111"
+        assert str(result) == "a0a0a0a0-1111-4111-8111-111111111111"
 
 
 def test_worker_isolation_unmocked_01():
@@ -237,17 +237,17 @@ def test_worker_isolation_unmocked_01():
     _isolation_results[f"{worker}_unmocked_01"] = str(result)
     # Must be real UUID
     assert result.version == 4
-    assert str(result) != "a0a0a0a0-1111-1111-1111-111111111111"
+    assert str(result) != "a0a0a0a0-1111-4111-8111-111111111111"
     assert str(result) not in MOCK_UUIDS
 
 
 def test_worker_isolation_mocked_02():
     """Mocked test 2 - stores result for verification."""
     worker = get_worker_id()
-    with freeze_uuid("b0b0b0b0-2222-2222-2222-222222222222"):
+    with freeze_uuid("b0b0b0b0-2222-4222-8222-222222222222"):
         result = generate_id()
         _isolation_results[f"{worker}_mocked_02"] = str(result)
-        assert str(result) == "b0b0b0b0-2222-2222-2222-222222222222"
+        assert str(result) == "b0b0b0b0-2222-4222-8222-222222222222"
 
 
 def test_worker_isolation_unmocked_02():
@@ -257,28 +257,28 @@ def test_worker_isolation_unmocked_02():
     _isolation_results[f"{worker}_unmocked_02"] = str(result)
     # Must be real UUID
     assert result.version == 4
-    assert str(result) != "b0b0b0b0-2222-2222-2222-222222222222"
+    assert str(result) != "b0b0b0b0-2222-4222-8222-222222222222"
     assert str(result) not in MOCK_UUIDS
 
 
 # --- Decorator tests with external module ---
 
 
-@freeze_uuid("deadbeef-dead-beef-dead-beefdeadbeef")
+@freeze_uuid("deadbeef-dead-4eef-aead-beefdeadbeef")
 def test_decorator_external_module():
     """Test @freeze_uuid decorator works with external module."""
     result = generate_id()
-    assert str(result) == "deadbeef-dead-beef-dead-beefdeadbeef"
+    assert str(result) == "deadbeef-dead-4eef-aead-beefdeadbeef"
 
 
 # --- Marker tests ---
 
 
-@pytest.mark.freeze_uuid("ffffffff-ffff-ffff-ffff-ffffffffffff")
+@pytest.mark.freeze_uuid("ffffffff-ffff-4fff-afff-ffffffffffff")
 def test_marker_external_module():
     """Test @pytest.mark.freeze_uuid works with external module."""
     result = generate_id()
-    assert str(result) == "ffffffff-ffff-ffff-ffff-ffffffffffff"
+    assert str(result) == "ffffffff-ffff-4fff-afff-ffffffffffff"
 
 
 # --- Clean state verification tests ---

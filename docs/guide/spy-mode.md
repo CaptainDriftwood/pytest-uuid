@@ -33,13 +33,13 @@ import uuid
 
 def test_start_mocked_then_spy(mock_uuid):
     """Start with mocked UUIDs, then switch to real ones."""
-    mock_uuid.set("12345678-1234-5678-1234-567812345678")
+    mock_uuid.set("12345678-1234-4678-8234-567812345678")
     first = uuid.uuid4()  # Mocked
 
     mock_uuid.spy()  # Switch to spy mode
     second = uuid.uuid4()  # Real random UUID
 
-    assert str(first) == "12345678-1234-5678-1234-567812345678"
+    assert str(first) == "12345678-1234-4678-8234-567812345678"
     assert first != second  # second is random
     assert mock_uuid.mocked_count == 1
     assert mock_uuid.real_count == 1
@@ -123,7 +123,7 @@ import uuid
 
 def test_mixed_mocked_and_real(mock_uuid):
     """Track both mocked calls and real calls from ignored modules."""
-    mock_uuid.set("12345678-1234-5678-1234-567812345678")
+    mock_uuid.set("12345678-1234-4678-8234-567812345678")
     mock_uuid.set_ignore("mylib")
 
     uuid.uuid4()              # Mocked (direct call)

@@ -24,7 +24,7 @@ from pytest_uuid.types import UUIDCall
 
 def test_mock_uuid_set_single_uuid(mock_uuid):
     """Test setting a single UUID."""
-    expected = "12345678-1234-5678-1234-567812345678"
+    expected = "12345678-1234-4678-8234-567812345678"
     mock_uuid.set(expected)
 
     result = uuid.uuid4()
@@ -34,7 +34,7 @@ def test_mock_uuid_set_single_uuid(mock_uuid):
 
 def test_mock_uuid_works_with_direct_import(mock_uuid):
     """Test that mock works with 'from uuid import uuid4' pattern."""
-    expected = "12345678-1234-5678-1234-567812345678"
+    expected = "12345678-1234-4678-8234-567812345678"
     mock_uuid.set(expected)
 
     # Use the directly imported uuid4 function
@@ -45,7 +45,7 @@ def test_mock_uuid_works_with_direct_import(mock_uuid):
 
 def test_mock_uuid_set_single_uuid_as_object(mock_uuid):
     """Test setting a UUID using a UUID object."""
-    expected = uuid.UUID("12345678-1234-5678-1234-567812345678")
+    expected = uuid.UUID("12345678-1234-4678-8234-567812345678")
     mock_uuid.set(expected)
 
     result = uuid.uuid4()
@@ -55,7 +55,7 @@ def test_mock_uuid_set_single_uuid_as_object(mock_uuid):
 
 def test_mock_uuid_set_default(mock_uuid):
     """Test setting a default UUID."""
-    default = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    default = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
     mock_uuid.set_default(default)
 
     # All calls return the default
@@ -66,8 +66,8 @@ def test_mock_uuid_set_default(mock_uuid):
 
 def test_mock_uuid_set_overrides_default(mock_uuid):
     """Test that set() overrides the default."""
-    default = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-    specific = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+    default = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
+    specific = "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb"
 
     mock_uuid.set_default(default)
     mock_uuid.set(specific)
@@ -77,15 +77,15 @@ def test_mock_uuid_set_overrides_default(mock_uuid):
 
 def test_mock_uuid_reset_clears_everything(mock_uuid):
     """Test that reset() clears all configuration."""
-    mock_uuid.set("12345678-1234-5678-1234-567812345678")
-    mock_uuid.set_default("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+    mock_uuid.set("12345678-1234-4678-8234-567812345678")
+    mock_uuid.set_default("aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa")
 
     mock_uuid.reset()
 
     # Should return a real random UUID now
     result = uuid.uuid4()
-    assert result != uuid.UUID("12345678-1234-5678-1234-567812345678")
-    assert result != uuid.UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+    assert result != uuid.UUID("12345678-1234-4678-8234-567812345678")
+    assert result != uuid.UUID("aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa")
 
 
 def test_mock_uuid_no_mock_returns_random(mock_uuid):  # noqa: ARG001
@@ -145,7 +145,7 @@ def test_mock_uuid_set_seed_from_node(mock_uuid):
 def test_mock_uuid_set_exhaustion_behavior(mock_uuid, behavior_input):
     """Test setting exhaustion behavior with string or enum."""
     mock_uuid.set_exhaustion_behavior(behavior_input)
-    mock_uuid.set("11111111-1111-1111-1111-111111111111")
+    mock_uuid.set("11111111-1111-4111-8111-111111111111")
 
     uuid.uuid4()
 
@@ -169,7 +169,7 @@ def test_mock_uuid_generator_property(mock_uuid):
 
 def test_mock_uuid_factory_mocks_specific_module(mock_uuid_factory):
     """Test that the factory can mock a specific module."""
-    expected = "12345678-1234-5678-1234-567812345678"
+    expected = "12345678-1234-4678-8234-567812345678"
 
     with mock_uuid_factory("uuid") as mocker:
         mocker.set(expected)
@@ -183,15 +183,15 @@ def test_mock_uuid_factory_returns_mocker_with_all_methods(mock_uuid_factory):
     """Test that the factory returns a fully functional mocker."""
     with mock_uuid_factory("uuid") as mocker:
         # Test set
-        mocker.set("11111111-1111-1111-1111-111111111111")
-        assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
+        mocker.set("11111111-1111-4111-8111-111111111111")
+        assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
 
         # Test reset
         mocker.reset()
 
         # Test set_default
-        mocker.set_default("22222222-2222-2222-2222-222222222222")
-        assert str(uuid.uuid4()) == "22222222-2222-2222-2222-222222222222"
+        mocker.set_default("22222222-2222-4222-8222-222222222222")
+        assert str(uuid.uuid4()) == "22222222-2222-4222-8222-222222222222"
 
 
 def test_mock_uuid_factory_raises_keyerror_for_unloaded_module(mock_uuid_factory):
@@ -266,11 +266,11 @@ def test_mock_uuid_invalid_uuid_string_raises(mock_uuid):
 
 def test_mock_uuid_set_can_be_called_multiple_times(mock_uuid):
     """Test that calling set() multiple times replaces previous values."""
-    mock_uuid.set("11111111-1111-1111-1111-111111111111")
-    assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
+    mock_uuid.set("11111111-1111-4111-8111-111111111111")
+    assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
 
-    mock_uuid.set("22222222-2222-2222-2222-222222222222")
-    assert str(uuid.uuid4()) == "22222222-2222-2222-2222-222222222222"
+    mock_uuid.set("22222222-2222-4222-8222-222222222222")
+    assert str(uuid.uuid4()) == "22222222-2222-4222-8222-222222222222"
 
 
 # --- mock_uuid call tracking integration ---
@@ -279,8 +279,8 @@ def test_mock_uuid_set_can_be_called_multiple_times(mock_uuid):
 def test_mock_uuid_tracking_with_mocked_uuids(mock_uuid):
     """Test that tracking works correctly with mocked UUIDs."""
     mock_uuid.set(
-        "11111111-1111-1111-1111-111111111111",
-        "22222222-2222-2222-2222-222222222222",
+        "11111111-1111-4111-8111-111111111111",
+        "22222222-2222-4222-8222-222222222222",
     )
 
     result1 = uuid.uuid4()
@@ -354,20 +354,20 @@ def test_mock_uuid_spy_mode_still_tracks(mock_uuid):
 
 def test_mock_uuid_spy_after_set(mock_uuid):
     """Test switching to spy mode after setting UUIDs."""
-    mock_uuid.set("12345678-1234-5678-1234-567812345678")
+    mock_uuid.set("12345678-1234-4678-8234-567812345678")
     uuid.uuid4()  # Returns mocked
 
     mock_uuid.spy()
     result = uuid.uuid4()  # Returns real
 
     # Real UUID should be different from the mocked one
-    assert result != uuid.UUID("12345678-1234-5678-1234-567812345678")
+    assert result != uuid.UUID("12345678-1234-4678-8234-567812345678")
     assert mock_uuid.call_count == 2
 
 
 def test_mock_uuid_spy_mode_tracks_all_calls(mock_uuid):
     """Test that spy mode tracks all calls including before spy()."""
-    mock_uuid.set("12345678-1234-5678-1234-567812345678")
+    mock_uuid.set("12345678-1234-4678-8234-567812345678")
     uuid.uuid4()  # Mocked call
 
     mock_uuid.spy()
@@ -398,7 +398,7 @@ def test_uuid_call_captures_caller_info(spy_uuid):
 
 def test_uuid_call_mocked_vs_real_separation(mock_uuid):
     """Test separation of mocked and real (spy mode) calls."""
-    mock_uuid.set("12345678-1234-5678-1234-567812345678")
+    mock_uuid.set("12345678-1234-4678-8234-567812345678")
     mocked_result = uuid.uuid4()  # Mocked
 
     mock_uuid.spy()
@@ -423,7 +423,7 @@ def test_uuid_call_mocked_vs_real_separation(mock_uuid):
 def test_uuid_call_is_frozen():
     """Test that UUIDCall is immutable."""
     call = UUIDCall(
-        uuid=uuid.UUID("12345678-1234-5678-1234-567812345678"),
+        uuid=uuid.UUID("12345678-1234-4678-8234-567812345678"),
         was_mocked=True,
         caller_module="test_module",
         caller_file="/path/to/test.py",
@@ -436,7 +436,7 @@ def test_uuid_call_is_frozen():
 
 def test_uuid_call_fields():
     """Test UUIDCall field values."""
-    test_uuid = uuid.UUID("12345678-1234-5678-1234-567812345678")
+    test_uuid = uuid.UUID("12345678-1234-4678-8234-567812345678")
     call = UUIDCall(
         uuid=test_uuid,
         was_mocked=True,
@@ -452,7 +452,7 @@ def test_uuid_call_fields():
 
 def test_uuid_call_optional_fields():
     """Test UUIDCall with optional fields as None."""
-    test_uuid = uuid.UUID("12345678-1234-5678-1234-567812345678")
+    test_uuid = uuid.UUID("12345678-1234-4678-8234-567812345678")
     call = UUIDCall(
         uuid=test_uuid,
         was_mocked=False,

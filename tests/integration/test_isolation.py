@@ -16,14 +16,14 @@ def test_fixture_isolation_between_tests(pytester):
         import uuid
 
         def test_first(mock_uuid):
-            mock_uuid.set("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
-            assert str(uuid.uuid4()) == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+            mock_uuid.set("aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa")
+            assert str(uuid.uuid4()) == "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
 
         def test_second(mock_uuid):
             # Should NOT be affected by first test
             # Without setting anything, we get random UUIDs
             result = uuid.uuid4()
-            assert str(result) != "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+            assert str(result) != "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
             assert isinstance(result, uuid.UUID)
         """
     )
@@ -39,14 +39,14 @@ def test_marker_isolation_between_tests(pytester):
         import uuid
         import pytest
 
-        @pytest.mark.freeze_uuid("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+        @pytest.mark.freeze_uuid("bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb")
         def test_with_marker():
-            assert str(uuid.uuid4()) == "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+            assert str(uuid.uuid4()) == "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb"
 
         def test_after_marker(mock_uuid):
             # Should have clean state - not affected by previous marker
             result = uuid.uuid4()
-            assert str(result) != "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+            assert str(result) != "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb"
         """
     )
 
@@ -61,14 +61,14 @@ def test_decorator_isolation_between_tests(pytester):
         import uuid
         from pytest_uuid import freeze_uuid
 
-        @freeze_uuid("cccccccc-cccc-cccc-cccc-cccccccccccc")
+        @freeze_uuid("cccccccc-cccc-4ccc-accc-cccccccccccc")
         def test_with_decorator():
-            assert str(uuid.uuid4()) == "cccccccc-cccc-cccc-cccc-cccccccccccc"
+            assert str(uuid.uuid4()) == "cccccccc-cccc-4ccc-accc-cccccccccccc"
 
         def test_after_decorator():
             # Should have clean state
             result = uuid.uuid4()
-            assert str(result) != "cccccccc-cccc-cccc-cccc-cccccccccccc"
+            assert str(result) != "cccccccc-cccc-4ccc-accc-cccccccccccc"
         """
     )
 
@@ -86,17 +86,17 @@ def test_module_level_pytestmark(pytester):
         import uuid
         import pytest
 
-        pytestmark = pytest.mark.freeze_uuid("12345678-1234-5678-1234-567812345678")
+        pytestmark = pytest.mark.freeze_uuid("12345678-1234-4678-8234-567812345678")
 
         def test_one():
-            assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+            assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
 
         def test_two():
-            assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+            assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
 
         class TestNested:
             def test_three(self):
-                assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+                assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
         """
     )
 
@@ -134,13 +134,13 @@ def test_class_decorator_freeze_uuid(pytester):
         import uuid
         from pytest_uuid import freeze_uuid
 
-        @freeze_uuid("12345678-1234-5678-1234-567812345678")
+        @freeze_uuid("12345678-1234-4678-8234-567812345678")
         class TestWithDecorator:
             def test_one(self):
-                assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+                assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
 
             def test_two(self):
-                assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+                assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
 
             def helper_method(self):
                 # Non-test methods are NOT wrapped
@@ -184,19 +184,19 @@ def test_class_decorator_method_isolation(pytester):
         from pytest_uuid import freeze_uuid
 
         @freeze_uuid([
-            "11111111-1111-1111-1111-111111111111",
-            "22222222-2222-2222-2222-222222222222",
+            "11111111-1111-4111-8111-111111111111",
+            "22222222-2222-4222-8222-222222222222",
         ])
         class TestMethodIsolation:
             def test_one(self):
                 # First method starts at beginning of sequence
-                assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
-                assert str(uuid.uuid4()) == "22222222-2222-2222-2222-222222222222"
+                assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
+                assert str(uuid.uuid4()) == "22222222-2222-4222-8222-222222222222"
 
             def test_two(self):
                 # Second method ALSO starts at beginning (fresh context)
-                assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
-                assert str(uuid.uuid4()) == "22222222-2222-2222-2222-222222222222"
+                assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
+                assert str(uuid.uuid4()) == "22222222-2222-4222-8222-222222222222"
         """
     )
 
@@ -213,7 +213,7 @@ def test_session_scoped_fixture(pytester):
 
         @pytest.fixture(scope="session", autouse=True)
         def freeze_all_uuids():
-            with freeze_uuid("12345678-1234-5678-1234-567812345678"):
+            with freeze_uuid("12345678-1234-4678-8234-567812345678"):
                 yield
         """
     )
@@ -223,7 +223,7 @@ def test_session_scoped_fixture(pytester):
         import uuid
 
         def test_in_file_a():
-            assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+            assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
         """
     )
 
@@ -232,7 +232,7 @@ def test_session_scoped_fixture(pytester):
         import uuid
 
         def test_in_file_b():
-            assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+            assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
         """
     )
 
@@ -369,38 +369,38 @@ import uuid_service
 
 results = {}
 
-@freeze_uuid("11111111-1111-1111-1111-111111111111")
+@freeze_uuid("11111111-1111-4111-8111-111111111111")
 def test_01_with_mocking():
     result = uuid_service.generate_id()
     results["test_01"] = str(result)
-    assert str(result) == "11111111-1111-1111-1111-111111111111"
+    assert str(result) == "11111111-1111-4111-8111-111111111111"
 
 def test_02_without_mocking():
     result = uuid_service.generate_id()
     results["test_02"] = str(result)
     # Should NOT be the mocked value from test_01
-    assert str(result) != "11111111-1111-1111-1111-111111111111"
+    assert str(result) != "11111111-1111-4111-8111-111111111111"
     assert result.version == 4
 
-@freeze_uuid("22222222-2222-2222-2222-222222222222")
+@freeze_uuid("22222222-2222-4222-8222-222222222222")
 def test_03_with_different_mock():
     result = uuid_service.generate_id()
     results["test_03"] = str(result)
-    assert str(result) == "22222222-2222-2222-2222-222222222222"
+    assert str(result) == "22222222-2222-4222-8222-222222222222"
 
 def test_04_without_mocking_again():
     result = uuid_service.generate_id()
     results["test_04"] = str(result)
-    assert str(result) != "11111111-1111-1111-1111-111111111111"
-    assert str(result) != "22222222-2222-2222-2222-222222222222"
+    assert str(result) != "11111111-1111-4111-8111-111111111111"
+    assert str(result) != "22222222-2222-4222-8222-222222222222"
     assert result.version == 4
 
 def test_05_verify_all_results():
-    assert results["test_01"] == "11111111-1111-1111-1111-111111111111"
-    assert results["test_02"] != "11111111-1111-1111-1111-111111111111"
-    assert results["test_03"] == "22222222-2222-2222-2222-222222222222"
-    assert results["test_04"] != "11111111-1111-1111-1111-111111111111"
-    assert results["test_04"] != "22222222-2222-2222-2222-222222222222"
+    assert results["test_01"] == "11111111-1111-4111-8111-111111111111"
+    assert results["test_02"] != "11111111-1111-4111-8111-111111111111"
+    assert results["test_03"] == "22222222-2222-4222-8222-222222222222"
+    assert results["test_04"] != "11111111-1111-4111-8111-111111111111"
+    assert results["test_04"] != "22222222-2222-4222-8222-222222222222"
 """
     )
 
@@ -427,21 +427,21 @@ import import_uuid_service
 
 results = {}
 
-@freeze_uuid("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+@freeze_uuid("bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb")
 def test_01_mocked():
     result = import_uuid_service.generate()
     results["test_01"] = str(result)
-    assert str(result) == "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+    assert str(result) == "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb"
 
 def test_02_not_mocked():
     result = import_uuid_service.generate()
     results["test_02"] = str(result)
-    assert str(result) != "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+    assert str(result) != "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb"
     assert result.version == 4
 
 def test_03_verify():
-    assert results["test_01"] == "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
-    assert results["test_02"] != "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+    assert results["test_01"] == "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb"
+    assert results["test_02"] != "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb"
 """
     )
 
@@ -478,22 +478,22 @@ def test_01_no_mocking():
     results["test_01"] = str(result)
     assert result.version == 4
 
-@freeze_uuid("34343434-3434-3434-3434-343434343434")
+@freeze_uuid("34343434-3434-4434-8434-343434343434")
 def test_02_with_mocking():
     result = first_unmocked_service.get_uuid()
     results["test_02"] = str(result)
-    assert str(result) == "34343434-3434-3434-3434-343434343434"
+    assert str(result) == "34343434-3434-4434-8434-343434343434"
 
 def test_03_no_mocking_again():
     result = first_unmocked_service.get_uuid()
     results["test_03"] = str(result)
-    assert str(result) != "34343434-3434-3434-3434-343434343434"
+    assert str(result) != "34343434-3434-4434-8434-343434343434"
     assert result.version == 4
 
 def test_04_verify():
-    assert results["test_01"] != "34343434-3434-3434-3434-343434343434"
-    assert results["test_02"] == "34343434-3434-3434-3434-343434343434"
-    assert results["test_03"] != "34343434-3434-3434-3434-343434343434"
+    assert results["test_01"] != "34343434-3434-4434-8434-343434343434"
+    assert results["test_02"] == "34343434-3434-4434-8434-343434343434"
+    assert results["test_03"] != "34343434-3434-4434-8434-343434343434"
 """
     )
 
@@ -520,56 +520,56 @@ import alternating_service
 
 results = []
 
-@freeze_uuid("11111111-1111-1111-1111-111111111111")
+@freeze_uuid("11111111-1111-4111-8111-111111111111")
 def test_01_mocked():
     result = alternating_service.gen()
     results.append(("test_01", str(result), True))
-    assert str(result) == "11111111-1111-1111-1111-111111111111"
+    assert str(result) == "11111111-1111-4111-8111-111111111111"
 
 def test_02_unmocked():
     result = alternating_service.gen()
     results.append(("test_02", str(result), False))
-    assert str(result) != "11111111-1111-1111-1111-111111111111"
+    assert str(result) != "11111111-1111-4111-8111-111111111111"
 
-@freeze_uuid("22222222-2222-2222-2222-222222222222")
+@freeze_uuid("22222222-2222-4222-8222-222222222222")
 def test_03_mocked():
     result = alternating_service.gen()
     results.append(("test_03", str(result), True))
-    assert str(result) == "22222222-2222-2222-2222-222222222222"
+    assert str(result) == "22222222-2222-4222-8222-222222222222"
 
 def test_04_unmocked():
     result = alternating_service.gen()
     results.append(("test_04", str(result), False))
-    assert str(result) != "22222222-2222-2222-2222-222222222222"
+    assert str(result) != "22222222-2222-4222-8222-222222222222"
 
-@freeze_uuid("33333333-3333-3333-3333-333333333333")
+@freeze_uuid("33333333-3333-4333-8333-333333333333")
 def test_05_mocked():
     result = alternating_service.gen()
     results.append(("test_05", str(result), True))
-    assert str(result) == "33333333-3333-3333-3333-333333333333"
+    assert str(result) == "33333333-3333-4333-8333-333333333333"
 
 def test_06_unmocked():
     result = alternating_service.gen()
     results.append(("test_06", str(result), False))
-    assert str(result) != "33333333-3333-3333-3333-333333333333"
+    assert str(result) != "33333333-3333-4333-8333-333333333333"
 
-@freeze_uuid("44444444-4444-4444-4444-444444444444")
+@freeze_uuid("44444444-4444-4444-9444-444444444444")
 def test_07_mocked():
     result = alternating_service.gen()
     results.append(("test_07", str(result), True))
-    assert str(result) == "44444444-4444-4444-4444-444444444444"
+    assert str(result) == "44444444-4444-4444-9444-444444444444"
 
 def test_08_unmocked():
     result = alternating_service.gen()
     results.append(("test_08", str(result), False))
-    assert str(result) != "44444444-4444-4444-4444-444444444444"
+    assert str(result) != "44444444-4444-4444-9444-444444444444"
 
 def test_09_final_verify():
     mocked_uuids = [
-        "11111111-1111-1111-1111-111111111111",
-        "22222222-2222-2222-2222-222222222222",
-        "33333333-3333-3333-3333-333333333333",
-        "44444444-4444-4444-4444-444444444444",
+        "11111111-1111-4111-8111-111111111111",
+        "22222222-2222-4222-8222-222222222222",
+        "33333333-3333-4333-8333-333333333333",
+        "44444444-4444-4444-9444-444444444444",
     ]
     for name, uuid_str, was_mocked in results:
         if was_mocked:
@@ -606,21 +606,21 @@ from external_pkg.utils import ids
 
 results = {}
 
-@freeze_uuid("12121212-1212-1212-1212-121212121212")
+@freeze_uuid("12121212-1212-4212-8212-121212121212")
 def test_01_mocked():
     result = ids.create_unique_id()
     results["test_01"] = str(result)
-    assert str(result) == "12121212-1212-1212-1212-121212121212"
+    assert str(result) == "12121212-1212-4212-8212-121212121212"
 
 def test_02_not_mocked():
     result = ids.create_unique_id()
     results["test_02"] = str(result)
-    assert str(result) != "12121212-1212-1212-1212-121212121212"
+    assert str(result) != "12121212-1212-4212-8212-121212121212"
     assert result.version == 4
 
 def test_03_verify():
-    assert results["test_01"] == "12121212-1212-1212-1212-121212121212"
-    assert results["test_02"] != "12121212-1212-1212-1212-121212121212"
+    assert results["test_01"] == "12121212-1212-4212-8212-121212121212"
+    assert results["test_02"] != "12121212-1212-4212-8212-121212121212"
 """
     )
 

@@ -75,7 +75,7 @@ The ignore check inspects the entire call stack:
 
 ```python
 def test_ignore_in_stack(mock_uuid):
-    mock_uuid.set("12345678-1234-5678-1234-567812345678")
+    mock_uuid.set("12345678-1234-4678-8234-567812345678")
     mock_uuid.set_ignore("sqlalchemy")
 
     # Your code calls SQLAlchemy, which calls uuid.uuid4()
@@ -108,7 +108,7 @@ import pytest
 from pytest_uuid import UUIDsExhaustedError
 
 def test_strict(mock_uuid):
-    mock_uuid.set("11111111-1111-1111-1111-111111111111")
+    mock_uuid.set("11111111-1111-4111-8111-111111111111")
 
     uuid.uuid4()  # OK
 
@@ -127,7 +127,7 @@ import pytest
 # Global config: on_exhausted="raise"
 
 @pytest.mark.freeze_uuid(
-    "11111111-1111-1111-1111-111111111111",
+    "11111111-1111-4111-8111-111111111111",
     on_exhausted="cycle",  # Override for this test
 )
 def test_with_override():

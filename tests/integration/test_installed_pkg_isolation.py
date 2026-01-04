@@ -87,44 +87,44 @@ def test_installed_pkg_mock_isolation_sequential(venv_with_packages, tmp_path):
 
         results = {}
 
-        @freeze_uuid("11111111-1111-1111-1111-111111111111")
+        @freeze_uuid("11111111-1111-4111-8111-111111111111")
         def test_01_with_mocking():
             """First test uses mocking."""
             result = generate_id()
             results["test_01"] = str(result)
-            assert str(result) == "11111111-1111-1111-1111-111111111111"
+            assert str(result) == "11111111-1111-4111-8111-111111111111"
 
             service = UUIDService()
-            assert str(service.create_id()) == "11111111-1111-1111-1111-111111111111"
+            assert str(service.create_id()) == "11111111-1111-4111-8111-111111111111"
 
         def test_02_without_mocking():
             """Second test has NO mocking - should get real UUIDs."""
             result = generate_id()
             results["test_02"] = str(result)
-            assert str(result) != "11111111-1111-1111-1111-111111111111"
+            assert str(result) != "11111111-1111-4111-8111-111111111111"
             assert result.version == 4
 
-        @freeze_uuid("22222222-2222-2222-2222-222222222222")
+        @freeze_uuid("22222222-2222-4222-8222-222222222222")
         def test_03_with_different_mock():
             """Third test uses different mock."""
             result = generate_id()
             results["test_03"] = str(result)
-            assert str(result) == "22222222-2222-2222-2222-222222222222"
+            assert str(result) == "22222222-2222-4222-8222-222222222222"
 
         def test_04_without_mocking_again():
             """Fourth test has NO mocking - verify no leakage."""
             result = generate_id()
             results["test_04"] = str(result)
-            assert str(result) != "11111111-1111-1111-1111-111111111111"
-            assert str(result) != "22222222-2222-2222-2222-222222222222"
+            assert str(result) != "11111111-1111-4111-8111-111111111111"
+            assert str(result) != "22222222-2222-4222-8222-222222222222"
             assert result.version == 4
 
         def test_05_verify():
             """Verify all results."""
-            assert results["test_01"] == "11111111-1111-1111-1111-111111111111"
-            assert results["test_02"] != "11111111-1111-1111-1111-111111111111"
-            assert results["test_03"] == "22222222-2222-2222-2222-222222222222"
-            assert results["test_04"] != "22222222-2222-2222-2222-222222222222"
+            assert results["test_01"] == "11111111-1111-4111-8111-111111111111"
+            assert results["test_02"] != "11111111-1111-4111-8111-111111111111"
+            assert results["test_03"] == "22222222-2222-4222-8222-222222222222"
+            assert results["test_04"] != "22222222-2222-4222-8222-222222222222"
     ''')
 
     test_dir = tmp_path / "tests"
@@ -149,21 +149,21 @@ def test_installed_pkg_alt_service_sequential(venv_with_packages, tmp_path):
 
         results = {}
 
-        @freeze_uuid("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        @freeze_uuid("aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa")
         def test_01_mocked():
             result = alt_generate_id()
             results["test_01"] = str(result)
-            assert str(result) == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+            assert str(result) == "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
 
         def test_02_not_mocked():
             result = alt_generate_id()
             results["test_02"] = str(result)
-            assert str(result) != "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+            assert str(result) != "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
             assert result.version == 4
 
         def test_03_verify():
-            assert results["test_01"] == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-            assert results["test_02"] != "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+            assert results["test_01"] == "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
+            assert results["test_02"] != "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
     ''')
 
     test_dir = tmp_path / "tests"
@@ -198,24 +198,24 @@ def test_installed_pkg_first_unmocked_then_mocked(venv_with_packages, tmp_path):
             results["test_01"] = str(result)
             assert result.version == 4
 
-        @freeze_uuid("34343434-3434-3434-3434-343434343434")
+        @freeze_uuid("34343434-3434-4434-8434-343434343434")
         def test_02_with_mocking():
             """Second test uses mocking."""
             result = generate_id()
             results["test_02"] = str(result)
-            assert str(result) == "34343434-3434-3434-3434-343434343434"
+            assert str(result) == "34343434-3434-4434-8434-343434343434"
 
         def test_03_no_mocking_again():
             """Third test has NO mocking."""
             result = generate_id()
             results["test_03"] = str(result)
-            assert str(result) != "34343434-3434-3434-3434-343434343434"
+            assert str(result) != "34343434-3434-4434-8434-343434343434"
             assert result.version == 4
 
         def test_04_verify():
-            assert results["test_01"] != "34343434-3434-3434-3434-343434343434"
-            assert results["test_02"] == "34343434-3434-3434-3434-343434343434"
-            assert results["test_03"] != "34343434-3434-3434-3434-343434343434"
+            assert results["test_01"] != "34343434-3434-4434-8434-343434343434"
+            assert results["test_02"] == "34343434-3434-4434-8434-343434343434"
+            assert results["test_03"] != "34343434-3434-4434-8434-343434343434"
     ''')
 
     test_dir = tmp_path / "tests"
@@ -245,35 +245,35 @@ def test_installed_pkg_mock_isolation_parallel(venv_with_packages, tmp_path):
         from pytest_uuid import freeze_uuid
         from uuid_testpkg import generate_id
 
-        @freeze_uuid("11111111-1111-1111-1111-111111111111")
+        @freeze_uuid("11111111-1111-4111-8111-111111111111")
         def test_worker_a_mocked():
             result = generate_id()
-            assert str(result) == "11111111-1111-1111-1111-111111111111"
+            assert str(result) == "11111111-1111-4111-8111-111111111111"
 
-        @freeze_uuid("22222222-2222-2222-2222-222222222222")
+        @freeze_uuid("22222222-2222-4222-8222-222222222222")
         def test_worker_b_mocked():
             result = generate_id()
-            assert str(result) == "22222222-2222-2222-2222-222222222222"
+            assert str(result) == "22222222-2222-4222-8222-222222222222"
 
         def test_worker_c_not_mocked():
             result = generate_id()
-            assert str(result) != "11111111-1111-1111-1111-111111111111"
-            assert str(result) != "22222222-2222-2222-2222-222222222222"
+            assert str(result) != "11111111-1111-4111-8111-111111111111"
+            assert str(result) != "22222222-2222-4222-8222-222222222222"
             assert result.version == 4
 
-        @freeze_uuid("33333333-3333-3333-3333-333333333333")
+        @freeze_uuid("33333333-3333-4333-8333-333333333333")
         def test_worker_d_mocked():
             result = generate_id()
-            assert str(result) == "33333333-3333-3333-3333-333333333333"
+            assert str(result) == "33333333-3333-4333-8333-333333333333"
 
         def test_worker_e_not_mocked():
             result = generate_id()
             assert result.version == 4
 
-        @freeze_uuid("44444444-4444-4444-4444-444444444444")
+        @freeze_uuid("44444444-4444-4444-9444-444444444444")
         def test_worker_f_mocked():
             result = generate_id()
-            assert str(result) == "44444444-4444-4444-4444-444444444444"
+            assert str(result) == "44444444-4444-4444-9444-444444444444"
     ''')
 
     test_dir = tmp_path / "tests"
@@ -362,39 +362,39 @@ def test_installed_pkg_conftest_module_import(venv_with_packages, tmp_path):
 
         results = {}
 
-        @freeze_uuid("55555555-5555-5555-5555-555555555555")
+        @freeze_uuid("55555555-5555-4555-9555-555555555555")
         def test_01_mocked_after_conftest_import():
             """Test mocking works even after conftest imported the module."""
             result = generate_id()
             results["test_01"] = str(result)
-            assert str(result) == "55555555-5555-5555-5555-555555555555"
+            assert str(result) == "55555555-5555-4555-9555-555555555555"
 
         def test_02_not_mocked():
             """Verify no leakage after mocked test."""
             result = generate_id()
             results["test_02"] = str(result)
-            assert str(result) != "55555555-5555-5555-5555-555555555555"
+            assert str(result) != "55555555-5555-4555-9555-555555555555"
             assert result.version == 4
 
-        @freeze_uuid("66666666-6666-6666-6666-666666666666")
+        @freeze_uuid("66666666-6666-4666-9666-666666666666")
         def test_03_mocked_with_fixture(uuid_service):
             """Test mocking works with fixture from conftest."""
             result = uuid_service.create_id()
             results["test_03"] = str(result)
-            assert str(result) == "66666666-6666-6666-6666-666666666666"
+            assert str(result) == "66666666-6666-4666-9666-666666666666"
 
         def test_04_not_mocked_with_fixture(uuid_service):
             """Verify fixture works without mocking."""
             result = uuid_service.create_id()
             results["test_04"] = str(result)
-            assert str(result) != "66666666-6666-6666-6666-666666666666"
+            assert str(result) != "66666666-6666-4666-9666-666666666666"
             assert result.version == 4
 
         def test_05_verify():
-            assert results["test_01"] == "55555555-5555-5555-5555-555555555555"
-            assert results["test_02"] != "55555555-5555-5555-5555-555555555555"
-            assert results["test_03"] == "66666666-6666-6666-6666-666666666666"
-            assert results["test_04"] != "66666666-6666-6666-6666-666666666666"
+            assert results["test_01"] == "55555555-5555-4555-9555-555555555555"
+            assert results["test_02"] != "55555555-5555-4555-9555-555555555555"
+            assert results["test_03"] == "66666666-6666-4666-9666-666666666666"
+            assert results["test_04"] != "66666666-6666-4666-9666-666666666666"
     ''')
 
     test_dir = tmp_path / "tests"
@@ -423,16 +423,16 @@ def test_installed_pkg_conftest_import_parallel(venv_with_packages, tmp_path):
         from pytest_uuid import freeze_uuid
         from uuid_testpkg import generate_id
 
-        @freeze_uuid("77777777-7777-7777-7777-777777777777")
+        @freeze_uuid("77777777-7777-4777-9777-777777777777")
         def test_a_mocked():
-            assert str(generate_id()) == "77777777-7777-7777-7777-777777777777"
+            assert str(generate_id()) == "77777777-7777-4777-9777-777777777777"
 
         def test_b_not_mocked():
             assert generate_id().version == 4
 
-        @freeze_uuid("88888888-8888-8888-8888-888888888888")
+        @freeze_uuid("88888888-8888-4888-8888-888888888888")
         def test_c_mocked():
-            assert str(generate_id()) == "88888888-8888-8888-8888-888888888888"
+            assert str(generate_id()) == "88888888-8888-4888-8888-888888888888"
 
         def test_d_not_mocked():
             assert generate_id().version == 4
@@ -465,16 +465,16 @@ def test_installed_pkg_ignore_list(venv_with_packages, tmp_path):
         def test_ignore_installed_package():
             """Test that ignore list works with installed uuid_testpkg."""
             with freeze_uuid(
-                "99999999-9999-9999-9999-999999999999",
+                "99999999-9999-4999-9999-999999999999",
                 ignore=["uuid_testpkg"]
             ):
                 # Direct uuid.uuid4() should be mocked
                 direct = uuid.uuid4()
-                assert str(direct) == "99999999-9999-9999-9999-999999999999"
+                assert str(direct) == "99999999-9999-4999-9999-999999999999"
 
                 # uuid_testpkg should be ignored - returns real UUID
                 from_pkg = generate_id()
-                assert str(from_pkg) != "99999999-9999-9999-9999-999999999999"
+                assert str(from_pkg) != "99999999-9999-4999-9999-999999999999"
                 assert from_pkg.version == 4
     ''')
 
@@ -503,20 +503,20 @@ def test_installed_pkg_ignore_submodule(venv_with_packages, tmp_path):
         def test_ignore_service_not_alt():
             """Ignore service module but not alt_service."""
             with freeze_uuid(
-                "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                "aaaaaaaa-bbbb-4ccc-addd-eeeeeeeeeeee",
                 ignore=["uuid_testpkg.service"]
             ):
                 # Direct should be mocked
                 direct = uuid.uuid4()
-                assert str(direct) == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+                assert str(direct) == "aaaaaaaa-bbbb-4ccc-addd-eeeeeeeeeeee"
 
                 # service should be ignored
                 from_service = service_gen()
-                assert str(from_service) != "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+                assert str(from_service) != "aaaaaaaa-bbbb-4ccc-addd-eeeeeeeeeeee"
 
                 # alt_service should be mocked (not in ignore list)
                 from_alt = alt_generate_id()
-                assert str(from_alt) == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+                assert str(from_alt) == "aaaaaaaa-bbbb-4ccc-addd-eeeeeeeeeeee"
     ''')
 
     test_dir = tmp_path / "tests"
@@ -545,60 +545,60 @@ def test_installed_pkg_alternating_many_times(venv_with_packages, tmp_path):
         results = []
         MOCKED_UUIDS = []
 
-        @freeze_uuid("10101010-1010-1010-1010-101010101010")
+        @freeze_uuid("10101010-1010-4010-8010-101010101010")
         def test_01_mocked():
-            MOCKED_UUIDS.append("10101010-1010-1010-1010-101010101010")
+            MOCKED_UUIDS.append("10101010-1010-4010-8010-101010101010")
             result = generate_id()
             results.append(("test_01", str(result), True))
-            assert str(result) == "10101010-1010-1010-1010-101010101010"
+            assert str(result) == "10101010-1010-4010-8010-101010101010"
 
         def test_02_unmocked():
             result = generate_id()
             results.append(("test_02", str(result), False))
             assert str(result) not in MOCKED_UUIDS
 
-        @freeze_uuid("20202020-2020-2020-2020-202020202020")
+        @freeze_uuid("20202020-2020-4020-8020-202020202020")
         def test_03_mocked():
-            MOCKED_UUIDS.append("20202020-2020-2020-2020-202020202020")
+            MOCKED_UUIDS.append("20202020-2020-4020-8020-202020202020")
             result = generate_id()
             results.append(("test_03", str(result), True))
-            assert str(result) == "20202020-2020-2020-2020-202020202020"
+            assert str(result) == "20202020-2020-4020-8020-202020202020"
 
         def test_04_unmocked():
             result = generate_id()
             results.append(("test_04", str(result), False))
             assert str(result) not in MOCKED_UUIDS
 
-        @freeze_uuid("30303030-3030-3030-3030-303030303030")
+        @freeze_uuid("30303030-3030-4030-8030-303030303030")
         def test_05_mocked():
-            MOCKED_UUIDS.append("30303030-3030-3030-3030-303030303030")
+            MOCKED_UUIDS.append("30303030-3030-4030-8030-303030303030")
             result = generate_id()
             results.append(("test_05", str(result), True))
-            assert str(result) == "30303030-3030-3030-3030-303030303030"
+            assert str(result) == "30303030-3030-4030-8030-303030303030"
 
         def test_06_unmocked():
             result = generate_id()
             results.append(("test_06", str(result), False))
             assert str(result) not in MOCKED_UUIDS
 
-        @freeze_uuid("40404040-4040-4040-4040-404040404040")
+        @freeze_uuid("40404040-4040-4040-9040-404040404040")
         def test_07_mocked():
-            MOCKED_UUIDS.append("40404040-4040-4040-4040-404040404040")
+            MOCKED_UUIDS.append("40404040-4040-4040-9040-404040404040")
             result = generate_id()
             results.append(("test_07", str(result), True))
-            assert str(result) == "40404040-4040-4040-4040-404040404040"
+            assert str(result) == "40404040-4040-4040-9040-404040404040"
 
         def test_08_unmocked():
             result = generate_id()
             results.append(("test_08", str(result), False))
             assert str(result) not in MOCKED_UUIDS
 
-        @freeze_uuid("50505050-5050-5050-5050-505050505050")
+        @freeze_uuid("50505050-5050-4050-9050-505050505050")
         def test_09_mocked():
-            MOCKED_UUIDS.append("50505050-5050-5050-5050-505050505050")
+            MOCKED_UUIDS.append("50505050-5050-4050-9050-505050505050")
             result = generate_id()
             results.append(("test_09", str(result), True))
-            assert str(result) == "50505050-5050-5050-5050-505050505050"
+            assert str(result) == "50505050-5050-4050-9050-505050505050"
 
         def test_10_unmocked():
             result = generate_id()
@@ -640,7 +640,7 @@ def test_installed_pkg_both_import_patterns(venv_with_packages, tmp_path):
 
         results = {}
 
-        @freeze_uuid("abababab-abab-abab-abab-abababababab")
+        @freeze_uuid("abababab-abab-4bab-abab-abababababab")
         def test_01_both_patterns_mocked():
             """Both patterns should be mocked."""
             from_direct = generate_id()
@@ -649,8 +649,8 @@ def test_installed_pkg_both_import_patterns(venv_with_packages, tmp_path):
             results["test_01_direct"] = str(from_direct)
             results["test_01_module"] = str(from_module)
 
-            assert str(from_direct) == "abababab-abab-abab-abab-abababababab"
-            assert str(from_module) == "abababab-abab-abab-abab-abababababab"
+            assert str(from_direct) == "abababab-abab-4bab-abab-abababababab"
+            assert str(from_module) == "abababab-abab-4bab-abab-abababababab"
 
         def test_02_both_patterns_not_mocked():
             """Both patterns should return real UUIDs."""
@@ -660,16 +660,16 @@ def test_installed_pkg_both_import_patterns(venv_with_packages, tmp_path):
             results["test_02_direct"] = str(from_direct)
             results["test_02_module"] = str(from_module)
 
-            assert str(from_direct) != "abababab-abab-abab-abab-abababababab"
-            assert str(from_module) != "abababab-abab-abab-abab-abababababab"
+            assert str(from_direct) != "abababab-abab-4bab-abab-abababababab"
+            assert str(from_module) != "abababab-abab-4bab-abab-abababababab"
             assert from_direct.version == 4
             assert from_module.version == 4
 
         def test_03_verify():
-            assert results["test_01_direct"] == "abababab-abab-abab-abab-abababababab"
-            assert results["test_01_module"] == "abababab-abab-abab-abab-abababababab"
-            assert results["test_02_direct"] != "abababab-abab-abab-abab-abababababab"
-            assert results["test_02_module"] != "abababab-abab-abab-abab-abababababab"
+            assert results["test_01_direct"] == "abababab-abab-4bab-abab-abababababab"
+            assert results["test_01_module"] == "abababab-abab-4bab-abab-abababababab"
+            assert results["test_02_direct"] != "abababab-abab-4bab-abab-abababababab"
+            assert results["test_02_module"] != "abababab-abab-4bab-abab-abababababab"
     ''')
 
     test_dir = tmp_path / "tests"
@@ -725,10 +725,10 @@ def test_botocore_ignored_by_default(venv_with_botocore, tmp_path):
 
         def test_botocore_gets_real_uuid_when_mocking_active():
             """Verify botocore generates real UUIDs even when freeze_uuid is active."""
-            with freeze_uuid("11111111-1111-1111-1111-111111111111"):
+            with freeze_uuid("11111111-1111-4111-8111-111111111111"):
                 # Direct uuid.uuid4() should return mocked value
                 direct_uuid = uuid.uuid4()
-                assert str(direct_uuid) == "11111111-1111-1111-1111-111111111111"
+                assert str(direct_uuid) == "11111111-1111-4111-8111-111111111111"
 
                 # botocore's generate_idempotent_uuid should get a REAL UUID
                 # because botocore is in DEFAULT_IGNORE_PACKAGES
@@ -738,7 +738,7 @@ def test_botocore_ignored_by_default(venv_with_botocore, tmp_path):
                 botocore_uuid = params["ClientToken"]
 
                 # Should NOT be our mocked UUID
-                assert botocore_uuid != "11111111-1111-1111-1111-111111111111"
+                assert botocore_uuid != "11111111-1111-4111-8111-111111111111"
 
                 # Should be a valid v4 UUID
                 parsed = uuid.UUID(botocore_uuid)
@@ -747,7 +747,7 @@ def test_botocore_ignored_by_default(venv_with_botocore, tmp_path):
         def test_botocore_can_be_explicitly_mocked_by_disabling_defaults():
             """Verify botocore CAN be mocked if ignore_defaults is False."""
             with freeze_uuid(
-                "22222222-2222-2222-2222-222222222222",
+                "22222222-2222-4222-8222-222222222222",
                 ignore_defaults=False  # Disable default ignore list
             ):
                 params = {}
@@ -756,11 +756,11 @@ def test_botocore_ignored_by_default(venv_with_botocore, tmp_path):
                 botocore_uuid = params["ClientToken"]
 
                 # NOW it should be mocked since we disabled default ignores
-                assert botocore_uuid == "22222222-2222-2222-2222-222222222222"
+                assert botocore_uuid == "22222222-2222-4222-8222-222222222222"
 
         def test_botocore_ignored_with_decorator():
             """Test @freeze_uuid decorator also respects default ignore list."""
-            @freeze_uuid("33333333-3333-3333-3333-333333333333")
+            @freeze_uuid("33333333-3333-4333-8333-333333333333")
             def inner():
                 params = {}
                 generate_idempotent_uuid(params, MockModel())
@@ -769,7 +769,7 @@ def test_botocore_ignored_by_default(venv_with_botocore, tmp_path):
             result = inner()
 
             # Should be a real UUID, not the mocked one
-            assert result != "33333333-3333-3333-3333-333333333333"
+            assert result != "33333333-3333-4333-8333-333333333333"
             assert uuid.UUID(result).version == 4
     ''')
 
@@ -806,10 +806,10 @@ def test_botocore_freezer_tracks_real_uuid_calls(venv_with_botocore, tmp_path):
 
         def test_freezer_tracks_botocore_real_calls():
             """Verify freeze_uuid tracks botocore calls as real (not mocked)."""
-            with freeze_uuid("44444444-4444-4444-4444-444444444444") as freezer:
+            with freeze_uuid("44444444-4444-4444-9444-444444444444") as freezer:
                 # First, a direct call (should be mocked)
                 direct = uuid.uuid4()
-                assert str(direct) == "44444444-4444-4444-4444-444444444444"
+                assert str(direct) == "44444444-4444-4444-9444-444444444444"
 
                 # Then a botocore call (should be real)
                 params = {}
@@ -827,7 +827,7 @@ def test_botocore_freezer_tracks_real_uuid_calls(venv_with_botocore, tmp_path):
                 assert len(real_calls) == 1
 
                 # Mocked call should be our direct uuid.uuid4()
-                assert str(mocked_calls[0].uuid) == "44444444-4444-4444-4444-444444444444"
+                assert str(mocked_calls[0].uuid) == "44444444-4444-4444-9444-444444444444"
 
                 # Real call should be from botocore
                 assert str(real_calls[0].uuid) == botocore_uuid

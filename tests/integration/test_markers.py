@@ -15,7 +15,7 @@ def test_marker_registered(pytester):
         test_marker_reg="""
         import pytest
 
-        @pytest.mark.freeze_uuid("12345678-1234-5678-1234-567812345678")
+        @pytest.mark.freeze_uuid("12345678-1234-4678-8234-567812345678")
         def test_with_marker():
             pass
         """
@@ -33,10 +33,10 @@ def test_marker_applies_freezer(pytester):
         import uuid
         import pytest
 
-        @pytest.mark.freeze_uuid("12345678-1234-5678-1234-567812345678")
+        @pytest.mark.freeze_uuid("12345678-1234-4678-8234-567812345678")
         def test_marker_works():
             result = uuid.uuid4()
-            assert str(result) == "12345678-1234-5678-1234-567812345678"
+            assert str(result) == "12345678-1234-4678-8234-567812345678"
         """
     )
 
@@ -128,14 +128,14 @@ def test_marker_cleanup_on_teardown(pytester):
         import uuid
         import pytest
 
-        @pytest.mark.freeze_uuid("11111111-1111-1111-1111-111111111111")
+        @pytest.mark.freeze_uuid("11111111-1111-4111-8111-111111111111")
         def test_first():
-            assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
+            assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
 
         def test_second():
             # Should not be affected by previous test's marker
             result = uuid.uuid4()
-            assert str(result) != "11111111-1111-1111-1111-111111111111"
+            assert str(result) != "11111111-1111-4111-8111-111111111111"
         """
     )
 
@@ -164,7 +164,7 @@ def test_marker_config_loaded_from_pyproject(pytester):
         def test_config_applied():
             # With default_exhaustion_behavior = "raise", exhausting
             # a sequence should raise
-            with freeze_uuid(["11111111-1111-1111-1111-111111111111"]):
+            with freeze_uuid(["11111111-1111-4111-8111-111111111111"]):
                 uuid.uuid4()  # First call OK
                 with pytest.raises(UUIDsExhaustedError):
                     uuid.uuid4()  # Should raise
@@ -185,10 +185,10 @@ def test_marker_with_static_uuid(pytester):
         import uuid
         import pytest
 
-        @pytest.mark.freeze_uuid("12345678-1234-5678-1234-567812345678")
+        @pytest.mark.freeze_uuid("12345678-1234-4678-8234-567812345678")
         def test_static_uuid():
-            assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
-            assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+            assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
+            assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
         """
     )
 
@@ -205,16 +205,16 @@ def test_marker_with_sequence(pytester):
 
         @pytest.mark.freeze_uuid(
             [
-                "11111111-1111-1111-1111-111111111111",
-                "22222222-2222-2222-2222-222222222222",
+                "11111111-1111-4111-8111-111111111111",
+                "22222222-2222-4222-8222-222222222222",
             ],
             on_exhausted="cycle",
         )
         def test_sequence():
-            assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
-            assert str(uuid.uuid4()) == "22222222-2222-2222-2222-222222222222"
+            assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
+            assert str(uuid.uuid4()) == "22222222-2222-4222-8222-222222222222"
             # Cycles back
-            assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
+            assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
         """
     )
 
@@ -250,7 +250,7 @@ def test_marker_with_on_exhausted_raise(pytester):
         from pytest_uuid.generators import UUIDsExhaustedError
 
         @pytest.mark.freeze_uuid(
-            ["11111111-1111-1111-1111-111111111111"],
+            ["11111111-1111-4111-8111-111111111111"],
             on_exhausted="raise",
         )
         def test_raises_on_exhausted():
@@ -271,13 +271,13 @@ def test_marker_on_class(pytester):
         import uuid
         import pytest
 
-        @pytest.mark.freeze_uuid("12345678-1234-5678-1234-567812345678")
+        @pytest.mark.freeze_uuid("12345678-1234-4678-8234-567812345678")
         class TestWithMarker:
             def test_one(self):
-                assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+                assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
 
             def test_two(self):
-                assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+                assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
         """
     )
 
@@ -323,12 +323,12 @@ def test_marker_multiple_on_same_test(pytester):
 
         # When multiple markers are applied, get_closest_marker returns
         # the innermost one (closest to the function definition)
-        @pytest.mark.freeze_uuid("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
-        @pytest.mark.freeze_uuid("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+        @pytest.mark.freeze_uuid("aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa")
+        @pytest.mark.freeze_uuid("bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb")
         def test_multiple_markers():
             # The inner marker (closest to def) takes precedence
             result = str(uuid.uuid4())
-            assert result == "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+            assert result == "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb"
         """
     )
 
@@ -343,16 +343,16 @@ def test_marker_on_class_and_method(pytester):
         import uuid
         import pytest
 
-        @pytest.mark.freeze_uuid("11111111-1111-1111-1111-111111111111")
+        @pytest.mark.freeze_uuid("11111111-1111-4111-8111-111111111111")
         class TestWithClassMarker:
             def test_class_marker_only(self):
                 # Uses class marker
-                assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
+                assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
 
-            @pytest.mark.freeze_uuid("22222222-2222-2222-2222-222222222222")
+            @pytest.mark.freeze_uuid("22222222-2222-4222-8222-222222222222")
             def test_method_marker_overrides(self):
                 # Method marker should take precedence over class marker
-                assert str(uuid.uuid4()) == "22222222-2222-2222-2222-222222222222"
+                assert str(uuid.uuid4()) == "22222222-2222-4222-8222-222222222222"
         """
     )
 
@@ -367,16 +367,16 @@ def test_marker_with_mock_uuid_fixture_override(pytester):
         import uuid
         import pytest
 
-        @pytest.mark.freeze_uuid("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        @pytest.mark.freeze_uuid("aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa")
         def test_fixture_overrides_marker(mock_uuid):
             # First call uses marker's UUID
             first = str(uuid.uuid4())
-            assert first == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+            assert first == "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
 
             # Fixture can override to a different UUID
-            mock_uuid.set("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+            mock_uuid.set("bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb")
             second = str(uuid.uuid4())
-            assert second == "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+            assert second == "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb"
         """
     )
 
@@ -393,21 +393,21 @@ def test_marker_with_sequence_exhaustion_and_fixture(pytester):
 
         @pytest.mark.freeze_uuid(
             [
-                "11111111-1111-1111-1111-111111111111",
-                "22222222-2222-2222-2222-222222222222",
+                "11111111-1111-4111-8111-111111111111",
+                "22222222-2222-4222-8222-222222222222",
             ],
             on_exhausted="cycle"
         )
         def test_sequence_cycles(mock_uuid):
             # Consume the sequence
-            assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
-            assert str(uuid.uuid4()) == "22222222-2222-2222-2222-222222222222"
+            assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
+            assert str(uuid.uuid4()) == "22222222-2222-4222-8222-222222222222"
             # Cycles back
-            assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
+            assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
 
             # But fixture can still override
-            mock_uuid.set("33333333-3333-3333-3333-333333333333")
-            assert str(uuid.uuid4()) == "33333333-3333-3333-3333-333333333333"
+            mock_uuid.set("33333333-3333-4333-8333-333333333333")
+            assert str(uuid.uuid4()) == "33333333-3333-4333-8333-333333333333"
         """
     )
 
@@ -422,10 +422,10 @@ def test_marker_with_uuids_keyword_argument(pytester):
         import uuid
         import pytest
 
-        @pytest.mark.freeze_uuid(uuids="12345678-1234-5678-1234-567812345678")
+        @pytest.mark.freeze_uuid(uuids="12345678-1234-4678-8234-567812345678")
         def test_uuids_keyword():
-            assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
-            assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+            assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
+            assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
         """
     )
 
@@ -442,16 +442,16 @@ def test_marker_with_uuids_keyword_sequence(pytester):
 
         @pytest.mark.freeze_uuid(
             uuids=[
-                "11111111-1111-1111-1111-111111111111",
-                "22222222-2222-2222-2222-222222222222",
+                "11111111-1111-4111-8111-111111111111",
+                "22222222-2222-4222-8222-222222222222",
             ],
             on_exhausted="cycle"
         )
         def test_uuids_keyword_sequence():
-            assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
-            assert str(uuid.uuid4()) == "22222222-2222-2222-2222-222222222222"
+            assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
+            assert str(uuid.uuid4()) == "22222222-2222-4222-8222-222222222222"
             # Cycles back
-            assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
+            assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
         """
     )
 

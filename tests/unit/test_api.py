@@ -16,17 +16,17 @@ from pytest_uuid.generators import UUIDsExhaustedError
 
 def test_freeze_context_static_uuid():
     """Test freezing with a static UUID."""
-    with freeze_uuid("12345678-1234-5678-1234-567812345678"):
+    with freeze_uuid("12345678-1234-4678-8234-567812345678"):
         result = uuid.uuid4()
-        assert str(result) == "12345678-1234-5678-1234-567812345678"
+        assert str(result) == "12345678-1234-4678-8234-567812345678"
 
 
 def test_freeze_context_uuid_sequence():
     """Test freezing with a sequence of UUIDs."""
     uuids = [
-        "11111111-1111-1111-1111-111111111111",
-        "22222222-2222-2222-2222-222222222222",
-        "33333333-3333-3333-3333-333333333333",
+        "11111111-1111-4111-8111-111111111111",
+        "22222222-2222-4222-8222-222222222222",
+        "33333333-3333-4333-8333-333333333333",
     ]
     with freeze_uuid(uuids):
         assert str(uuid.uuid4()) == uuids[0]
@@ -38,7 +38,7 @@ def test_freeze_context_uuid_sequence():
 
 def test_freeze_context_sequence_raise_on_exhausted():
     """Test sequence that raises when exhausted."""
-    uuids = ["11111111-1111-1111-1111-111111111111"]
+    uuids = ["11111111-1111-4111-8111-111111111111"]
     with freeze_uuid(uuids, on_exhausted="raise"):
         uuid.uuid4()  # First call works
         with pytest.raises(UUIDsExhaustedError):
@@ -47,7 +47,7 @@ def test_freeze_context_sequence_raise_on_exhausted():
 
 def test_freeze_context_sequence_random_on_exhausted():
     """Test sequence that falls back to random."""
-    uuids = ["11111111-1111-1111-1111-111111111111"]
+    uuids = ["11111111-1111-4111-8111-111111111111"]
     with freeze_uuid(uuids, on_exhausted="random"):
         first = uuid.uuid4()
         assert str(first) == uuids[0]
@@ -91,7 +91,7 @@ def test_freeze_context_restores_uuid4_after_exit():
     """Test that uuid.uuid4 is restored after exiting context."""
     original = uuid.uuid4
 
-    with freeze_uuid("12345678-1234-5678-1234-567812345678"):
+    with freeze_uuid("12345678-1234-4678-8234-567812345678"):
         assert uuid.uuid4 is not original
 
     assert uuid.uuid4 is original
@@ -99,7 +99,7 @@ def test_freeze_context_restores_uuid4_after_exit():
 
 def test_freeze_context_uuid_object_input():
     """Test using UUID objects as input."""
-    expected = uuid.UUID("12345678-1234-5678-1234-567812345678")
+    expected = uuid.UUID("12345678-1234-4678-8234-567812345678")
     with freeze_uuid(expected):
         assert uuid.uuid4() == expected
 
@@ -110,12 +110,12 @@ def test_freeze_context_uuid_object_input():
 def test_freeze_decorator_static_uuid():
     """Test decorator with static UUID."""
 
-    @freeze_uuid("12345678-1234-5678-1234-567812345678")
+    @freeze_uuid("12345678-1234-4678-8234-567812345678")
     def my_function():
         return uuid.uuid4()
 
     result = my_function()
-    assert str(result) == "12345678-1234-5678-1234-567812345678"
+    assert str(result) == "12345678-1234-4678-8234-567812345678"
 
 
 def test_freeze_decorator_seeded():
@@ -135,7 +135,7 @@ def test_freeze_decorator_seeded():
 def test_freeze_decorator_preserves_function_metadata():
     """Test that decorator preserves function name and docstring."""
 
-    @freeze_uuid("12345678-1234-5678-1234-567812345678")
+    @freeze_uuid("12345678-1234-4678-8234-567812345678")
     def my_function():
         """My docstring."""
 
@@ -146,7 +146,7 @@ def test_freeze_decorator_preserves_function_metadata():
 def test_freeze_decorator_class_static_uuid():
     """Test decorator on a class with static UUID."""
 
-    @freeze_uuid("12345678-1234-5678-1234-567812345678")
+    @freeze_uuid("12345678-1234-4678-8234-567812345678")
     class MyTestClass:
         def test_one(self):
             return uuid.uuid4()
@@ -155,8 +155,8 @@ def test_freeze_decorator_class_static_uuid():
             return uuid.uuid4()
 
     instance = MyTestClass()
-    assert str(instance.test_one()) == "12345678-1234-5678-1234-567812345678"
-    assert str(instance.test_two()) == "12345678-1234-5678-1234-567812345678"
+    assert str(instance.test_one()) == "12345678-1234-4678-8234-567812345678"
+    assert str(instance.test_two()) == "12345678-1234-4678-8234-567812345678"
 
 
 def test_freeze_decorator_class_seeded():
@@ -182,8 +182,8 @@ def test_freeze_decorator_class_method_isolation():
 
     @freeze_uuid(
         [
-            "11111111-1111-1111-1111-111111111111",
-            "22222222-2222-2222-2222-222222222222",
+            "11111111-1111-4111-8111-111111111111",
+            "22222222-2222-4222-8222-222222222222",
         ]
     )
     class MyTestClass:
@@ -197,16 +197,16 @@ def test_freeze_decorator_class_method_isolation():
     first2, second2 = instance.test_method()
 
     # Each call starts fresh
-    assert str(first1) == "11111111-1111-1111-1111-111111111111"
-    assert str(second1) == "22222222-2222-2222-2222-222222222222"
-    assert str(first2) == "11111111-1111-1111-1111-111111111111"
-    assert str(second2) == "22222222-2222-2222-2222-222222222222"
+    assert str(first1) == "11111111-1111-4111-8111-111111111111"
+    assert str(second1) == "22222222-2222-4222-8222-222222222222"
+    assert str(first2) == "11111111-1111-4111-8111-111111111111"
+    assert str(second2) == "22222222-2222-4222-8222-222222222222"
 
 
 def test_freeze_decorator_class_only_wraps_test_methods():
     """Test that only methods starting with 'test' are wrapped."""
 
-    @freeze_uuid("12345678-1234-5678-1234-567812345678")
+    @freeze_uuid("12345678-1234-4678-8234-567812345678")
     class MyTestClass:
         def test_method(self):
             return uuid.uuid4()
@@ -217,17 +217,17 @@ def test_freeze_decorator_class_only_wraps_test_methods():
     instance = MyTestClass()
 
     # test_method is wrapped
-    assert str(instance.test_method()) == "12345678-1234-5678-1234-567812345678"
+    assert str(instance.test_method()) == "12345678-1234-4678-8234-567812345678"
 
     # helper_method is NOT wrapped - returns real random UUID
     helper_result = instance.helper_method()
-    assert str(helper_result) != "12345678-1234-5678-1234-567812345678"
+    assert str(helper_result) != "12345678-1234-4678-8234-567812345678"
 
 
 def test_freeze_decorator_class_preserves_class_identity():
     """Test that the decorated class is still the same class."""
 
-    @freeze_uuid("12345678-1234-5678-1234-567812345678")
+    @freeze_uuid("12345678-1234-4678-8234-567812345678")
     class MyTestClass:
         class_attr = "value"
 
@@ -273,7 +273,7 @@ def test_freezer_different_node_ids_produce_different_uuids():
 
 def test_freezer_generator_property():
     """Test the generator property."""
-    freezer = UUIDFreezer("12345678-1234-5678-1234-567812345678")
+    freezer = UUIDFreezer("12345678-1234-4678-8234-567812345678")
 
     assert freezer.generator is None
 
@@ -290,8 +290,8 @@ def test_freezer_integrates_call_tracking():
     """Test that freeze_uuid properly integrates CallTrackingMixin."""
     with freeze_uuid(
         [
-            "11111111-1111-1111-1111-111111111111",
-            "22222222-2222-2222-2222-222222222222",
+            "11111111-1111-4111-8111-111111111111",
+            "22222222-2222-4222-8222-222222222222",
         ]
     ) as freezer:
         result1 = uuid.uuid4()
@@ -325,10 +325,10 @@ def test_freeze_patches_direct_imports():
     """Test that direct imports are also patched."""
     from uuid import uuid4 as _  # noqa: F401
 
-    with freeze_uuid("12345678-1234-5678-1234-567812345678"):
+    with freeze_uuid("12345678-1234-4678-8234-567812345678"):
         # This tests that the patching handles direct imports
         result = uuid.uuid4()
-        assert str(result) == "12345678-1234-5678-1234-567812345678"
+        assert str(result) == "12345678-1234-4678-8234-567812345678"
 
 
 def test_freeze_restores_direct_imports():
@@ -337,7 +337,7 @@ def test_freeze_restores_direct_imports():
 
     original = local_uuid4
 
-    with freeze_uuid("12345678-1234-5678-1234-567812345678"):
+    with freeze_uuid("12345678-1234-4678-8234-567812345678"):
         pass
 
     # After exiting, uuid.uuid4 should be restored
@@ -350,14 +350,14 @@ def test_freeze_restores_direct_imports():
 
 def test_freeze_nested_contexts():
     """Test that nested contexts work correctly."""
-    with freeze_uuid("11111111-1111-1111-1111-111111111111"):
-        assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
+    with freeze_uuid("11111111-1111-4111-8111-111111111111"):
+        assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
 
-        with freeze_uuid("22222222-2222-2222-2222-222222222222"):
-            assert str(uuid.uuid4()) == "22222222-2222-2222-2222-222222222222"
+        with freeze_uuid("22222222-2222-4222-8222-222222222222"):
+            assert str(uuid.uuid4()) == "22222222-2222-4222-8222-222222222222"
 
         # Outer context is restored
-        assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
+        assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
 
 
 # --- Thread safety ---
@@ -365,7 +365,7 @@ def test_freeze_nested_contexts():
 
 def test_freeze_concurrent_uuid_calls_all_mocked():
     """Test that concurrent uuid4 calls all return mocked value."""
-    expected = "12345678-1234-5678-1234-567812345678"
+    expected = "12345678-1234-4678-8234-567812345678"
     results: list[str] = []
     errors: list[Exception] = []
 
@@ -416,7 +416,7 @@ def test_freeze_concurrent_seeded_generation():
 
 def test_freeze_call_tracking_thread_safe():
     """Test that call tracking works correctly with concurrent calls."""
-    expected = "12345678-1234-5678-1234-567812345678"
+    expected = "12345678-1234-4678-8234-567812345678"
 
     with freeze_uuid(expected) as freezer:
         threads = [threading.Thread(target=uuid.uuid4) for _ in range(30)]
@@ -436,7 +436,7 @@ def test_freeze_call_tracking_thread_safe():
 
 def test_freeze_late_import_is_patched():
     """Test that importing uuid4 after freeze starts still gets mocked."""
-    expected = "12345678-1234-5678-1234-567812345678"
+    expected = "12345678-1234-4678-8234-567812345678"
 
     with freeze_uuid(expected):
         # Import uuid4 INSIDE the freeze context - this gets the patched version
@@ -451,30 +451,30 @@ def test_freeze_late_import_is_patched():
 
 def test_ignore_defaults_true_includes_default_packages():
     """With ignore_defaults=True (default), DEFAULT_IGNORE_PACKAGES are ignored."""
-    with freeze_uuid("11111111-1111-1111-1111-111111111111") as freezer:
+    with freeze_uuid("11111111-1111-4111-8111-111111111111") as freezer:
         # Verify botocore is in the ignore list
         assert "botocore" in freezer._ignore_list
         # Direct call should be mocked
         result = uuid.uuid4()
-        assert str(result) == "11111111-1111-1111-1111-111111111111"
+        assert str(result) == "11111111-1111-4111-8111-111111111111"
 
 
 def test_ignore_defaults_false_excludes_default_packages():
     """With ignore_defaults=False, DEFAULT_IGNORE_PACKAGES are NOT ignored."""
     with freeze_uuid(
-        "22222222-2222-2222-2222-222222222222", ignore_defaults=False
+        "22222222-2222-4222-8222-222222222222", ignore_defaults=False
     ) as freezer:
         # Verify botocore is NOT in the ignore list
         assert "botocore" not in freezer._ignore_list
         # Direct call should still be mocked
         result = uuid.uuid4()
-        assert str(result) == "22222222-2222-2222-2222-222222222222"
+        assert str(result) == "22222222-2222-4222-8222-222222222222"
 
 
 def test_ignore_defaults_false_with_custom_ignore():
     """ignore_defaults=False + ignore=['foo'] only ignores 'foo'."""
     with freeze_uuid(
-        "33333333-3333-3333-3333-333333333333",
+        "33333333-3333-4333-8333-333333333333",
         ignore=["mymodule"],
         ignore_defaults=False,
     ) as freezer:
@@ -486,7 +486,7 @@ def test_ignore_defaults_false_with_custom_ignore():
 def test_ignore_defaults_true_with_custom_ignore_combines():
     """ignore_defaults=True + ignore=['foo'] ignores both defaults and 'foo'."""
     with freeze_uuid(
-        "44444444-4444-4444-4444-444444444444",
+        "44444444-4444-4444-9444-444444444444",
         ignore=["mymodule"],
         ignore_defaults=True,  # This is the default
     ) as freezer:
@@ -498,9 +498,9 @@ def test_ignore_defaults_true_with_custom_ignore_combines():
 def test_decorator_respects_ignore_defaults_false():
     """@freeze_uuid decorator also respects ignore_defaults."""
 
-    @freeze_uuid("55555555-5555-5555-5555-555555555555", ignore_defaults=False)
+    @freeze_uuid("55555555-5555-4555-9555-555555555555", ignore_defaults=False)
     def func():
         return uuid.uuid4()
 
     result = func()
-    assert str(result) == "55555555-5555-5555-5555-555555555555"
+    assert str(result) == "55555555-5555-4555-9555-555555555555"

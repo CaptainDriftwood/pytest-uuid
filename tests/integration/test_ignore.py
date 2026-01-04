@@ -28,16 +28,16 @@ def test_ignore_single_module(pytester):
         import helper
 
         def test_ignore_module(mock_uuid):
-            mock_uuid.set("12345678-1234-5678-1234-567812345678")
+            mock_uuid.set("12345678-1234-4678-8234-567812345678")
             mock_uuid.set_ignore("helper")
 
             # Direct call should be mocked
             mocked = uuid.uuid4()
-            assert str(mocked) == "12345678-1234-5678-1234-567812345678"
+            assert str(mocked) == "12345678-1234-4678-8234-567812345678"
 
             # Call from ignored module should be real
             real = helper.get_uuid()
-            assert str(real) != "12345678-1234-5678-1234-567812345678"
+            assert str(real) != "12345678-1234-4678-8234-567812345678"
 
             # Verify tracking
             assert mock_uuid.mocked_count == 1
@@ -78,19 +78,19 @@ def test_ignore_multiple_modules(pytester):
         import pkg_b
 
         def test_ignore_multiple(mock_uuid):
-            mock_uuid.set("12345678-1234-5678-1234-567812345678")
+            mock_uuid.set("12345678-1234-4678-8234-567812345678")
             mock_uuid.set_ignore("pkg_a", "pkg_b")
 
             # Direct call should be mocked
             mocked = uuid.uuid4()
-            assert str(mocked) == "12345678-1234-5678-1234-567812345678"
+            assert str(mocked) == "12345678-1234-4678-8234-567812345678"
 
             # Calls from ignored modules should be real
             real_a = pkg_a.get_uuid()
             real_b = pkg_b.get_uuid()
 
-            assert str(real_a) != "12345678-1234-5678-1234-567812345678"
-            assert str(real_b) != "12345678-1234-5678-1234-567812345678"
+            assert str(real_a) != "12345678-1234-4678-8234-567812345678"
+            assert str(real_b) != "12345678-1234-4678-8234-567812345678"
             assert real_a != real_b  # They should be different random UUIDs
 
             # Verify tracking
@@ -122,22 +122,22 @@ def test_ignore_updates_dynamically(pytester):
         import helper
 
         def test_dynamic_ignore(mock_uuid):
-            mock_uuid.set("12345678-1234-5678-1234-567812345678")
+            mock_uuid.set("12345678-1234-4678-8234-567812345678")
 
             # Initially, helper is not ignored
             uuid1 = helper.get_uuid()
-            assert str(uuid1) == "12345678-1234-5678-1234-567812345678"
+            assert str(uuid1) == "12345678-1234-4678-8234-567812345678"
 
             # Add helper to ignore list
             mock_uuid.set_ignore("helper")
 
             # Now helper calls should be real
             uuid2 = helper.get_uuid()
-            assert str(uuid2) != "12345678-1234-5678-1234-567812345678"
+            assert str(uuid2) != "12345678-1234-4678-8234-567812345678"
 
             # Direct calls still mocked
             uuid3 = uuid.uuid4()
-            assert str(uuid3) == "12345678-1234-5678-1234-567812345678"
+            assert str(uuid3) == "12345678-1234-4678-8234-567812345678"
         """
     )
 
@@ -164,12 +164,12 @@ def test_ignore_with_reset(pytester):
         import helper
 
         def test_reset_preserves_ignore(mock_uuid):
-            mock_uuid.set("12345678-1234-5678-1234-567812345678")
+            mock_uuid.set("12345678-1234-4678-8234-567812345678")
             mock_uuid.set_ignore("helper")
 
             # Helper calls should be real
             uuid1 = helper.get_uuid()
-            assert str(uuid1) != "12345678-1234-5678-1234-567812345678"
+            assert str(uuid1) != "12345678-1234-4678-8234-567812345678"
 
             # Reset the mocker
             mock_uuid.reset()
@@ -217,20 +217,20 @@ def test_ignore_with_nested_calls(pytester):
         import base_module
 
         def test_nested_ignore(mock_uuid):
-            mock_uuid.set("12345678-1234-5678-1234-567812345678")
+            mock_uuid.set("12345678-1234-4678-8234-567812345678")
             mock_uuid.set_ignore("base_module")
 
             # Direct call should be mocked
             uuid1 = uuid.uuid4()
-            assert str(uuid1) == "12345678-1234-5678-1234-567812345678"
+            assert str(uuid1) == "12345678-1234-4678-8234-567812345678"
 
             # Call through wrapper, but base_module is in call stack
             uuid2 = wrapper_module.wrapper_uuid()
-            assert str(uuid2) != "12345678-1234-5678-1234-567812345678"
+            assert str(uuid2) != "12345678-1234-4678-8234-567812345678"
 
             # Direct call to base_module
             uuid3 = base_module.base_uuid()
-            assert str(uuid3) != "12345678-1234-5678-1234-567812345678"
+            assert str(uuid3) != "12345678-1234-4678-8234-567812345678"
         """
     )
 
@@ -257,7 +257,7 @@ def test_calls_tracking_with_ignore(pytester):
         import ignored_module
 
         def test_call_tracking(mock_uuid):
-            mock_uuid.set("12345678-1234-5678-1234-567812345678")
+            mock_uuid.set("12345678-1234-4678-8234-567812345678")
             mock_uuid.set_ignore("ignored_module")
 
             # Make some calls
@@ -278,13 +278,13 @@ def test_calls_tracking_with_ignore(pytester):
             assert len(mocked_calls) == 2
             for call in mocked_calls:
                 assert call.was_mocked is True
-                assert str(call.uuid) == "12345678-1234-5678-1234-567812345678"
+                assert str(call.uuid) == "12345678-1234-4678-8234-567812345678"
 
             # Check real_calls
             real_calls = mock_uuid.real_calls
             assert len(real_calls) == 1
             assert real_calls[0].was_mocked is False
-            assert str(real_calls[0].uuid) != "12345678-1234-5678-1234-567812345678"
+            assert str(real_calls[0].uuid) != "12345678-1234-4678-8234-567812345678"
         """
     )
 

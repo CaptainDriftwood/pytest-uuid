@@ -371,7 +371,7 @@ def freeze_uuid(
 
     Examples:
         # As a decorator with a static UUID
-        @freeze_uuid("12345678-1234-5678-1234-567812345678")
+        @freeze_uuid("12345678-1234-4678-8234-567812345678")
         def test_static():
             assert uuid.uuid4() == UUID("12345678-...")
 

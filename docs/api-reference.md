@@ -51,7 +51,7 @@ Factory for module-specific mocking.
 ```python
 def test_example(mock_uuid_factory):
     with mock_uuid_factory("myapp.models") as mocker:
-        mocker.set("12345678-1234-5678-1234-567812345678")
+        mocker.set("12345678-1234-4678-8234-567812345678")
         # Only myapp.models.uuid4 is mocked
 ```
 
@@ -111,7 +111,7 @@ freeze_uuid(
 **Usage as decorator:**
 
 ```python
-@freeze_uuid("12345678-1234-5678-1234-567812345678")
+@freeze_uuid("12345678-1234-4678-8234-567812345678")
 def test_example():
     pass
 ```
@@ -119,7 +119,7 @@ def test_example():
 **Usage as context manager:**
 
 ```python
-with freeze_uuid("12345678-1234-5678-1234-567812345678") as freezer:
+with freeze_uuid("12345678-1234-4678-8234-567812345678") as freezer:
     uuid.uuid4()
     freezer.reset()
 ```
@@ -141,7 +141,7 @@ Same as `freeze_uuid` decorator, except `seed` cannot be a `Random` instance (us
 **Examples:**
 
 ```python
-@pytest.mark.freeze_uuid("12345678-1234-5678-1234-567812345678")
+@pytest.mark.freeze_uuid("12345678-1234-4678-8234-567812345678")
 def test_static(): ...
 
 @pytest.mark.freeze_uuid(seed=42)

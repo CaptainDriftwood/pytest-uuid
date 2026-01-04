@@ -161,7 +161,7 @@ class UUIDMocker(CallTrackingMixin):
 
         Example:
             def test_something(mock_uuid):
-                mock_uuid.set("12345678-1234-5678-1234-567812345678")
+                mock_uuid.set("12345678-1234-4678-8234-567812345678")
                 mock_uuid.set_ignore("sqlalchemy", "celery")
                 # uuid4() calls from sqlalchemy or celery will be real
                 # Other calls will be mocked
@@ -347,19 +347,19 @@ def mock_uuid(
 
     Example:
         def test_something(mock_uuid):
-            mock_uuid.set("12345678-1234-5678-1234-567812345678")
+            mock_uuid.set("12345678-1234-4678-8234-567812345678")
             result = uuid.uuid4()
-            assert str(result) == "12345678-1234-5678-1234-567812345678"
+            assert str(result) == "12345678-1234-4678-8234-567812345678"
 
         def test_multiple_uuids(mock_uuid):
             mock_uuid.set(
-                "11111111-1111-1111-1111-111111111111",
-                "22222222-2222-2222-2222-222222222222",
+                "11111111-1111-4111-8111-111111111111",
+                "22222222-2222-4222-8222-222222222222",
             )
-            assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
-            assert str(uuid.uuid4()) == "22222222-2222-2222-2222-222222222222"
+            assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
+            assert str(uuid.uuid4()) == "22222222-2222-4222-8222-222222222222"
             # Cycles back to the first UUID
-            assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
+            assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
 
         def test_seeded(mock_uuid):
             mock_uuid.set_seed(42)
@@ -405,15 +405,15 @@ def mock_uuid_factory(
     Example:
         def test_with_module_mock(mock_uuid_factory):
             with mock_uuid_factory("myapp.models") as mocker:
-                mocker.set("12345678-1234-5678-1234-567812345678")
+                mocker.set("12345678-1234-4678-8234-567812345678")
                 # uuid4() calls in myapp.models will return the mocked UUID
                 result = create_model()  # Calls uuid4() internally
-                assert result.id == "12345678-1234-5678-1234-567812345678"
+                assert result.id == "12345678-1234-4678-8234-567812345678"
 
         def test_mock_default_ignored_package(mock_uuid_factory):
             # Mock packages that are normally ignored (e.g., botocore)
             with mock_uuid_factory("botocore.handlers", ignore_defaults=False) as mocker:
-                mocker.set("12345678-1234-5678-1234-567812345678")
+                mocker.set("12345678-1234-4678-8234-567812345678")
                 # botocore will now receive mocked UUIDs
 
     Args:

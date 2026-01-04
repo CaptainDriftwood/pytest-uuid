@@ -92,9 +92,9 @@ def test_mock_uuid_spy_method(pytester):
 
         def test_spy_method(mock_uuid):
             # Set up some mocking first
-            mock_uuid.set("12345678-1234-5678-1234-567812345678")
+            mock_uuid.set("12345678-1234-4678-8234-567812345678")
             mocked = uuid.uuid4()
-            assert str(mocked) == "12345678-1234-5678-1234-567812345678"
+            assert str(mocked) == "12345678-1234-4678-8234-567812345678"
             assert mock_uuid.call_count == 1
 
             # Switch to spy mode
@@ -105,7 +105,7 @@ def test_mock_uuid_spy_method(pytester):
             real1 = uuid.uuid4()
             real2 = uuid.uuid4()
 
-            assert str(real1) != "12345678-1234-5678-1234-567812345678"
+            assert str(real1) != "12345678-1234-4678-8234-567812345678"
             assert real1 != real2
             assert mock_uuid.call_count == 3  # 1 mocked + 2 spy calls
         """
@@ -159,7 +159,7 @@ def test_mock_uuid_tracks_caller_module(pytester):
         import helper_module
 
         def test_caller_module_tracked(mock_uuid):
-            mock_uuid.set("12345678-1234-5678-1234-567812345678")
+            mock_uuid.set("12345678-1234-4678-8234-567812345678")
 
             # Call from this test module
             uuid.uuid4()
@@ -213,7 +213,7 @@ def test_mock_uuid_calls_from_filter(pytester):
         import myapp_utils
 
         def test_calls_from_filter(mock_uuid):
-            mock_uuid.set("12345678-1234-5678-1234-567812345678")
+            mock_uuid.set("12345678-1234-4678-8234-567812345678")
 
             # Make calls from different modules
             uuid.uuid4()  # From test module
@@ -249,7 +249,7 @@ def test_mock_uuid_mocked_vs_real_with_spy_mode(pytester):
 
         def test_mocked_vs_real(mock_uuid):
             # Start with mocked
-            mock_uuid.set("12345678-1234-5678-1234-567812345678")
+            mock_uuid.set("12345678-1234-4678-8234-567812345678")
             mocked1 = uuid.uuid4()
             mocked2 = uuid.uuid4()
 
@@ -368,9 +368,9 @@ def test_xdist_worker_isolation(pytester):
         import uuid
 
         def test_worker_a_uuid(mock_uuid):
-            mock_uuid.set("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+            mock_uuid.set("aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa")
             result = uuid.uuid4()
-            assert str(result) == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+            assert str(result) == "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
         """
     )
 
@@ -379,9 +379,9 @@ def test_xdist_worker_isolation(pytester):
         import uuid
 
         def test_worker_b_uuid(mock_uuid):
-            mock_uuid.set("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+            mock_uuid.set("bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb")
             result = uuid.uuid4()
-            assert str(result) == "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+            assert str(result) == "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb"
         """
     )
 
@@ -390,9 +390,9 @@ def test_xdist_worker_isolation(pytester):
         import uuid
 
         def test_worker_c_uuid(mock_uuid):
-            mock_uuid.set("cccccccc-cccc-cccc-cccc-cccccccccccc")
+            mock_uuid.set("cccccccc-cccc-4ccc-accc-cccccccccccc")
             result = uuid.uuid4()
-            assert str(result) == "cccccccc-cccc-cccc-cccc-cccccccccccc"
+            assert str(result) == "cccccccc-cccc-4ccc-accc-cccccccccccc"
         """
     )
 
@@ -410,24 +410,24 @@ def test_xdist_no_cross_contamination(pytester):
         import time
 
         def test_slow_with_uuid_a(mock_uuid):
-            mock_uuid.set("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+            mock_uuid.set("aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa")
             # Simulate slow test to increase chance of parallel execution
             time.sleep(0.1)
             # Verify our UUID wasn't changed by another worker
-            assert str(uuid.uuid4()) == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+            assert str(uuid.uuid4()) == "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
             time.sleep(0.1)
-            assert str(uuid.uuid4()) == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+            assert str(uuid.uuid4()) == "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
 
         def test_fast_with_uuid_b(mock_uuid):
-            mock_uuid.set("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+            mock_uuid.set("bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb")
             # These should execute while test_slow is sleeping
-            assert str(uuid.uuid4()) == "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
-            assert str(uuid.uuid4()) == "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+            assert str(uuid.uuid4()) == "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb"
+            assert str(uuid.uuid4()) == "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb"
 
         def test_fast_with_uuid_c(mock_uuid):
-            mock_uuid.set("cccccccc-cccc-cccc-cccc-cccccccccccc")
-            assert str(uuid.uuid4()) == "cccccccc-cccc-cccc-cccc-cccccccccccc"
-            assert str(uuid.uuid4()) == "cccccccc-cccc-cccc-cccc-cccccccccccc"
+            mock_uuid.set("cccccccc-cccc-4ccc-accc-cccccccccccc")
+            assert str(uuid.uuid4()) == "cccccccc-cccc-4ccc-accc-cccccccccccc"
+            assert str(uuid.uuid4()) == "cccccccc-cccc-4ccc-accc-cccccccccccc"
         """
     )
 
@@ -501,12 +501,12 @@ def test_parametrize_with_freeze_uuid_marker(pytester):
         import uuid
         import pytest
 
-        @pytest.mark.freeze_uuid("12345678-1234-5678-1234-567812345678")
+        @pytest.mark.freeze_uuid("12345678-1234-4678-8234-567812345678")
         @pytest.mark.parametrize("value", [1, 2, 3])
         def test_parametrized_frozen(value):
             # Each parametrized run should get the frozen UUID
             result = uuid.uuid4()
-            assert str(result) == "12345678-1234-5678-1234-567812345678"
+            assert str(result) == "12345678-1234-4678-8234-567812345678"
         """
     )
 
@@ -522,11 +522,11 @@ def test_parametrize_with_freeze_uuid_decorator(pytester):
         import pytest
         from pytest_uuid import freeze_uuid
 
-        @freeze_uuid("12345678-1234-5678-1234-567812345678")
+        @freeze_uuid("12345678-1234-4678-8234-567812345678")
         @pytest.mark.parametrize("value", ["a", "b", "c"])
         def test_parametrized_decorated(value):
             result = uuid.uuid4()
-            assert str(result) == "12345678-1234-5678-1234-567812345678"
+            assert str(result) == "12345678-1234-4678-8234-567812345678"
         """
     )
 
@@ -542,9 +542,9 @@ def test_parametrize_with_fixture(pytester):
         import pytest
 
         @pytest.mark.parametrize("expected_uuid", [
-            "11111111-1111-1111-1111-111111111111",
-            "22222222-2222-2222-2222-222222222222",
-            "33333333-3333-3333-3333-333333333333",
+            "11111111-1111-4111-8111-111111111111",
+            "22222222-2222-4222-8222-222222222222",
+            "33333333-3333-4333-8333-333333333333",
         ])
         def test_parametrized_fixture(mock_uuid, expected_uuid):
             mock_uuid.set(expected_uuid)
