@@ -117,6 +117,17 @@ def test_with_ignored():
     pass
 ```
 
+## Opting Out of Default Ignores
+
+By default, packages like `botocore` are always ignored. Use `ignore_defaults=False` to mock them:
+
+```python
+@pytest.mark.freeze_uuid("12345678-1234-5678-1234-567812345678", ignore_defaults=False)
+def test_mock_everything():
+    # All uuid.uuid4() calls are mocked, including from botocore
+    pass
+```
+
 ## Session-Level Configuration
 
 For session-wide mocking, use a session-scoped autouse fixture in `conftest.py`:
@@ -146,3 +157,4 @@ def freeze_uuids_globally(request):
 | `seed` | `int` or `"node"` | Seed for reproducible generation |
 | `on_exhausted` | `str` | `"cycle"`, `"random"`, or `"raise"` |
 | `ignore` | `list[str]` | Module prefixes to exclude from mocking |
+| `ignore_defaults` | `bool` | Include default ignore list (default `True`) |

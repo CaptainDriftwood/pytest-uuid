@@ -22,6 +22,18 @@ default_exhaustion_behavior = "raise"
 !!! note "Default Ignore List"
     By default, `botocore` is ignored because it uses `uuid.uuid4()` internally for generating idempotent ClientTokens in AWS API operations. Patching this can interfere with AWS SDK retry logic. Use `extend_ignore_list` to add additional packages without overriding this default.
 
+!!! tip "Opting Out of Defaults Per-Test"
+    If you need to mock packages in the default ignore list for a specific test, use the `ignore_defaults=False` parameter:
+
+    ```python
+    @pytest.mark.freeze_uuid("...", ignore_defaults=False)
+    def test_mock_botocore():
+        # botocore will now receive mocked UUIDs
+        pass
+    ```
+
+    See the [Decorator API](decorator-api.md#opting-out-of-default-ignores) or [Marker API](marker-api.md#opting-out-of-default-ignores) for more details.
+
 ## Programmatic Configuration
 
 Configure in `conftest.py`:

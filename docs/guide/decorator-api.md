@@ -92,6 +92,30 @@ def test_with_ignored():
     # Calls from sqlalchemy get real UUIDs
 ```
 
+## Opting Out of Default Ignores
+
+By default, certain packages (like `botocore`) are always ignored. Use `ignore_defaults=False` to mock all modules:
+
+```python
+@freeze_uuid("12345678-1234-5678-1234-567812345678", ignore_defaults=False)
+def test_mock_everything():
+    # All uuid.uuid4() calls are mocked, including from botocore
+    pass
+```
+
+Combine with `ignore` to replace the default list entirely:
+
+```python
+@freeze_uuid(
+    "12345678-1234-5678-1234-567812345678",
+    ignore=["myapp.internal"],
+    ignore_defaults=False,  # Don't include botocore
+)
+def test_custom_ignore():
+    # Only myapp.internal is ignored (not botocore)
+    pass
+```
+
 ## Class-Level Decorator
 
 Apply to all methods in a test class:
@@ -137,3 +161,4 @@ def test_with_freezer():
 | `seed` | `int`, `Random`, or `"node"` | Seed for reproducible generation |
 | `on_exhausted` | `str` | `"cycle"`, `"random"`, or `"raise"` |
 | `ignore` | `list[str]` | Module prefixes to exclude from mocking |
+| `ignore_defaults` | `bool` | Include default ignore list (default `True`) |

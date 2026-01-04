@@ -140,6 +140,17 @@ def test_create_user(mock_uuid_factory):
         assert user["id"] == "12345678-1234-5678-1234-567812345678"
 ```
 
+### Mocking Default-Ignored Packages
+
+By default, packages like `botocore` are ignored. Use `ignore_defaults=False` to mock them:
+
+```python
+def test_mock_botocore(mock_uuid_factory):
+    with mock_uuid_factory("botocore.handlers", ignore_defaults=False) as mocker:
+        mocker.set("12345678-1234-5678-1234-567812345678")
+        # botocore will now receive mocked UUIDs
+```
+
 ## Methods Reference
 
 | Method | Description |
