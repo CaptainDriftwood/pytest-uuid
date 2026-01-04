@@ -46,15 +46,15 @@ def generate_uuid_from_random(rng: random.Random) -> uuid.UUID:
     """
     random_bits = rng.getrandbits(128)
 
-    # UUID v4 structure (128 bits total):
-    #   Bits 0-47:   time_low + time_mid (48 bits) - random
-    #   Bits 48-51:  time_hi (4 bits) - random
-    #   Bits 52-55:  version (4 bits) - must be 0100 (4) for UUID v4
-    #   Bits 56-61:  clock_seq (6 bits) - random
+    # UUID v4 structure (128 bits total, LSB numbering):
+    #   Bits 0-47:   node (48 bits) - random
+    #   Bits 48-55:  clock_seq_low (8 bits) - random
+    #   Bits 56-61:  clock_seq_hi (6 bits) - random
     #   Bits 62-63:  variant (2 bits) - must be 10 for RFC 4122
-    #   Bits 64-127: node (64 bits) - random
-    #
-    # Note: Bit numbering is from LSB (0) to MSB (127)
+    #   Bits 64-75:  time_hi (12 bits) - random
+    #   Bits 76-79:  version (4 bits) - must be 0100 (4) for UUID v4
+    #   Bits 80-95:  time_mid (16 bits) - random
+    #   Bits 96-127: time_low (32 bits) - random
 
     # Set version to 4: clear bits 76-79 (0xF mask), then set to 4
     # Position 76 = 128 - 52 where version field starts in UUID spec
