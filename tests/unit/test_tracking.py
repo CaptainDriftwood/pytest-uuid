@@ -45,7 +45,7 @@ def test_tracking_initial_state():
 def test_tracking_record_call_increments_count():
     """Test that _record_call increments call_count."""
     tracker = ConcreteTracker()
-    test_uuid = uuid.UUID("12345678-1234-5678-1234-567812345678")
+    test_uuid = uuid.UUID("12345678-1234-4678-8234-567812345678")
 
     tracker._record_call(
         test_uuid, was_mocked=True, caller_module=None, caller_file=None
@@ -57,7 +57,7 @@ def test_tracking_record_call_increments_count():
 def test_tracking_record_call_tracks_uuid():
     """Test that _record_call adds UUID to generated_uuids."""
     tracker = ConcreteTracker()
-    test_uuid = uuid.UUID("12345678-1234-5678-1234-567812345678")
+    test_uuid = uuid.UUID("12345678-1234-4678-8234-567812345678")
 
     tracker._record_call(
         test_uuid, was_mocked=True, caller_module=None, caller_file=None
@@ -70,7 +70,7 @@ def test_tracking_record_call_tracks_uuid():
 def test_tracking_record_call_creates_uuid_call():
     """Test that _record_call creates proper UUIDCall record."""
     tracker = ConcreteTracker()
-    test_uuid = uuid.UUID("12345678-1234-5678-1234-567812345678")
+    test_uuid = uuid.UUID("12345678-1234-4678-8234-567812345678")
 
     tracker._record_call(
         test_uuid,
@@ -90,9 +90,9 @@ def test_tracking_record_call_creates_uuid_call():
 def test_tracking_record_multiple_calls():
     """Test tracking multiple calls."""
     tracker = ConcreteTracker()
-    uuid1 = uuid.UUID("11111111-1111-1111-1111-111111111111")
-    uuid2 = uuid.UUID("22222222-2222-2222-2222-222222222222")
-    uuid3 = uuid.UUID("33333333-3333-3333-3333-333333333333")
+    uuid1 = uuid.UUID("11111111-1111-4111-8111-111111111111")
+    uuid2 = uuid.UUID("22222222-2222-4222-8222-222222222222")
+    uuid3 = uuid.UUID("33333333-3333-4333-8333-333333333333")
 
     tracker._record_call(uuid1, was_mocked=True, caller_module=None, caller_file=None)
     tracker._record_call(uuid2, was_mocked=False, caller_module=None, caller_file=None)
@@ -106,8 +106,8 @@ def test_tracking_record_multiple_calls():
 def test_tracking_mocked_calls_filters_correctly():
     """Test that mocked_calls only returns mocked calls."""
     tracker = ConcreteTracker()
-    uuid1 = uuid.UUID("11111111-1111-1111-1111-111111111111")
-    uuid2 = uuid.UUID("22222222-2222-2222-2222-222222222222")
+    uuid1 = uuid.UUID("11111111-1111-4111-8111-111111111111")
+    uuid2 = uuid.UUID("22222222-2222-4222-8222-222222222222")
 
     tracker._record_call(uuid1, was_mocked=True, caller_module=None, caller_file=None)
     tracker._record_call(uuid2, was_mocked=False, caller_module=None, caller_file=None)
@@ -121,8 +121,8 @@ def test_tracking_mocked_calls_filters_correctly():
 def test_tracking_real_calls_filters_correctly():
     """Test that real_calls only returns non-mocked calls."""
     tracker = ConcreteTracker()
-    uuid1 = uuid.UUID("11111111-1111-1111-1111-111111111111")
-    uuid2 = uuid.UUID("22222222-2222-2222-2222-222222222222")
+    uuid1 = uuid.UUID("11111111-1111-4111-8111-111111111111")
+    uuid2 = uuid.UUID("22222222-2222-4222-8222-222222222222")
 
     tracker._record_call(uuid1, was_mocked=True, caller_module=None, caller_file=None)
     tracker._record_call(uuid2, was_mocked=False, caller_module=None, caller_file=None)
@@ -136,9 +136,9 @@ def test_tracking_real_calls_filters_correctly():
 def test_tracking_mocked_count_and_real_count():
     """Test mocked_count and real_count properties."""
     tracker = ConcreteTracker()
-    uuid1 = uuid.UUID("11111111-1111-1111-1111-111111111111")
-    uuid2 = uuid.UUID("22222222-2222-2222-2222-222222222222")
-    uuid3 = uuid.UUID("33333333-3333-3333-3333-333333333333")
+    uuid1 = uuid.UUID("11111111-1111-4111-8111-111111111111")
+    uuid2 = uuid.UUID("22222222-2222-4222-8222-222222222222")
+    uuid3 = uuid.UUID("33333333-3333-4333-8333-333333333333")
 
     tracker._record_call(uuid1, was_mocked=True, caller_module=None, caller_file=None)
     tracker._record_call(uuid2, was_mocked=False, caller_module=None, caller_file=None)
@@ -151,9 +151,9 @@ def test_tracking_mocked_count_and_real_count():
 def test_tracking_calls_from_filters_by_module_prefix():
     """Test calls_from filters by module prefix."""
     tracker = ConcreteTracker()
-    uuid1 = uuid.UUID("11111111-1111-1111-1111-111111111111")
-    uuid2 = uuid.UUID("22222222-2222-2222-2222-222222222222")
-    uuid3 = uuid.UUID("33333333-3333-3333-3333-333333333333")
+    uuid1 = uuid.UUID("11111111-1111-4111-8111-111111111111")
+    uuid2 = uuid.UUID("22222222-2222-4222-8222-222222222222")
+    uuid3 = uuid.UUID("33333333-3333-4333-8333-333333333333")
 
     tracker._record_call(
         uuid1, was_mocked=True, caller_module="myapp.models", caller_file=None
@@ -178,7 +178,7 @@ def test_tracking_calls_from_filters_by_module_prefix():
 def test_tracking_calls_from_with_no_matches():
     """Test calls_from returns empty list when no matches."""
     tracker = ConcreteTracker()
-    uuid1 = uuid.UUID("11111111-1111-1111-1111-111111111111")
+    uuid1 = uuid.UUID("11111111-1111-4111-8111-111111111111")
 
     tracker._record_call(
         uuid1, was_mocked=True, caller_module="myapp.models", caller_file=None
@@ -190,7 +190,7 @@ def test_tracking_calls_from_with_no_matches():
 def test_tracking_calls_from_handles_none_module():
     """Test calls_from handles None caller_module."""
     tracker = ConcreteTracker()
-    uuid1 = uuid.UUID("11111111-1111-1111-1111-111111111111")
+    uuid1 = uuid.UUID("11111111-1111-4111-8111-111111111111")
 
     tracker._record_call(uuid1, was_mocked=True, caller_module=None, caller_file=None)
 
@@ -201,8 +201,8 @@ def test_tracking_calls_from_handles_none_module():
 def test_tracking_reset_clears_all_state():
     """Test that _reset_tracking clears all tracking state."""
     tracker = ConcreteTracker()
-    uuid1 = uuid.UUID("11111111-1111-1111-1111-111111111111")
-    uuid2 = uuid.UUID("22222222-2222-2222-2222-222222222222")
+    uuid1 = uuid.UUID("11111111-1111-4111-8111-111111111111")
+    uuid2 = uuid.UUID("22222222-2222-4222-8222-222222222222")
 
     tracker._record_call(
         uuid1, was_mocked=True, caller_module="test", caller_file="/test.py"
@@ -226,7 +226,7 @@ def test_tracking_reset_clears_all_state():
 def test_tracking_generated_uuids_returns_copy():
     """Test that generated_uuids returns a defensive copy."""
     tracker = ConcreteTracker()
-    uuid1 = uuid.UUID("11111111-1111-1111-1111-111111111111")
+    uuid1 = uuid.UUID("11111111-1111-4111-8111-111111111111")
 
     tracker._record_call(uuid1, was_mocked=True, caller_module=None, caller_file=None)
 
@@ -240,7 +240,7 @@ def test_tracking_generated_uuids_returns_copy():
 def test_tracking_calls_returns_copy():
     """Test that calls returns a defensive copy."""
     tracker = ConcreteTracker()
-    uuid1 = uuid.UUID("11111111-1111-1111-1111-111111111111")
+    uuid1 = uuid.UUID("11111111-1111-4111-8111-111111111111")
 
     tracker._record_call(uuid1, was_mocked=True, caller_module=None, caller_file=None)
 

@@ -10,8 +10,8 @@ The simplest way to use pytest-uuid is with the `mock_uuid` fixture:
 import uuid
 
 def test_single_uuid(mock_uuid):
-    mock_uuid.set("12345678-1234-5678-1234-567812345678")
-    assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+    mock_uuid.set("12345678-1234-4678-8234-567812345678")
+    assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
 ```
 
 ## Multiple UUIDs
@@ -21,13 +21,13 @@ Return different UUIDs for each call:
 ```python
 def test_multiple_uuids(mock_uuid):
     mock_uuid.set(
-        "11111111-1111-1111-1111-111111111111",
-        "22222222-2222-2222-2222-222222222222",
+        "11111111-1111-4111-8111-111111111111",
+        "22222222-2222-4222-8222-222222222222",
     )
-    assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
-    assert str(uuid.uuid4()) == "22222222-2222-2222-2222-222222222222"
+    assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
+    assert str(uuid.uuid4()) == "22222222-2222-4222-8222-222222222222"
     # Cycles back to the first UUID
-    assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
+    assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
 ```
 
 ## Using Decorators
@@ -38,9 +38,9 @@ If you prefer decorators over fixtures:
 import uuid
 from pytest_uuid import freeze_uuid
 
-@freeze_uuid("12345678-1234-5678-1234-567812345678")
+@freeze_uuid("12345678-1234-4678-8234-567812345678")
 def test_with_decorator():
-    assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+    assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
 ```
 
 ## Using Markers
@@ -51,9 +51,9 @@ Or use pytest markers for configuration:
 import uuid
 import pytest
 
-@pytest.mark.freeze_uuid("12345678-1234-5678-1234-567812345678")
+@pytest.mark.freeze_uuid("12345678-1234-4678-8234-567812345678")
 def test_with_marker():
-    assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+    assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
 ```
 
 ## Seeded UUIDs

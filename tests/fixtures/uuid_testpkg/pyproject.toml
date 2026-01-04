@@ -1,0 +1,12 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "uuid-testpkg"
+version = "0.1.0"
+description = "Test fixture package for pytest-uuid integration tests"
+requires-python = ">=3.9"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/uuid_testpkg"]

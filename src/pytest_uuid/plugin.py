@@ -57,6 +57,7 @@ class UUIDMocker(CallTrackingMixin):
         monkeypatch: pytest.MonkeyPatch,
         node_id: str | None = None,
         ignore: list[str] | None = None,
+        ignore_defaults: bool = True,
     ) -> None:
         self._monkeypatch = monkeypatch
         self._node_id = node_id
@@ -73,7 +74,11 @@ class UUIDMocker(CallTrackingMixin):
         # Ignore list handling
         config = get_config()
         self._ignore_extra = tuple(ignore) if ignore else ()
-        self._ignore_list = config.get_ignore_list() + self._ignore_extra
+        self._ignore_defaults = ignore_defaults
+        if ignore_defaults:
+            self._ignore_list = config.get_ignore_list() + self._ignore_extra
+        else:
+            self._ignore_list = self._ignore_extra
 
     def set(self, *uuids: str | uuid.UUID) -> None:
         """Set the UUID(s) to return.
@@ -156,7 +161,7 @@ class UUIDMocker(CallTrackingMixin):
 
         Example:
             def test_something(mock_uuid):
-                mock_uuid.set("12345678-1234-5678-1234-567812345678")
+                mock_uuid.set("12345678-1234-4678-8234-567812345678")
                 mock_uuid.set_ignore("sqlalchemy", "celery")
                 # uuid4() calls from sqlalchemy or celery will be real
                 # Other calls will be mocked
@@ -170,9 +175,12 @@ class UUIDMocker(CallTrackingMixin):
         """Reset the mocker to its initial state."""
         self._generator = None
         self._reset_tracking()
-        # Reset ignore list to defaults
+        # Reset ignore list based on ignore_defaults setting
         config = get_config()
-        self._ignore_list = config.get_ignore_list() + self._ignore_extra
+        if self._ignore_defaults:
+            self._ignore_list = config.get_ignore_list() + self._ignore_extra
+        else:
+            self._ignore_list = self._ignore_extra
 
     def __call__(self) -> uuid.UUID:
         """Return the next mocked UUID.
@@ -280,12 +288,14 @@ def pytest_configure(config: pytest.Config) -> None:
 
     config.addinivalue_line(
         "markers",
-        "freeze_uuid(uuids=None, *, seed=None, on_exhausted=None, ignore=None): "
+        "freeze_uuid(uuids=None, *, seed=None, on_exhausted=None, ignore=None, "
+        "ignore_defaults=True): "
         "Freeze uuid.uuid4() for this test. "
         "uuids: static UUID(s) to return. "
         "seed: int, random.Random, or 'node' for reproducible generation. "
         "on_exhausted: 'cycle', 'random', or 'raise' when sequence exhausted. "
-        "ignore: module prefixes to exclude from patching.",
+        "ignore: module prefixes to exclude from patching. "
+        "ignore_defaults: whether to include default ignore list (default True).",
     )
 
 
@@ -337,19 +347,19 @@ def mock_uuid(
 
     Example:
         def test_something(mock_uuid):
-            mock_uuid.set("12345678-1234-5678-1234-567812345678")
+            mock_uuid.set("12345678-1234-4678-8234-567812345678")
             result = uuid.uuid4()
-            assert str(result) == "12345678-1234-5678-1234-567812345678"
+            assert str(result) == "12345678-1234-4678-8234-567812345678"
 
         def test_multiple_uuids(mock_uuid):
             mock_uuid.set(
-                "11111111-1111-1111-1111-111111111111",
-                "22222222-2222-2222-2222-222222222222",
+                "11111111-1111-4111-8111-111111111111",
+                "22222222-2222-4222-8222-222222222222",
             )
-            assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
-            assert str(uuid.uuid4()) == "22222222-2222-2222-2222-222222222222"
+            assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
+            assert str(uuid.uuid4()) == "22222222-2222-4222-8222-222222222222"
             # Cycles back to the first UUID
-            assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
+            assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
 
         def test_seeded(mock_uuid):
             mock_uuid.set_seed(42)
@@ -386,7 +396,7 @@ def mock_uuid(
 @pytest.fixture
 def mock_uuid_factory(
     monkeypatch: pytest.MonkeyPatch,
-) -> Callable[[str], AbstractContextManager[UUIDMocker]]:
+) -> Callable[..., AbstractContextManager[UUIDMocker]]:
     """Fixture factory for mocking uuid.uuid4() in specific modules.
 
     Use this when you need to mock uuid.uuid4() in a specific module where
@@ -395,18 +405,33 @@ def mock_uuid_factory(
     Example:
         def test_with_module_mock(mock_uuid_factory):
             with mock_uuid_factory("myapp.models") as mocker:
-                mocker.set("12345678-1234-5678-1234-567812345678")
+                mocker.set("12345678-1234-4678-8234-567812345678")
                 # uuid4() calls in myapp.models will return the mocked UUID
                 result = create_model()  # Calls uuid4() internally
-                assert result.id == "12345678-1234-5678-1234-567812345678"
+                assert result.id == "12345678-1234-4678-8234-567812345678"
+
+        def test_mock_default_ignored_package(mock_uuid_factory):
+            # Mock packages that are normally ignored (e.g., botocore)
+            with mock_uuid_factory("botocore.handlers", ignore_defaults=False) as mocker:
+                mocker.set("12345678-1234-4678-8234-567812345678")
+                # botocore will now receive mocked UUIDs
+
+    Args:
+        module_path: The module path to mock uuid4 in.
+        ignore_defaults: Whether to include default ignore list (default True).
+            Set to False to mock all modules including those in DEFAULT_IGNORE_PACKAGES.
 
     Returns:
         A context manager factory that takes a module path and yields a UUIDMocker.
     """
 
     @contextmanager
-    def factory(module_path: str) -> Iterator[UUIDMocker]:
-        mocker = UUIDMocker(monkeypatch)
+    def factory(
+        module_path: str,
+        *,
+        ignore_defaults: bool = True,
+    ) -> Iterator[UUIDMocker]:
+        mocker = UUIDMocker(monkeypatch, ignore_defaults=ignore_defaults)
 
         try:
             module = sys.modules[module_path]

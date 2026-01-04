@@ -29,7 +29,10 @@ just sync
 
 ```bash
 just              # List all commands
-just test         # Run tests
+just test         # Run fast tests (excludes slow pytest-venv tests)
+just test-all     # Run all tests including slow ones
+just test-slow    # Run only slow tests (pytest-venv integration tests)
+just test-stress  # Run parallel execution stress tests
 just test-cov     # Run tests with coverage
 just nox          # Run tests across all Python versions
 just nox 3.12     # Run tests for specific Python version
@@ -73,8 +76,17 @@ def example(value: str | int) -> str | None:
 ### Running Tests
 
 ```bash
-# Basic test run
+# Fast tests (recommended for development iteration)
 just test
+
+# All tests including slow pytest-venv integration tests
+just test-all
+
+# Only slow tests (pytest-venv tests that create real virtualenvs)
+just test-slow
+
+# Parallel execution stress tests
+just test-stress
 
 # With coverage
 just test-cov
@@ -85,6 +97,9 @@ pytest tests/test_fixtures.py
 # Specific test
 pytest tests/test_fixtures.py::test_mock_uuid_basic
 ```
+
+!!! note "Test Speed"
+    `just test` excludes tests marked with `@pytest.mark.slow` for fast feedback during development. These slow tests use pytest-venv to create real virtual environments and install packages, which takes ~45 seconds. Run `just test-all` before submitting a PR to ensure all tests pass.
 
 ### Coverage
 

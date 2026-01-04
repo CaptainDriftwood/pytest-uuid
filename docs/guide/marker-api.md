@@ -8,21 +8,21 @@ The `@pytest.mark.freeze_uuid` marker integrates with pytest's marker system for
 import uuid
 import pytest
 
-@pytest.mark.freeze_uuid("12345678-1234-5678-1234-567812345678")
+@pytest.mark.freeze_uuid("12345678-1234-4678-8234-567812345678")
 def test_with_marker():
-    assert str(uuid.uuid4()) == "12345678-1234-5678-1234-567812345678"
+    assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
 ```
 
 ## Multiple UUIDs
 
 ```python
 @pytest.mark.freeze_uuid([
-    "11111111-1111-1111-1111-111111111111",
-    "22222222-2222-2222-2222-222222222222",
+    "11111111-1111-4111-8111-111111111111",
+    "22222222-2222-4222-8222-222222222222",
 ])
 def test_sequence():
-    assert str(uuid.uuid4()) == "11111111-1111-1111-1111-111111111111"
-    assert str(uuid.uuid4()) == "22222222-2222-2222-2222-222222222222"
+    assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
+    assert str(uuid.uuid4()) == "22222222-2222-4222-8222-222222222222"
 ```
 
 ## Seeded UUIDs
@@ -100,7 +100,7 @@ import pytest
 from pytest_uuid import UUIDsExhaustedError
 
 @pytest.mark.freeze_uuid(
-    "11111111-1111-1111-1111-111111111111",
+    "11111111-1111-4111-8111-111111111111",
     on_exhausted="raise",
 )
 def test_exhaustion():
@@ -112,8 +112,19 @@ def test_exhaustion():
 ## Ignoring Modules
 
 ```python
-@pytest.mark.freeze_uuid("12345678-1234-5678-1234-567812345678", ignore=["celery"])
+@pytest.mark.freeze_uuid("12345678-1234-4678-8234-567812345678", ignore=["celery"])
 def test_with_ignored():
+    pass
+```
+
+## Opting Out of Default Ignores
+
+By default, packages like `botocore` are always ignored. Use `ignore_defaults=False` to mock them:
+
+```python
+@pytest.mark.freeze_uuid("12345678-1234-4678-8234-567812345678", ignore_defaults=False)
+def test_mock_everything():
+    # All uuid.uuid4() calls are mocked, including from botocore
     pass
 ```
 
@@ -146,3 +157,4 @@ def freeze_uuids_globally(request):
 | `seed` | `int` or `"node"` | Seed for reproducible generation |
 | `on_exhausted` | `str` | `"cycle"`, `"random"`, or `"raise"` |
 | `ignore` | `list[str]` | Module prefixes to exclude from mocking |
+| `ignore_defaults` | `bool` | Include default ignore list (default `True`) |

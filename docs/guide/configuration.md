@@ -15,9 +15,24 @@ default_exhaustion_behavior = "raise"
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `default_ignore_list` | `list[str]` | `[]` | Modules that always receive real UUIDs |
+| `default_ignore_list` | `list[str]` | `["botocore"]` | Modules that always receive real UUIDs |
 | `extend_ignore_list` | `list[str]` | `[]` | Additional modules to add to ignore list |
 | `default_exhaustion_behavior` | `str` | `"cycle"` | Default behavior when UUIDs exhausted |
+
+!!! note "Default Ignore List"
+    By default, `botocore` is ignored because it uses `uuid.uuid4()` internally for generating idempotent ClientTokens in AWS API operations. Patching this can interfere with AWS SDK retry logic. Use `extend_ignore_list` to add additional packages without overriding this default.
+
+!!! tip "Opting Out of Defaults Per-Test"
+    If you need to mock packages in the default ignore list for a specific test, use the `ignore_defaults=False` parameter:
+
+    ```python
+    @pytest.mark.freeze_uuid("...", ignore_defaults=False)
+    def test_mock_botocore():
+        # botocore will now receive mocked UUIDs
+        pass
+    ```
+
+    See the [Decorator API](decorator-api.md#opting-out-of-default-ignores) or [Marker API](marker-api.md#opting-out-of-default-ignores) for more details.
 
 ## Programmatic Configuration
 
@@ -60,7 +75,7 @@ The ignore check inspects the entire call stack:
 
 ```python
 def test_ignore_in_stack(mock_uuid):
-    mock_uuid.set("12345678-1234-5678-1234-567812345678")
+    mock_uuid.set("12345678-1234-4678-8234-567812345678")
     mock_uuid.set_ignore("sqlalchemy")
 
     # Your code calls SQLAlchemy, which calls uuid.uuid4()
@@ -93,7 +108,7 @@ import pytest
 from pytest_uuid import UUIDsExhaustedError
 
 def test_strict(mock_uuid):
-    mock_uuid.set("11111111-1111-1111-1111-111111111111")
+    mock_uuid.set("11111111-1111-4111-8111-111111111111")
 
     uuid.uuid4()  # OK
 
@@ -112,7 +127,7 @@ import pytest
 # Global config: on_exhausted="raise"
 
 @pytest.mark.freeze_uuid(
-    "11111111-1111-1111-1111-111111111111",
+    "11111111-1111-4111-8111-111111111111",
     on_exhausted="cycle",  # Override for this test
 )
 def test_with_override():

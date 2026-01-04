@@ -31,7 +31,7 @@ class UUIDCall:
 
     Example:
         def test_inspect_calls(mock_uuid):
-            mock_uuid.set("12345678-1234-5678-1234-567812345678")
+            mock_uuid.set("12345678-1234-4678-8234-567812345678")
             uuid.uuid4()
 
             call = mock_uuid.calls[0]
@@ -54,9 +54,9 @@ class UUIDMockerProtocol(Protocol):
 
     Example:
         def test_with_types(mock_uuid: UUIDMockerProtocol) -> None:
-            mock_uuid.set("12345678-1234-5678-1234-567812345678")
+            mock_uuid.set("12345678-1234-4678-8234-567812345678")
             result = uuid.uuid4()
-            assert str(result) == "12345678-1234-5678-1234-567812345678"
+            assert str(result) == "12345678-1234-4678-8234-567812345678"
     """
 
     def set(self, *uuids: str | uuid.UUID) -> None:
