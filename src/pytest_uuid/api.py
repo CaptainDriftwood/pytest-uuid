@@ -65,6 +65,7 @@ class UUIDFreezer(CallTrackingMixin):
         seed: int | random.Random | Literal["node"] | None = None,
         on_exhausted: ExhaustionBehavior | str | None = None,
         ignore: Sequence[str] | None = None,
+        ignore_defaults: bool = True,
         node_id: str | None = None,
     ) -> None:
         """Initialize the UUID freezer.
@@ -77,6 +78,8 @@ class UUIDFreezer(CallTrackingMixin):
                 - "node": Derive seed from the pytest node ID (requires node_id)
             on_exhausted: Behavior when UUID sequence is exhausted.
             ignore: Additional module prefixes to ignore (won't be patched).
+            ignore_defaults: Whether to include default ignore list (e.g., botocore).
+                Set to False to mock all modules including those in DEFAULT_IGNORE_PACKAGES.
             node_id: The pytest node ID (required when seed="node").
         """
         self._uuids = uuids
@@ -92,7 +95,11 @@ class UUIDFreezer(CallTrackingMixin):
         else:
             self._on_exhausted = on_exhausted
 
-        self._ignore_list = config.get_ignore_list() + self._ignore_extra
+        self._ignore_defaults = ignore_defaults
+        if ignore_defaults:
+            self._ignore_list = config.get_ignore_list() + self._ignore_extra
+        else:
+            self._ignore_list = self._ignore_extra
 
         # These are set during __enter__
         self._generator: UUIDGenerator | None = None
@@ -264,6 +271,7 @@ class UUIDFreezer(CallTrackingMixin):
         seed = self._seed
         on_exhausted = self._on_exhausted
         ignore_extra = self._ignore_extra
+        ignore_defaults = self._ignore_defaults
         node_id = self._node_id
 
         @functools.wraps(method)
@@ -274,6 +282,7 @@ class UUIDFreezer(CallTrackingMixin):
                 seed=seed,
                 on_exhausted=on_exhausted,
                 ignore=ignore_extra if ignore_extra else None,
+                ignore_defaults=ignore_defaults,
                 node_id=node_id,
             )
             with freezer:
@@ -300,6 +309,7 @@ def freeze_uuid(
     *,
     on_exhausted: ExhaustionBehavior | str | None = None,
     ignore: Sequence[str] | None = None,
+    ignore_defaults: bool = True,
 ) -> UUIDFreezer: ...
 
 
@@ -309,6 +319,7 @@ def freeze_uuid(
     *,
     seed: int | random.Random | Literal["node"],
     ignore: Sequence[str] | None = None,
+    ignore_defaults: bool = True,
     node_id: str | None = None,
 ) -> UUIDFreezer: ...
 
@@ -320,6 +331,7 @@ def freeze_uuid(
     seed: None = None,
     on_exhausted: ExhaustionBehavior | str | None = None,
     ignore: Sequence[str] | None = None,
+    ignore_defaults: bool = True,
 ) -> UUIDFreezer: ...
 
 
@@ -329,6 +341,7 @@ def freeze_uuid(
     seed: int | random.Random | Literal["node"] | None = None,
     on_exhausted: ExhaustionBehavior | str | None = None,
     ignore: Sequence[str] | None = None,
+    ignore_defaults: bool = True,
     node_id: str | None = None,
 ) -> UUIDFreezer:
     """Create a UUID freezer for use as a decorator or context manager.
@@ -349,6 +362,8 @@ def freeze_uuid(
             - "random": Fall back to random UUIDs
             - "raise": Raise UUIDsExhaustedError
         ignore: Module prefixes that should continue using real uuid4().
+        ignore_defaults: Whether to include default ignore list (e.g., botocore).
+            Set to False to mock all modules including those in DEFAULT_IGNORE_PACKAGES.
         node_id: The pytest node ID (required when seed="node").
 
     Returns:
@@ -374,11 +389,17 @@ def freeze_uuid(
         with freeze_uuid("...") as freezer:
             result = uuid.uuid4()
             freezer.reset()  # Reset to start
+
+        # Mock everything including default-ignored packages (e.g., botocore)
+        @freeze_uuid("...", ignore_defaults=False)
+        def test_mock_all():
+            ...
     """
     return UUIDFreezer(
         uuids=uuids,
         seed=seed,
         on_exhausted=on_exhausted,
         ignore=ignore,
+        ignore_defaults=ignore_defaults,
         node_id=node_id,
     )

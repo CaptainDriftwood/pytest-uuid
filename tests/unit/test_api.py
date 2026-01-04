@@ -444,3 +444,63 @@ def test_freeze_late_import_is_patched():
 
         result = late_imported_uuid4()
         assert str(result) == expected
+
+
+# --- ignore_defaults parameter tests ---
+
+
+def test_ignore_defaults_true_includes_default_packages():
+    """With ignore_defaults=True (default), DEFAULT_IGNORE_PACKAGES are ignored."""
+    with freeze_uuid("11111111-1111-1111-1111-111111111111") as freezer:
+        # Verify botocore is in the ignore list
+        assert "botocore" in freezer._ignore_list
+        # Direct call should be mocked
+        result = uuid.uuid4()
+        assert str(result) == "11111111-1111-1111-1111-111111111111"
+
+
+def test_ignore_defaults_false_excludes_default_packages():
+    """With ignore_defaults=False, DEFAULT_IGNORE_PACKAGES are NOT ignored."""
+    with freeze_uuid(
+        "22222222-2222-2222-2222-222222222222",
+        ignore_defaults=False
+    ) as freezer:
+        # Verify botocore is NOT in the ignore list
+        assert "botocore" not in freezer._ignore_list
+        # Direct call should still be mocked
+        result = uuid.uuid4()
+        assert str(result) == "22222222-2222-2222-2222-222222222222"
+
+
+def test_ignore_defaults_false_with_custom_ignore():
+    """ignore_defaults=False + ignore=['foo'] only ignores 'foo'."""
+    with freeze_uuid(
+        "33333333-3333-3333-3333-333333333333",
+        ignore=["mymodule"],
+        ignore_defaults=False
+    ) as freezer:
+        # Only mymodule should be in ignore list, not botocore
+        assert "mymodule" in freezer._ignore_list
+        assert "botocore" not in freezer._ignore_list
+
+
+def test_ignore_defaults_true_with_custom_ignore_combines():
+    """ignore_defaults=True + ignore=['foo'] ignores both defaults and 'foo'."""
+    with freeze_uuid(
+        "44444444-4444-4444-4444-444444444444",
+        ignore=["mymodule"],
+        ignore_defaults=True  # This is the default
+    ) as freezer:
+        # Both mymodule and botocore should be in ignore list
+        assert "mymodule" in freezer._ignore_list
+        assert "botocore" in freezer._ignore_list
+
+
+def test_decorator_respects_ignore_defaults_false():
+    """@freeze_uuid decorator also respects ignore_defaults."""
+    @freeze_uuid("55555555-5555-5555-5555-555555555555", ignore_defaults=False)
+    def func():
+        return uuid.uuid4()
+
+    result = func()
+    assert str(result) == "55555555-5555-5555-5555-555555555555"

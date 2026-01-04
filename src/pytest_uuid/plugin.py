@@ -57,6 +57,7 @@ class UUIDMocker(CallTrackingMixin):
         monkeypatch: pytest.MonkeyPatch,
         node_id: str | None = None,
         ignore: list[str] | None = None,
+        ignore_defaults: bool = True,
     ) -> None:
         self._monkeypatch = monkeypatch
         self._node_id = node_id
@@ -73,7 +74,11 @@ class UUIDMocker(CallTrackingMixin):
         # Ignore list handling
         config = get_config()
         self._ignore_extra = tuple(ignore) if ignore else ()
-        self._ignore_list = config.get_ignore_list() + self._ignore_extra
+        self._ignore_defaults = ignore_defaults
+        if ignore_defaults:
+            self._ignore_list = config.get_ignore_list() + self._ignore_extra
+        else:
+            self._ignore_list = self._ignore_extra
 
     def set(self, *uuids: str | uuid.UUID) -> None:
         """Set the UUID(s) to return.
@@ -170,9 +175,12 @@ class UUIDMocker(CallTrackingMixin):
         """Reset the mocker to its initial state."""
         self._generator = None
         self._reset_tracking()
-        # Reset ignore list to defaults
+        # Reset ignore list based on ignore_defaults setting
         config = get_config()
-        self._ignore_list = config.get_ignore_list() + self._ignore_extra
+        if self._ignore_defaults:
+            self._ignore_list = config.get_ignore_list() + self._ignore_extra
+        else:
+            self._ignore_list = self._ignore_extra
 
     def __call__(self) -> uuid.UUID:
         """Return the next mocked UUID.
@@ -280,12 +288,14 @@ def pytest_configure(config: pytest.Config) -> None:
 
     config.addinivalue_line(
         "markers",
-        "freeze_uuid(uuids=None, *, seed=None, on_exhausted=None, ignore=None): "
+        "freeze_uuid(uuids=None, *, seed=None, on_exhausted=None, ignore=None, "
+        "ignore_defaults=True): "
         "Freeze uuid.uuid4() for this test. "
         "uuids: static UUID(s) to return. "
         "seed: int, random.Random, or 'node' for reproducible generation. "
         "on_exhausted: 'cycle', 'random', or 'raise' when sequence exhausted. "
-        "ignore: module prefixes to exclude from patching.",
+        "ignore: module prefixes to exclude from patching. "
+        "ignore_defaults: whether to include default ignore list (default True).",
     )
 
 

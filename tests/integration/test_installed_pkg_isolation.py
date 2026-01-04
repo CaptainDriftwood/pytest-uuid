@@ -744,18 +744,18 @@ def test_botocore_ignored_by_default(venv_with_botocore, tmp_path):
                 parsed = uuid.UUID(botocore_uuid)
                 assert parsed.version == 4
 
-        def test_botocore_can_be_explicitly_mocked_by_overriding_ignore():
-            """Verify botocore CAN be mocked if explicitly removed from ignore list."""
+        def test_botocore_can_be_explicitly_mocked_by_disabling_defaults():
+            """Verify botocore CAN be mocked if ignore_defaults is False."""
             with freeze_uuid(
                 "22222222-2222-2222-2222-222222222222",
-                ignore=[]  # Override to empty - no packages ignored
+                ignore_defaults=False  # Disable default ignore list
             ):
                 params = {}
                 generate_idempotent_uuid(params, MockModel())
 
                 botocore_uuid = params["ClientToken"]
 
-                # NOW it should be mocked since we cleared the ignore list
+                # NOW it should be mocked since we disabled default ignores
                 assert botocore_uuid == "22222222-2222-2222-2222-222222222222"
 
         def test_botocore_ignored_with_decorator():
@@ -785,14 +785,17 @@ def test_botocore_ignored_by_default(venv_with_botocore, tmp_path):
 
 
 @pytest.mark.slow
-def test_botocore_spy_tracks_real_uuid_calls(venv_with_botocore, tmp_path):
-    """Test that uuid_spy correctly tracks botocore's real UUID calls.
+def test_botocore_freezer_tracks_real_uuid_calls(venv_with_botocore, tmp_path):
+    """Test that freeze_uuid's built-in tracking records botocore's real UUID calls.
 
-    When botocore is ignored, the spy should still record the call but
+    When botocore is ignored, the freezer should still record the call but
     mark it as was_mocked=False and show the caller_module as botocore.
+
+    Note: We use freeze_uuid's built-in tracking instead of spy_uuid because
+    they can't be combined (freeze_uuid patches over the spy).
     """
     test_content = textwrap.dedent('''
-        """Test spy tracking of botocore UUID calls."""
+        """Test freeze_uuid tracking of botocore UUID calls."""
         import uuid
         from pytest_uuid import freeze_uuid
 
@@ -801,9 +804,9 @@ def test_botocore_spy_tracks_real_uuid_calls(venv_with_botocore, tmp_path):
         class MockModel:
             idempotent_members = ["ClientToken"]
 
-        def test_spy_tracks_botocore_real_calls(uuid_spy):
-            """Verify spy tracks botocore calls as real (not mocked)."""
-            with freeze_uuid("44444444-4444-4444-4444-444444444444"):
+        def test_freezer_tracks_botocore_real_calls():
+            """Verify freeze_uuid tracks botocore calls as real (not mocked)."""
+            with freeze_uuid("44444444-4444-4444-4444-444444444444") as freezer:
                 # First, a direct call (should be mocked)
                 direct = uuid.uuid4()
                 assert str(direct) == "44444444-4444-4444-4444-444444444444"
@@ -813,22 +816,22 @@ def test_botocore_spy_tracks_real_uuid_calls(venv_with_botocore, tmp_path):
                 generate_idempotent_uuid(params, MockModel())
                 botocore_uuid = params["ClientToken"]
 
-            # Check spy recorded both calls
-            assert uuid_spy.call_count == 2
+                # Check freezer recorded both calls
+                assert freezer.call_count == 2
 
-            # Check the mocked vs real distinction
-            mocked_calls = uuid_spy.mocked_calls
-            real_calls = uuid_spy.real_calls
+                # Check the mocked vs real distinction
+                mocked_calls = freezer.mocked_calls
+                real_calls = freezer.real_calls
 
-            assert len(mocked_calls) == 1
-            assert len(real_calls) == 1
+                assert len(mocked_calls) == 1
+                assert len(real_calls) == 1
 
-            # Mocked call should be our direct uuid.uuid4()
-            assert str(mocked_calls[0].uuid) == "44444444-4444-4444-4444-444444444444"
+                # Mocked call should be our direct uuid.uuid4()
+                assert str(mocked_calls[0].uuid) == "44444444-4444-4444-4444-444444444444"
 
-            # Real call should be from botocore
-            assert str(real_calls[0].uuid) == botocore_uuid
-            assert real_calls[0].caller_module.startswith("botocore")
+                # Real call should be from botocore
+                assert str(real_calls[0].uuid) == botocore_uuid
+                assert real_calls[0].caller_module.startswith("botocore")
     ''')
 
     test_dir = tmp_path / "tests"
