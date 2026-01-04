@@ -233,6 +233,20 @@ def test_mock_uuid_factory_fixture_is_available(mock_uuid_factory):
     assert callable(mock_uuid_factory)
 
 
+def test_mock_uuid_factory_ignore_defaults_true_by_default(mock_uuid_factory):
+    """Test that ignore_defaults=True is the default behavior."""
+    with mock_uuid_factory("uuid") as mocker:
+        # Default behavior: botocore should be in the ignore list
+        assert "botocore" in mocker._ignore_list
+
+
+def test_mock_uuid_factory_ignore_defaults_false(mock_uuid_factory):
+    """Test that ignore_defaults=False excludes default packages from ignore list."""
+    with mock_uuid_factory("uuid", ignore_defaults=False) as mocker:
+        # With ignore_defaults=False, botocore should NOT be in the ignore list
+        assert "botocore" not in mocker._ignore_list
+
+
 # --- Edge cases ---
 
 

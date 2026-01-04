@@ -396,7 +396,7 @@ def mock_uuid(
 @pytest.fixture
 def mock_uuid_factory(
     monkeypatch: pytest.MonkeyPatch,
-) -> Callable[[str], AbstractContextManager[UUIDMocker]]:
+) -> Callable[..., AbstractContextManager[UUIDMocker]]:
     """Fixture factory for mocking uuid.uuid4() in specific modules.
 
     Use this when you need to mock uuid.uuid4() in a specific module where
@@ -410,13 +410,28 @@ def mock_uuid_factory(
                 result = create_model()  # Calls uuid4() internally
                 assert result.id == "12345678-1234-5678-1234-567812345678"
 
+        def test_mock_default_ignored_package(mock_uuid_factory):
+            # Mock packages that are normally ignored (e.g., botocore)
+            with mock_uuid_factory("botocore.handlers", ignore_defaults=False) as mocker:
+                mocker.set("12345678-1234-5678-1234-567812345678")
+                # botocore will now receive mocked UUIDs
+
+    Args:
+        module_path: The module path to mock uuid4 in.
+        ignore_defaults: Whether to include default ignore list (default True).
+            Set to False to mock all modules including those in DEFAULT_IGNORE_PACKAGES.
+
     Returns:
         A context manager factory that takes a module path and yields a UUIDMocker.
     """
 
     @contextmanager
-    def factory(module_path: str) -> Iterator[UUIDMocker]:
-        mocker = UUIDMocker(monkeypatch)
+    def factory(
+        module_path: str,
+        *,
+        ignore_defaults: bool = True,
+    ) -> Iterator[UUIDMocker]:
+        mocker = UUIDMocker(monkeypatch, ignore_defaults=ignore_defaults)
 
         try:
             module = sys.modules[module_path]
