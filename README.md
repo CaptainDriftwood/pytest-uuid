@@ -697,6 +697,7 @@ with freeze_uuid("...") as freezer:
 - `seed` - Integer, `random.Random`, or `"node"` for reproducible generation
 - `on_exhausted` - `"cycle"`, `"random"`, or `"raise"`
 - `ignore` - Module prefixes to exclude from patching
+- `ignore_defaults` - If `False`, don't include the default ignore list (default: `True`)
 
 ### Marker
 
@@ -706,6 +707,7 @@ with freeze_uuid("...") as freezer:
 @pytest.mark.freeze_uuid(seed=42)
 @pytest.mark.freeze_uuid(seed="node")
 @pytest.mark.freeze_uuid("uuid", on_exhausted="raise")
+@pytest.mark.freeze_uuid("uuid", ignore_defaults=False)  # Mock everything, including defaults
 ```
 
 ### Configuration
