@@ -381,6 +381,8 @@ pytest_uuid.configure(
 )
 ```
 
+> **Default Ignore List:** By default, `botocore` is in the ignore list. This prevents pytest-uuid from interfering with AWS SDK operations that use `uuid.uuid4()` internally for idempotency tokens. Use `extend_ignore_list` to add more packages, or set `default_ignore_list` to override completely.
+
 ### Module-Specific Mocking
 
 For granular control, use `mock_uuid_factory`:
