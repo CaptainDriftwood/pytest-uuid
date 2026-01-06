@@ -25,6 +25,15 @@ else:
     TOMLDecodeError = tomllib.TOMLDecodeError
 
 
+# Default packages to ignore when patching uuid4.
+# botocore: Uses uuid.uuid4() in generate_idempotent_uuid() (botocore/handlers.py)
+# to auto-generate ClientToken/ClientRequestToken for idempotent AWS API operations
+# (e.g., RunInstances, CreateStack). Patching this can interfere with AWS SDK retry
+# logic and idempotency guarantees. Note: moto does NOT need to be ignored - it uses
+# its own MotoRandom.uuid4() implementation that doesn't call uuid.uuid4().
+DEFAULT_IGNORE_PACKAGES: list[str] = ["botocore"]
+
+
 @dataclass
 class PytestUUIDConfig:
     """Global configuration for pytest-uuid.
@@ -35,7 +44,9 @@ class PytestUUIDConfig:
 
     # Default packages to ignore when patching uuid4
     # These packages will continue to use real uuid.uuid4()
-    default_ignore_list: list[str] = field(default_factory=list)
+    default_ignore_list: list[str] = field(
+        default_factory=lambda: list(DEFAULT_IGNORE_PACKAGES)
+    )
 
     # Additional packages to ignore (extends default_ignore_list)
     extend_ignore_list: list[str] = field(default_factory=list)

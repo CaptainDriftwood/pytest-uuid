@@ -68,7 +68,7 @@ def test_generate_uuid_from_random_sequential_calls_differ():
 
 def test_static_generator_always_returns_same_uuid():
     """Test that the same UUID is always returned."""
-    expected = uuid.UUID("12345678-1234-5678-1234-567812345678")
+    expected = uuid.UUID("12345678-1234-4678-8234-567812345678")
     generator = StaticUUIDGenerator(expected)
 
     for _ in range(10):
@@ -77,7 +77,7 @@ def test_static_generator_always_returns_same_uuid():
 
 def test_static_generator_reset_does_nothing():
     """Test that reset doesn't affect the generator."""
-    expected = uuid.UUID("12345678-1234-5678-1234-567812345678")
+    expected = uuid.UUID("12345678-1234-4678-8234-567812345678")
     generator = StaticUUIDGenerator(expected)
 
     generator()
@@ -92,9 +92,9 @@ def test_static_generator_reset_does_nothing():
 def test_sequence_generator_returns_uuids_in_order():
     """Test that UUIDs are returned in sequence."""
     uuids = [
-        uuid.UUID("11111111-1111-1111-1111-111111111111"),
-        uuid.UUID("22222222-2222-2222-2222-222222222222"),
-        uuid.UUID("33333333-3333-3333-3333-333333333333"),
+        uuid.UUID("11111111-1111-4111-8111-111111111111"),
+        uuid.UUID("22222222-2222-4222-8222-222222222222"),
+        uuid.UUID("33333333-3333-4333-8333-333333333333"),
     ]
     generator = SequenceUUIDGenerator(uuids)
 
@@ -113,7 +113,7 @@ def test_sequence_generator_returns_uuids_in_order():
 )
 def test_sequence_generator_exhaustion_behavior(behavior, should_raise):
     """Test different exhaustion behaviors after sequence is consumed."""
-    uuids = [uuid.UUID("11111111-1111-1111-1111-111111111111")]
+    uuids = [uuid.UUID("11111111-1111-4111-8111-111111111111")]
     rng = random.Random(42)
     generator = SequenceUUIDGenerator(uuids, on_exhausted=behavior, fallback_rng=rng)
 
@@ -138,7 +138,7 @@ def test_sequence_generator_exhaustion_behavior(behavior, should_raise):
 
 def test_sequence_generator_is_exhausted_property():
     """Test the is_exhausted property."""
-    uuids = [uuid.UUID("11111111-1111-1111-1111-111111111111")]
+    uuids = [uuid.UUID("11111111-1111-4111-8111-111111111111")]
     generator = SequenceUUIDGenerator(uuids)
 
     assert not generator.is_exhausted
@@ -151,8 +151,8 @@ def test_sequence_generator_is_exhausted_property():
 def test_sequence_generator_reset_restores_sequence():
     """Test that reset restores the sequence to the beginning."""
     uuids = [
-        uuid.UUID("11111111-1111-1111-1111-111111111111"),
-        uuid.UUID("22222222-2222-2222-2222-222222222222"),
+        uuid.UUID("11111111-1111-4111-8111-111111111111"),
+        uuid.UUID("22222222-2222-4222-8222-222222222222"),
     ]
     generator = SequenceUUIDGenerator(uuids)
 
@@ -270,12 +270,12 @@ def test_random_generator_reset_does_nothing():
     ("input_value", "expected_uuid"),
     [
         (
-            "12345678-1234-5678-1234-567812345678",
-            "12345678-1234-5678-1234-567812345678",
+            "12345678-1234-4678-8234-567812345678",
+            "12345678-1234-4678-8234-567812345678",
         ),
         (
-            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa",
+            "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa",
         ),
     ],
 )
@@ -287,7 +287,7 @@ def test_parse_uuid_parses_valid_string(input_value, expected_uuid):
 
 def test_parse_uuid_returns_uuid_unchanged():
     """Test that UUID objects are returned unchanged."""
-    original = uuid.UUID("12345678-1234-5678-1234-567812345678")
+    original = uuid.UUID("12345678-1234-4678-8234-567812345678")
     result = parse_uuid(original)
     assert result is original
 
@@ -314,13 +314,13 @@ def test_parse_uuids_parses_sequence_of_strings():
     """Test parsing a sequence of UUID strings."""
     result = parse_uuids(
         [
-            "11111111-1111-1111-1111-111111111111",
-            "22222222-2222-2222-2222-222222222222",
+            "11111111-1111-4111-8111-111111111111",
+            "22222222-2222-4222-8222-222222222222",
         ]
     )
     assert result == [
-        uuid.UUID("11111111-1111-1111-1111-111111111111"),
-        uuid.UUID("22222222-2222-2222-2222-222222222222"),
+        uuid.UUID("11111111-1111-4111-8111-111111111111"),
+        uuid.UUID("22222222-2222-4222-8222-222222222222"),
     ]
 
 
@@ -328,8 +328,8 @@ def test_parse_uuids_parses_mixed_sequence():
     """Test parsing a sequence of strings and UUID objects."""
     result = parse_uuids(
         [
-            "11111111-1111-1111-1111-111111111111",
-            uuid.UUID("22222222-2222-2222-2222-222222222222"),
+            "11111111-1111-4111-8111-111111111111",
+            uuid.UUID("22222222-2222-4222-8222-222222222222"),
         ]
     )
     assert len(result) == 2

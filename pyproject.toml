@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "pytest-uuid"
-version = "0.2.0"
+version = "0.3.0"
 description = "A pytest plugin for mocking uuid.uuid4() calls"
 readme = "README.md"
 license = "MIT"
@@ -50,7 +50,7 @@ pytest_uuid = "pytest_uuid.plugin"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "tests/fixtures/uuid_testpkg/src"]
 # Use subprocess mode for pytester to avoid pytest 8.x sys.modules pollution issues
 # See: https://github.com/pytest-dev/pytest/discussions/13353
 addopts = "--runpytest=subprocess"
@@ -143,6 +143,7 @@ dev = [
     "pytest-github-actions-annotate-failures>=0.2.0",
     "pytest-randomly>=3.12.0",
     "pytest-xdist>=3.5.0",
+    "pytest-venv>=0.3.0",
     "ruff>=0.8.0",
     "ty>=0.0.1a0",  # experimental type checker
 ]

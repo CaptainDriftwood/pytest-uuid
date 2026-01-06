@@ -1031,6 +1031,7 @@ dev = [
     { name = "pytest-cov" },
     { name = "pytest-github-actions-annotate-failures" },
     { name = "pytest-randomly" },
+    { name = "pytest-venv" },
     { name = "pytest-xdist" },
     { name = "ruff" },
     { name = "ty" },
@@ -1053,6 +1054,7 @@ dev = [
     { name = "pytest-cov", specifier = ">=4.0.0" },
     { name = "pytest-github-actions-annotate-failures", specifier = ">=0.2.0" },
     { name = "pytest-randomly", specifier = ">=3.12.0" },
+    { name = "pytest-venv", specifier = ">=0.3.0" },
     { name = "pytest-xdist", specifier = ">=3.5.0" },
     { name = "ruff", specifier = ">=0.8.0" },
     { name = "ty", specifier = ">=0.0.1a0" },
@@ -1060,6 +1062,21 @@ dev = [
 docs = [
     { name = "mkdocs", specifier = ">=1.6.0" },
     { name = "mkdocs-material", specifier = ">=9.5.0" },
+]
+
+[[package]]
+name = "pytest-venv"
+version = "0.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "packaging" },
+    { name = "pytest", version = "8.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "pytest", version = "9.0.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+    { name = "virtualenv" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/14/a3/74a456852035c9314d28efcb5bd7e20f7f4fc1070b4791768ed9ae3e889b/pytest-venv-0.3.tar.gz", hash = "sha256:b92087bebcb3782984116ca3723c7abdb2ab5e76a75ea9397f4a4c35a544fe18", size = 8562, upload-time = "2023-11-23T03:52:26.078Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d3/2c/681d81b1f339534620ac3cb37c80602613221e8bf8c47c7413c30ad20ab6/pytest_venv-0.3-py3-none-any.whl", hash = "sha256:af2961af62107baf85c076cf4cd2ae47a7f345f88cbed9fb04fb51b694b9674e", size = 4388, upload-time = "2023-11-23T03:52:24.36Z" },
 ]
 
 [[package]]
