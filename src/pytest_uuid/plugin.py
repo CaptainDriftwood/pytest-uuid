@@ -1,4 +1,40 @@
-"""pytest plugin for mocking uuid.uuid4() calls."""
+"""pytest plugin for mocking uuid.uuid4() calls.
+
+This module provides the pytest integration for pytest-uuid, including:
+
+Fixtures:
+    mock_uuid: Main fixture for imperative UUID control. Patches uuid4 globally
+        and in all modules that imported it directly. Use when you need to
+        change UUID behavior during a test or inspect calls.
+
+    spy_uuid: Spy fixture that tracks uuid4 calls without mocking. Returns
+        real random UUIDs while recording call metadata.
+
+    mock_uuid_factory: Factory for creating scoped mockers. Use when you need
+        to mock uuid4 in a specific module only.
+
+Marker:
+    @pytest.mark.freeze_uuid(...): Declarative marker for freezing UUIDs.
+        Processed in pytest_runtest_setup hook. Supports all freeze_uuid
+        parameters including seed="node" for per-test reproducible UUIDs.
+
+Classes:
+    UUIDMocker: The class backing the mock_uuid fixture. Provides set(),
+        set_seed(), set_ignore(), and call tracking.
+
+    UUIDSpy: The class backing the spy_uuid fixture. Tracks calls to uuid4
+        without replacing them.
+
+Lifecycle:
+    - pytest_configure: Registers marker and loads pyproject.toml config
+    - pytest_runtest_setup: Activates freeze_uuid marker if present
+    - pytest_runtest_teardown: Cleans up freeze_uuid marker
+    - pytest_unconfigure: Clears config state
+
+Thread Safety:
+    The fixtures are NOT thread-safe. For multi-threaded tests, use
+    separate fixtures per thread or synchronize access.
+"""
 
 from __future__ import annotations
 
@@ -47,9 +83,40 @@ if TYPE_CHECKING:
 class UUIDMocker(CallTrackingMixin):
     """A class to manage mocked UUID values.
 
-    This class provides a way to control the UUIDs returned by uuid.uuid4()
-    during tests. It can return a single fixed UUID, cycle through a sequence
-    of UUIDs, or generate reproducible UUIDs from a seed.
+    This class provides imperative control over uuid.uuid4() during tests.
+    It backs the mock_uuid fixture and supports multiple mocking strategies:
+    - Static UUIDs: set("uuid") returns the same UUID every time
+    - Sequences: set("uuid1", "uuid2") cycles through UUIDs
+    - Seeded: set_seed(42) produces reproducible UUIDs
+    - Node-seeded: set_seed_from_node() uses test name as seed
+
+    Call Tracking (inherited from CallTrackingMixin):
+        - call_count: Number of uuid4() calls
+        - generated_uuids: List of all returned UUIDs
+        - last_uuid: Most recent UUID returned
+        - calls: List of UUIDCall with metadata (was_mocked, caller_module)
+        - mocked_calls / real_calls: Filtered by mock status
+
+    State Management:
+        - When no generator is set, returns real random UUIDs
+        - reset() clears the generator and tracking data
+        - spy() switches to spy mode (track but don't mock)
+
+    Example:
+        def test_user_creation(mock_uuid):
+            # Set up mocking
+            mock_uuid.set("12345678-1234-4678-8234-567812345678")
+
+            # Code under test
+            user = create_user()
+
+            # Verify
+            assert user.id == "12345678-1234-4678-8234-567812345678"
+            assert mock_uuid.call_count == 1
+
+    See Also:
+        - mock_uuid fixture: Creates and patches a UUIDMocker automatically
+        - freeze_uuid: Decorator/context manager alternative
     """
 
     def __init__(
@@ -246,7 +313,32 @@ class UUIDSpy(CallTrackingMixin):
     """A class to spy on UUID generation without mocking.
 
     This class wraps uuid.uuid4() to track calls while still returning
-    real random UUIDs. Similar to pytest-mock's spy functionality.
+    real random UUIDs. Similar to pytest-mock's spy functionality. It backs
+    the spy_uuid fixture.
+
+    Use this when you need to verify that code generates UUIDs but don't need
+    to control what UUIDs are generated.
+
+    Call Tracking (inherited from CallTrackingMixin):
+        - call_count: Number of uuid4() calls
+        - generated_uuids: List of all returned UUIDs (real random UUIDs)
+        - last_uuid: Most recent UUID returned
+        - calls: List of UUIDCall with metadata (caller_module, caller_file)
+
+    Note:
+        All calls tracked by UUIDSpy have was_mocked=False since real UUIDs
+        are always returned.
+
+    Example:
+        def test_user_creation(spy_uuid):
+            user = create_user()  # Internally calls uuid.uuid4()
+
+            assert spy_uuid.call_count == 1
+            assert user.id == str(spy_uuid.last_uuid)
+
+    See Also:
+        - spy_uuid fixture: Creates and patches a UUIDSpy automatically
+        - mock_uuid.spy(): Switches a UUIDMocker to spy mode
     """
 
     def __init__(self, original_uuid4: Callable[[], uuid.UUID]) -> None:
