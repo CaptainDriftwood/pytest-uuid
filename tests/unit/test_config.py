@@ -46,6 +46,7 @@ def test_config_get_ignore_list_defaults():
     assert config.get_ignore_list() == tuple(DEFAULT_IGNORE_PACKAGES)
 
 
+@pytest.mark.botocore
 def test_botocore_in_default_ignore_packages():
     """Verify botocore is included in the default ignore list.
 

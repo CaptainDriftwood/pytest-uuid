@@ -701,6 +701,7 @@ def venv_with_botocore(venv):
 
 
 @pytest.mark.slow
+@pytest.mark.botocore
 def test_botocore_ignored_by_default(venv_with_botocore, tmp_path):
     """Test that botocore receives real UUIDs when freeze_uuid is active.
 
@@ -785,6 +786,7 @@ def test_botocore_ignored_by_default(venv_with_botocore, tmp_path):
 
 
 @pytest.mark.slow
+@pytest.mark.botocore
 def test_botocore_freezer_tracks_real_uuid_calls(venv_with_botocore, tmp_path):
     """Test that freeze_uuid's built-in tracking records botocore's real UUID calls.
 
