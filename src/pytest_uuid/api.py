@@ -1,4 +1,39 @@
-"""Core API for pytest-uuid including the freeze_uuid decorator."""
+"""Core API for pytest-uuid including the freeze_uuid decorator.
+
+This module provides the primary user-facing API for controlling UUID generation:
+
+    freeze_uuid: Factory function that returns a UUIDFreezer. Use this as a
+        decorator (@freeze_uuid("...")) or context manager (with freeze_uuid("...")).
+        This is the recommended way to mock UUIDs in a declarative style.
+
+    UUIDFreezer: The underlying class that handles patching. Supports both
+        decorator and context manager usage. Most users should use freeze_uuid()
+        instead of instantiating UUIDFreezer directly.
+
+How Patching Works:
+    When activated, UUIDFreezer patches uuid.uuid4 globally AND scans sys.modules
+    to find any module that has imported uuid4 directly (via `from uuid import uuid4`).
+    This ensures mocking works regardless of how the code under test imports uuid4.
+
+Thread Safety:
+    UUIDFreezer is NOT thread-safe. Each thread should use its own instance.
+    For multi-threaded tests, consider using separate freezers per thread or
+    synchronizing access to a shared freezer.
+
+Example:
+    # As a decorator
+    @freeze_uuid("12345678-1234-4678-8234-567812345678")
+    def test_user_creation():
+        user = create_user()
+        assert user.id == "12345678-1234-4678-8234-567812345678"
+
+    # As a context manager with call tracking
+    with freeze_uuid(seed=42) as freezer:
+        first = uuid.uuid4()
+        second = uuid.uuid4()
+        assert freezer.call_count == 2
+        assert freezer.generated_uuids == [first, second]
+"""
 
 from __future__ import annotations
 
@@ -55,7 +90,32 @@ class UUIDFreezer(CallTrackingMixin):
     """Context manager and decorator for freezing uuid.uuid4() calls.
 
     This class provides fine-grained control over UUID generation during tests.
-    It can be used as a decorator or context manager.
+    It can be used as a decorator or context manager. Most users should use
+    the freeze_uuid() factory function instead of instantiating this directly.
+
+    Usage Patterns:
+        - As decorator: @freeze_uuid("uuid") applies to entire function
+        - As context manager: with freeze_uuid("uuid") as f: ... for scoped control
+        - On classes: @freeze_uuid("uuid") wraps all test_* methods
+
+    Call Tracking:
+        While active, tracks all uuid4() calls via inherited properties:
+        - call_count: Total number of uuid4() calls
+        - generated_uuids: List of all UUIDs returned
+        - last_uuid: Most recent UUID returned
+        - calls: List of UUIDCall records with metadata
+        - mocked_calls / real_calls: Filtered by whether mocked or ignored
+
+    Example:
+        # Context manager with call inspection
+        with freeze_uuid(seed=42) as freezer:
+            first = uuid.uuid4()
+            second = uuid.uuid4()
+
+        assert freezer.call_count == 2
+        assert freezer.generated_uuids[0] == first
+        for call in freezer.calls:
+            print(f"{call.caller_module}: {call.uuid}")
     """
 
     def __init__(
