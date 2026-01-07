@@ -1,6 +1,17 @@
-"""Type definitions for pytest-uuid.
+"""Type definitions and protocols for pytest-uuid.
 
-This module provides Protocol classes for type checking and IDE support.
+This module provides:
+    - UUIDCall: Dataclass for tracking individual uuid4() call metadata
+    - UUIDMockerProtocol: Type protocol for the mock_uuid fixture
+    - UUIDSpyProtocol: Type protocol for the spy_uuid fixture
+
+These protocols enable proper type checking and IDE autocomplete when using
+the fixtures. Import them for type annotations:
+
+    from pytest_uuid import UUIDMockerProtocol, UUIDSpyProtocol
+
+    def test_example(mock_uuid: UUIDMockerProtocol) -> None:
+        mock_uuid.set("...")  # IDE autocomplete works here
 """
 
 from __future__ import annotations
