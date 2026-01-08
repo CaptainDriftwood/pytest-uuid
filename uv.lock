@@ -1233,7 +1233,7 @@ wheels = [
 
 [[package]]
 name = "pytest-uuid"
-version = "0.3.0"
+version = "0.4.0"
 source = { editable = "." }
 dependencies = [
     { name = "pytest", version = "8.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
@@ -1242,11 +1242,9 @@ dependencies = [
 ]
 
 [package.dev-dependencies]
-boto = [
+dev = [
     { name = "boto3" },
     { name = "moto" },
-]
-dev = [
     { name = "nox" },
     { name = "nox-uv" },
     { name = "pytest-cov" },
@@ -1269,11 +1267,9 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
-boto = [
+dev = [
     { name = "boto3", specifier = ">=1.42.24" },
     { name = "moto", specifier = ">=5.1.19" },
-]
-dev = [
     { name = "nox", specifier = ">=2024.4.15" },
     { name = "nox-uv", specifier = ">=0.2.0" },
     { name = "pytest-cov", specifier = ">=4.0.0" },

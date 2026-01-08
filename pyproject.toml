@@ -137,11 +137,9 @@ exclude_lines = [
 show_missing = true
 
 [dependency-groups]
-boto = [
+dev = [
     "boto3>=1.42.24",
     "moto>=5.1.19",
-]
-dev = [
     "nox>=2024.4.15",
     "nox-uv>=0.2.0",
     "pytest-cov>=4.0.0",
