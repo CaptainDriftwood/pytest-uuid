@@ -27,15 +27,18 @@ def _get_node_seed(node_id: str) -> int:
     return int(hashlib.md5(node_id.encode()).hexdigest()[:8], 16)  # noqa: S324
 
 
-def _get_caller_info(skip_frames: int = 2) -> tuple[str | None, str | None]:
-    """Get caller module and file information.
+def _get_caller_info(
+    skip_frames: int = 2,
+) -> tuple[str | None, str | None, int | None, str | None]:
+    """Get caller module, file, line number, and function name information.
 
     Args:
         skip_frames: Number of frames to skip (default 2 skips this function
                     and the calling function).
 
     Returns:
-        Tuple of (module_name, file_path) or (None, None) if unavailable.
+        Tuple of (module_name, file_path, line_number, function_name).
+        Any or all values may be None if unavailable.
     """
     frame = inspect.currentframe()
     try:
@@ -45,11 +48,13 @@ def _get_caller_info(skip_frames: int = 2) -> tuple[str | None, str | None]:
                 frame = frame.f_back
 
         if frame is None:
-            return None, None
+            return None, None, None, None
 
         module_name = frame.f_globals.get("__name__")
         file_path = frame.f_code.co_filename
-        return module_name, file_path
+        line_number = frame.f_lineno
+        function_name = frame.f_code.co_name
+        return module_name, file_path, line_number, function_name
     finally:
         del frame
 
@@ -118,6 +123,8 @@ class CallTrackingMixin:
         was_mocked: bool,
         caller_module: str | None,
         caller_file: str | None,
+        caller_line: int | None = None,
+        caller_function: str | None = None,
     ) -> None:
         """Record a uuid4 call for tracking.
 
@@ -126,6 +133,8 @@ class CallTrackingMixin:
             was_mocked: True if the UUID was mocked, False if real.
             caller_module: The module name where the call originated.
             caller_file: The file path where the call originated.
+            caller_line: The line number where the call originated.
+            caller_function: The function name where the call originated.
         """
         self._call_count += 1
         self._generated_uuids.append(result)
@@ -135,6 +144,8 @@ class CallTrackingMixin:
                 was_mocked=was_mocked,
                 caller_module=caller_module,
                 caller_file=caller_file,
+                caller_line=caller_line,
+                caller_function=caller_function,
             )
         )
 

@@ -256,7 +256,9 @@ class UUIDMocker(CallTrackingMixin):
             The next UUID from the generator, or a random UUID if no
             generator is configured.
         """
-        caller_module, caller_file = _get_caller_info(skip_frames=2)
+        caller_module, caller_file, caller_line, caller_function = _get_caller_info(
+            skip_frames=2
+        )
 
         # Check if any frame in the call stack should be ignored
         if self._ignore_list:
@@ -270,7 +272,14 @@ class UUIDMocker(CallTrackingMixin):
                 while frame is not None:
                     if _should_ignore_frame(frame, self._ignore_list):
                         result = self._original_uuid4()
-                        self._record_call(result, False, caller_module, caller_file)
+                        self._record_call(
+                            result,
+                            False,
+                            caller_module,
+                            caller_file,
+                            caller_line,
+                            caller_function,
+                        )
                         return result
                     frame = frame.f_back
             finally:
@@ -283,7 +292,9 @@ class UUIDMocker(CallTrackingMixin):
             result = self._original_uuid4()
             was_mocked = False
 
-        self._record_call(result, was_mocked, caller_module, caller_file)
+        self._record_call(
+            result, was_mocked, caller_module, caller_file, caller_line, caller_function
+        )
         return result
 
     @property
@@ -349,13 +360,17 @@ class UUIDSpy(CallTrackingMixin):
 
     def __call__(self) -> uuid.UUID:
         """Generate a real UUID and track it."""
-        caller_module, caller_file = _get_caller_info(skip_frames=2)
+        caller_module, caller_file, caller_line, caller_function = _get_caller_info(
+            skip_frames=2
+        )
         result = self._original_uuid4()
         self._record_call(
             result,
             was_mocked=False,
             caller_module=caller_module,
             caller_file=caller_file,
+            caller_line=caller_line,
+            caller_function=caller_function,
         )
         return result
 

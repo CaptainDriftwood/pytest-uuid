@@ -256,12 +256,15 @@ def test_tracking_calls_returns_copy():
 
 def test_get_caller_info_returns_module_and_file():
     """Test that _get_caller_info captures caller info."""
-    module, file = _get_caller_info(skip_frames=1)
+    module, file, line, function = _get_caller_info(skip_frames=1)
 
     assert module is not None
     assert "test_tracking" in module
     assert file is not None
     assert file.endswith(".py")
+    assert line is not None
+    assert isinstance(line, int)
+    assert function == "test_get_caller_info_returns_module_and_file"
 
 
 def test_get_caller_info_skip_frames_works():
@@ -270,11 +273,12 @@ def test_get_caller_info_skip_frames_works():
     def inner():
         return _get_caller_info(skip_frames=2)
 
-    module, _file = inner()
+    module, _file, _line, function = inner()
 
     # Should capture this test method, not inner()
     assert module is not None
     assert "test_tracking" in module
+    assert function == "test_get_caller_info_skip_frames_works"
 
 
 def test_get_caller_info_deep_call_stack():
@@ -289,32 +293,38 @@ def test_get_caller_info_deep_call_stack():
         return create_nested_caller(depth - 1)
 
     # Test with 15 nested frames
-    module, file = create_nested_caller(15)
+    module, file, line, function = create_nested_caller(15)
 
     # Should still get valid caller info
     assert module is not None
     assert file is not None
     assert file.endswith(".py")
+    assert line is not None
+    assert function is not None
 
 
 def test_get_caller_info_skip_frames_beyond_stack():
     """Test _get_caller_info when skip_frames exceeds stack depth."""
     # Skip more frames than exist in the stack
-    module, file = _get_caller_info(skip_frames=1000)
+    module, file, line, function = _get_caller_info(skip_frames=1000)
 
-    # Should return None, None gracefully
+    # Should return None for all values gracefully
     assert module is None
     assert file is None
+    assert line is None
+    assert function is None
 
 
 def test_get_caller_info_from_lambda():
     """Test _get_caller_info called from a lambda."""
     get_info = lambda: _get_caller_info(skip_frames=1)  # noqa: E731
-    module, file = get_info()
+    module, file, line, function = get_info()
 
     assert module is not None
     assert "test_tracking" in module
     assert file is not None
+    assert line is not None
+    assert function == "<lambda>"
 
 
 def test_get_caller_info_from_nested_class():
@@ -325,11 +335,13 @@ def test_get_caller_info_from_nested_class():
             return _get_caller_info(skip_frames=1)
 
     obj = NestedClass()
-    module, file = obj.get_caller_info()
+    module, file, line, function = obj.get_caller_info()
 
     assert module is not None
     assert "test_tracking" in module
     assert file is not None
+    assert line is not None
+    assert function == "get_caller_info"
 
 
 def test_get_caller_info_from_builtin_callback():
@@ -344,9 +356,11 @@ def test_get_caller_info_from_builtin_callback():
     list(filter(capture_info, [1]))
 
     assert len(results) == 1
-    _module, file = results[0]
+    _module, file, line, function = results[0]
     # The frame should still be accessible
     assert file is not None
+    assert line is not None
+    assert function == "capture_info"
 
 
 # --- _find_uuid4_imports ---

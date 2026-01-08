@@ -48,12 +48,16 @@ class UUIDCall:
             call = mock_uuid.calls[0]
             assert call.was_mocked is True
             assert call.caller_module == "test_example"
+            assert call.caller_function == "test_tracking"
+            assert call.caller_line is not None
     """
 
     uuid: uuid.UUID
     was_mocked: bool
     caller_module: str | None = None
     caller_file: str | None = None
+    caller_line: int | None = None
+    caller_function: str | None = None
 
 
 @runtime_checkable
