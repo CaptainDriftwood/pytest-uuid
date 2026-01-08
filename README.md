@@ -591,6 +591,8 @@ def test_call_tracking(mock_uuid):
 - `was_mocked` - `True` if mocked, `False` if real (spy mode or ignored module)
 - `caller_module` - Name of the module that made the call
 - `caller_file` - File path where the call originated
+- `caller_line` - Line number of the call
+- `caller_function` - Function name where the call originated
 
 **Tracking Properties** (available on both `mock_uuid` and `spy_uuid`):
 - `call_count` - Total number of uuid4 calls

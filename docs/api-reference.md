@@ -171,6 +171,8 @@ from pytest_uuid.types import UUIDCall
 | `was_mocked` | `bool` | Whether the UUID was mocked |
 | `caller_module` | `str \| None` | Module that made the call |
 | `caller_file` | `str \| None` | File path of the call |
+| `caller_line` | `int \| None` | Line number of the call |
+| `caller_function` | `str \| None` | Function name where the call originated |
 
 ---
 
