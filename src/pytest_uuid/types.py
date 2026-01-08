@@ -39,6 +39,8 @@ class UUIDCall:
                    False if the real uuid.uuid4() was called (e.g., ignored module).
         caller_module: The __name__ of the module that called uuid4(), or None.
         caller_file: The file path where the call originated, or None.
+        caller_line: The line number where uuid4() was called, or None.
+        caller_function: The name of the function that called uuid4(), or None.
 
     Example:
         def test_inspect_calls(mock_uuid):
