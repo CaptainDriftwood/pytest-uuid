@@ -201,3 +201,51 @@ def test_b_still_works():
 
     result = pytester.runpytest("-v", "-p", "no:randomly")
     result.assert_outcomes(passed=2)
+
+
+def test_stale_function_restored_to_true_original(pytester):
+    """Verify module's uuid4 is restored to TRUE original, not stale patched.
+
+    This tests a bug where modules with stale patched functions were being
+    "restored" to their stale value instead of the true original uuid.uuid4.
+
+    The fix ensures that __enter__ always stores self._original_uuid4 as the
+    restoration target, consistent with the import hook behavior.
+    """
+    pytester.makepyfile(
+        helper_module="""
+from uuid import uuid4
+
+def generate():
+    return uuid4()
+"""
+    )
+
+    pytester.makepyfile(
+        test_restoration="""
+import sys
+import uuid
+from pytest_uuid import freeze_uuid
+
+def test_restoration():
+    # Clean slate
+    if "helper_module" in sys.modules:
+        del sys.modules["helper_module"]
+
+    # Context A: Import during context
+    with freeze_uuid(seed=1):
+        import helper_module
+
+    # Context B: Use module (would fail if stale function not handled)
+    with freeze_uuid(seed=2):
+        pass
+
+    # After both contexts, module should have TRUE original
+    assert helper_module.uuid4 is uuid.uuid4, (
+        "Module's uuid4 should be true original, not stale patched function"
+    )
+"""
+    )
+
+    result = pytester.runpytest("-v")
+    result.assert_outcomes(passed=1)

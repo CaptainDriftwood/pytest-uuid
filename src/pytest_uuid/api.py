@@ -296,8 +296,9 @@ class UUIDFreezer(CallTrackingMixin):
 
         for module, attr_name in uuid4_imports:
             if module is not uuid:  # Skip uuid module, we already handle it
-                original = getattr(module, attr_name)
-                patches_to_apply.append((module, attr_name, original))
+                # Always restore to true original, not current value (which may be
+                # a stale patched function from a previous context)
+                patches_to_apply.append((module, attr_name, self._original_uuid4))
 
         for module, attr_name, original in patches_to_apply:
             self._patched_locations.append((module, attr_name, original))
