@@ -788,10 +788,12 @@ def test_botocore_ignored_by_default(venv_with_botocore, tmp_path):
 @pytest.mark.slow
 @pytest.mark.botocore
 def test_botocore_freezer_tracks_real_uuid_calls(venv_with_botocore, tmp_path):
-    """Test that freeze_uuid's built-in tracking records botocore's real UUID calls.
+    """Test that freeze_uuid tracks botocore's real UUID calls with was_mocked=False.
 
-    When botocore is ignored, the freezer should still record the call but
-    mark it as was_mocked=False and show the caller_module as botocore.
+    When botocore is ignored, the freezer should:
+    - Return real UUIDs for botocore calls (not mocked)
+    - Track the ignored calls with was_mocked=False (for debugging visibility)
+    - NOT affect the seeded sequence position (tracking is separate from generation)
 
     Note: We use freeze_uuid's built-in tracking instead of spy_uuid because
     they can't be combined (freeze_uuid patches over the spy).
@@ -813,10 +815,15 @@ def test_botocore_freezer_tracks_real_uuid_calls(venv_with_botocore, tmp_path):
                 direct = uuid.uuid4()
                 assert str(direct) == "44444444-4444-4444-9444-444444444444"
 
-                # Then a botocore call (should be real)
+                # Then a botocore call (should be real but tracked)
                 params = {}
                 generate_idempotent_uuid(params, MockModel())
                 botocore_uuid = params["ClientToken"]
+
+                # Botocore UUID should be real (not our mocked value)
+                assert botocore_uuid != "44444444-4444-4444-9444-444444444444"
+                # Verify it's a valid UUID format
+                uuid.UUID(botocore_uuid)
 
                 # Check freezer recorded both calls
                 assert freezer.call_count == 2
@@ -826,7 +833,7 @@ def test_botocore_freezer_tracks_real_uuid_calls(venv_with_botocore, tmp_path):
                 real_calls = freezer.real_calls
 
                 assert len(mocked_calls) == 1
-                assert len(real_calls) == 1
+                assert len(real_calls) == 1  # Botocore call is tracked as real
 
                 # Mocked call should be our direct uuid.uuid4()
                 assert str(mocked_calls[0].uuid) == "44444444-4444-4444-9444-444444444444"

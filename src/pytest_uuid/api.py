@@ -233,8 +233,8 @@ class UUIDFreezer(CallTrackingMixin):
             return mark_as_patched(patched_uuid4)
 
         def patched_uuid4_with_ignore() -> uuid.UUID:
-            caller_module, caller_file, caller_line, caller_function = (
-                _get_caller_info(skip_frames=2)
+            caller_module, caller_file, caller_line, caller_function = _get_caller_info(
+                skip_frames=2
             )
 
             # Walk up the call stack to check for ignored modules
