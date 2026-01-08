@@ -119,7 +119,7 @@ class UUIDImportHook:
 
             return result
 
-        builtins.__import__ = patching_import
+        builtins.__import__ = patching_import  # type: ignore[assignment]
         self._installed = True
 
     def uninstall(self) -> None:
@@ -128,7 +128,7 @@ class UUIDImportHook:
             return
 
         if self._original_import is not None:
-            builtins.__import__ = self._original_import
+            builtins.__import__ = self._original_import  # type: ignore[assignment]
             self._original_import = None
 
         self._installed = False
@@ -153,7 +153,10 @@ class UUIDImportHook:
                 should_patch = False
 
                 # Case 1: Has original uuid4 (imported before our context started)
-                if attr_value is self.original_uuid4 or (is_patched_uuid4(attr_value) and attr_value is not self.patched_uuid4):
+                if attr_value is self.original_uuid4 or (
+                    is_patched_uuid4(attr_value)
+                    and attr_value is not self.patched_uuid4
+                ):
                     should_patch = True
 
                 # Case 3: Already has our patched function (just track it)
@@ -179,6 +182,5 @@ class UUIDImportHook:
     def _is_tracked(self, module: object, attr_name: str) -> bool:
         """Check if a module/attribute is already tracked for restoration."""
         return any(
-            m is module and name == attr_name
-            for m, name, _ in self.patched_locations
+            m is module and name == attr_name for m, name, _ in self.patched_locations
         )
