@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "pytest-uuid"
-version = "0.3.0"
+version = "0.4.0"
 description = "A pytest plugin for mocking uuid.uuid4() calls"
 readme = "README.md"
 license = "MIT"
@@ -137,6 +137,10 @@ exclude_lines = [
 show_missing = true
 
 [dependency-groups]
+boto = [
+    "boto3>=1.42.24",
+    "moto>=5.1.19",
+]
 dev = [
     "nox>=2024.4.15",
     "nox-uv>=0.2.0",
