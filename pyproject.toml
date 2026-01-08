@@ -58,7 +58,6 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "thread: marks tests that use multiple threads",
     "parallel: marks tests that use multiple processes (e.g., xdist)",
-    "botocore: marks tests that require or test botocore integration",
 ]
 
 [tool.ruff]
@@ -138,8 +137,6 @@ show_missing = true
 
 [dependency-groups]
 dev = [
-    "boto3>=1.42.24",
-    "moto>=5.1.19",
     "nox>=2024.4.15",
     "nox-uv>=0.2.0",
     "pytest-cov>=4.0.0",
