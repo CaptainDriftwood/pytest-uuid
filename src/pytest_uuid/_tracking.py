@@ -11,6 +11,7 @@ import inspect
 import sys
 import uuid
 
+from pytest_uuid._import_hook import is_patched_uuid4
 from pytest_uuid.types import UUIDCall
 
 
@@ -57,9 +58,16 @@ def _find_uuid4_imports(original_uuid4: object) -> list[tuple[object, str]]:
     """Find all modules that have imported uuid4 directly.
 
     Returns a list of (module, attribute_name) tuples for modules that have
-    the original uuid4 function as an attribute. This handles both standard
-    imports (from uuid import uuid4) and aliased imports
-    (from uuid import uuid4 as my_uuid).
+    either:
+    1. The original uuid4 function (by identity)
+    2. A stale patched uuid4 from a previous freeze_uuid context (by marker)
+
+    This handles both standard imports (from uuid import uuid4) and aliased
+    imports (from uuid import uuid4 as my_uuid).
+
+    The stale patch detection (via marker) fixes Bug #31 where modules imported
+    DURING a freeze_uuid context get a patched uuid4 that isn't restored on
+    __exit__, causing subsequent contexts to miss these modules.
     """
     imports = []
     for module in sys.modules.values():
@@ -69,10 +77,11 @@ def _find_uuid4_imports(original_uuid4: object) -> list[tuple[object, str]]:
             module_dict = getattr(module, "__dict__", None)
             if module_dict is None:
                 continue
-            # Scan all attributes to find any that reference the original uuid4.
+            # Scan all attributes to find any that reference uuid4.
             # This handles aliased imports like: from uuid import uuid4 as my_uuid
             for attr_name, attr_value in module_dict.items():
-                if attr_value is original_uuid4:
+                # Case 1: Original uuid4 function (normal case)
+                if attr_value is original_uuid4 or is_patched_uuid4(attr_value):
                     imports.append((module, attr_name))
         except (TypeError, AttributeError, RuntimeError):
             # TypeError: unusual module types

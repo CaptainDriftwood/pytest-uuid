@@ -160,27 +160,27 @@ class TestNormalBehavior:
 
 
 class TestBugDemonstration:
-    """Tests demonstrating Bug #2 by simulating the inter-test behavior.
+    """Tests verifying Bug #31 is FIXED.
 
-    These tests simulate what happens when:
+    GitHub Issue: https://github.com/CaptainDriftwood/pytest-uuid/issues/31
+
+    These tests verify the fix works when:
     1. One freeze_uuid context patches a module during import
-    2. That context exits (module's uuid4 becomes stale)
-    3. A NEW freeze_uuid context starts and tries to use the same module
+    2. That context exits (module's uuid4 is now properly restored)
+    3. A NEW freeze_uuid context starts and correctly patches the module
     """
 
-    def test_bug_stale_patch_function_not_found(self):
-        """BUG: After __exit__, module's stale uuid4 is not found by new context.
+    def test_late_import_is_properly_tracked_and_restored(self):
+        """FIXED: Module imported during context is tracked and restored on exit.
 
-        This test simulates the inter-test behavior:
-        1. First freeze_uuid context: clean import, module gets patched
-        2. Context exits, module's uuid4 stays as stale patched function
-        3. Second freeze_uuid context: _find_uuid4_imports doesn't find module
-        4. UUIDs become non-deterministic
+        The import hook now:
+        1. Catches modules imported during freeze_uuid context
+        2. Tracks them in _patched_locations
+        3. Restores their uuid4 to original on __exit__
         """
         _cleanup_module_properly()
 
-        # --- Simulate Test A ---
-        # First freeze_uuid context patches uuid.uuid4
+        # --- Context A ---
         with freeze_uuid(seed=42) as freezer_a:
             # Import during context - module gets PATCHED uuid4
             from tests.late_import_bug import late_imported_module
@@ -194,50 +194,31 @@ class TestBugDemonstration:
                 "Should work within same context"
             )
 
-            # Save reference to the module's uuid4 (patched version)
-            patched_uuid4_from_context_a = late_imported_module.uuid4
-
-        # --- After Test A ends ---
-        # __exit__ restores uuid.uuid4 to original
-        # BUT late_imported_module.uuid4 still points to patched function from A
-        # (because late_imported_module was NOT in _patched_locations)
-
-        # Verify module's uuid4 is stale (still patched, not original)
-        assert late_imported_module.uuid4 is patched_uuid4_from_context_a, (
-            "After __exit__, module still has stale patched uuid4"
+        # --- After Context A ends ---
+        # FIXED: Module's uuid4 is now restored to original
+        # (import hook tracked the module and restored it on __exit__)
+        assert late_imported_module.uuid4 is uuid.uuid4, (
+            "Module's uuid4 should be restored to original after __exit__"
         )
 
-        # --- Simulate Test B ---
-        # New freeze_uuid context
+        # --- Context B ---
         with freeze_uuid(seed=99) as freezer_b:
-            # Check if module was patched by new context
+            # FIXED: Module is now properly found and patched
             original_uuid4 = freezer_b._original_uuid4
 
-            # BUG: The module's uuid4 is NOT the original function
-            # So _find_uuid4_imports didn't find it!
+            # Module's uuid4 is patched (not the original)
             assert late_imported_module.uuid4 is not original_uuid4, (
-                "BUG: Module's uuid4 is stale patched function, not original"
+                "Module's uuid4 should be patched by new context"
             )
 
-            # BUG: The module's uuid4 is also NOT the new patched function!
-            # It's still the OLD patched function from context A
-            patched_uuid4_from_context_b = freezer_b._create_patched_uuid4()
-            assert late_imported_module.uuid4 is not patched_uuid4_from_context_b, (
-                "BUG: Module wasn't patched by new context"
-            )
-
-            # BUG: UUIDs are non-deterministic
-            # The module's uuid4 calls the stale function from context A
-            # which uses context A's (now invalid) generator
+            # FIXED: UUIDs are now deterministic!
             freezer_b.reset()
             uuid_in_context_b_1 = late_imported_module.generate_uuid()
             freezer_b.reset()
             uuid_in_context_b_2 = late_imported_module.generate_uuid()
 
-            # These are NOT equal - the bug causes non-deterministic UUIDs
-            assert uuid_in_context_b_1 != uuid_in_context_b_2, (
-                "BUG CONFIRMED: UUIDs are non-deterministic. "
-                "Stale patched function from previous context causes random UUIDs."
+            assert uuid_in_context_b_1 == uuid_in_context_b_2, (
+                "UUIDs should be deterministic after fix"
             )
 
 

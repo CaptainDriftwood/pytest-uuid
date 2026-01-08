@@ -43,6 +43,7 @@ import random
 import uuid
 from typing import TYPE_CHECKING, Literal, overload
 
+from pytest_uuid._import_hook import UUIDImportHook, mark_as_patched
 from pytest_uuid._tracking import (
     CallTrackingMixin,
     _find_uuid4_imports,
@@ -165,6 +166,7 @@ class UUIDFreezer(CallTrackingMixin):
         self._generator: UUIDGenerator | None = None
         self._original_uuid4: Callable[[], uuid.UUID] | None = None
         self._patched_locations: list[tuple[object, str, object]] = []
+        self._import_hook: UUIDImportHook | None = None
 
         # Call tracking
         self._call_count: int = 0
@@ -224,7 +226,7 @@ class UUIDFreezer(CallTrackingMixin):
                 )
                 return result
 
-            return patched_uuid4
+            return mark_as_patched(patched_uuid4)
 
         def patched_uuid4_with_ignore() -> uuid.UUID:
             caller_module, caller_file = _get_caller_info(skip_frames=2)
@@ -261,14 +263,22 @@ class UUIDFreezer(CallTrackingMixin):
             )
             return result
 
-        return patched_uuid4_with_ignore
+        return mark_as_patched(patched_uuid4_with_ignore)
 
     def __enter__(self) -> UUIDFreezer:
-        """Start freezing uuid.uuid4()."""
+        """Start freezing uuid.uuid4().
+
+        This method:
+        1. Creates the patched uuid4 function (marked with _pytest_uuid_patched)
+        2. Finds all modules with uuid4 references (including stale patches)
+        3. Patches all found locations
+        4. Installs an import hook to catch modules imported during the context
+        """
         self._original_uuid4 = uuid.uuid4
         self._generator = self._create_generator()
         patched = self._create_patched_uuid4()
 
+        # Find all modules with uuid4 references, including stale patched ones
         uuid4_imports = _find_uuid4_imports(self._original_uuid4)
 
         patches_to_apply: list[tuple[object, str, object]] = []
@@ -283,10 +293,28 @@ class UUIDFreezer(CallTrackingMixin):
             self._patched_locations.append((module, attr_name, original))
             setattr(module, attr_name, patched)
 
+        # Install import hook to catch modules imported during this context
+        # This ensures newly imported modules also get patched and tracked
+        self._import_hook = UUIDImportHook(
+            self._original_uuid4, patched, self._patched_locations
+        )
+        self._import_hook.install()
+
         return self
 
     def __exit__(self, *args: object) -> None:
-        """Stop freezing and restore original uuid.uuid4()."""
+        """Stop freezing and restore original uuid.uuid4().
+
+        This method:
+        1. Uninstalls the import hook
+        2. Restores all patched locations to their original values
+        """
+        # Uninstall import hook first to stop intercepting new imports
+        if self._import_hook is not None:
+            self._import_hook.uninstall()
+            self._import_hook = None
+
+        # Restore all patched locations
         for module, attr_name, original in self._patched_locations:
             setattr(module, attr_name, original)
         self._patched_locations.clear()

@@ -1,40 +1,29 @@
-"""Integration tests for Bug #31: Stale patched functions cause non-deterministic UUIDs.
+"""Integration tests for Bug #31: Stale patched functions - NOW FIXED.
 
 GitHub Issue: https://github.com/CaptainDriftwood/pytest-uuid/issues/31
 
-TODO: This bug will be fixed in a future release. Once fixed, the assertions
-in these tests should be updated to expect DETERMINISTIC behavior:
-- Change `assert uuid1 != uuid2` to `assert uuid1 == uuid2`
-- Change `assert module_uuid4 is not original_uuid4` to `is original_uuid4`
-- Change `assert "late_import_helper2" not in module_names` to `in`
+This bug has been FIXED via the import hook mechanism. These tests verify:
+1. Modules imported during freeze_uuid context are properly tracked
+2. Their uuid4 is restored to original on __exit__
+3. Subsequent freeze_uuid contexts correctly find and patch them
+4. UUIDs are deterministic across multiple freeze_uuid contexts
 
-This test reproduces the bug where modules imported DURING a freeze_uuid context
-get a stale patched function that causes non-deterministic UUIDs in subsequent
-freeze_uuid contexts.
-
-The bug occurs because:
-1. Module is imported DURING freeze_uuid context (after __enter__)
-2. Module's `from uuid import uuid4` gets the patched function
-3. Context exits, but module's uuid4 isn't in _patched_locations (not restored)
-4. Next context's _find_uuid4_imports() doesn't find it (identity check fails)
-5. Module's stale patched function returns random UUIDs
-
-The existing tests don't catch this because they import helper modules at the
-TOP of the test file (before any freeze_uuid context starts).
+The fix uses two mechanisms:
+1. Import hook: Intercepts imports during freeze_uuid and tracks them
+2. Stale patch detection: _find_uuid4_imports() now finds functions marked
+   with _pytest_uuid_patched attribute from previous contexts
 """
 
 from __future__ import annotations
 
 
-def test_bug_stale_patch_causes_non_deterministic_uuids(pytester):
-    """BUG #31: Module imported during freeze_uuid gets stale patched function.
+def test_fixed_late_import_is_deterministic(pytester):
+    """FIXED: Module imported during freeze_uuid now works in subsequent contexts.
 
-    This test reproduces the bug by:
-    1. Creating test_a that imports a module DURING freeze_uuid context
-    2. Creating test_b that uses the same module with a different freeze_uuid
-    3. Verifying that test_b gets NON-deterministic UUIDs (the bug)
-
-    After the bug is fixed, this test should FAIL (UUIDs should be deterministic).
+    This test verifies the fix works:
+    1. test_a imports a module DURING freeze_uuid context
+    2. test_b uses the same module with a different freeze_uuid
+    3. test_b now gets DETERMINISTIC UUIDs (bug is fixed)
     """
     # Create helper module with `from uuid import uuid4`
     pytester.makepyfile(
@@ -47,13 +36,13 @@ def generate_uuid():
     )
 
     pytester.makepyfile(
-        test_stale_patch_bug="""
+        test_late_import_fixed="""
 import sys
 import pytest
 from pytest_uuid import freeze_uuid
 
 # NOTE: We do NOT import late_import_helper here!
-# The bug requires importing it DURING a freeze_uuid context.
+# The fix ensures it works even when imported during freeze_uuid context.
 
 def test_a_import_during_freeze():
     '''Test A: Import module during freeze_uuid context.'''
@@ -62,7 +51,7 @@ def test_a_import_during_freeze():
         del sys.modules["late_import_helper"]
 
     with freeze_uuid(seed=42) as freezer:
-        # Import DURING freeze_uuid context - this is the bug trigger
+        # Import DURING freeze_uuid context - import hook tracks it
         import late_import_helper
 
         # Verify it works in this context
@@ -78,18 +67,18 @@ def test_b_use_module_in_new_context():
     import late_import_helper
 
     with freeze_uuid(seed=99) as freezer:
-        # BUG: UUIDs are non-deterministic because module's uuid4
-        # is a stale patched function from test_a's context
+        # FIXED: UUIDs are now deterministic because:
+        # 1. Import hook tracked the module in test_a
+        # 2. Module's uuid4 was restored to original on __exit__
+        # 3. This context correctly finds and patches it
         freezer.reset()
         uuid1 = late_import_helper.generate_uuid()
         freezer.reset()
         uuid2 = late_import_helper.generate_uuid()
 
-        # BUG DEMONSTRATION: These should be equal but ARE NOT
-        # After bug is fixed, change this to: assert uuid1 == uuid2
-        assert uuid1 != uuid2, (
-            "BUG: UUIDs are non-deterministic. "
-            "Stale patched function from test_a causes random UUIDs."
+        # FIXED: UUIDs are now deterministic!
+        assert uuid1 == uuid2, (
+            "FIXED: UUIDs should be deterministic after fix"
         )
 """
     )
@@ -99,11 +88,11 @@ def test_b_use_module_in_new_context():
     result.assert_outcomes(passed=2)
 
 
-def test_bug_module_uuid4_is_stale_patched_function(pytester):
-    """BUG #31: Verify module's uuid4 is stale patched function, not original.
+def test_fixed_module_uuid4_is_restored_to_original(pytester):
+    """FIXED: Verify module's uuid4 is restored to original after __exit__.
 
-    This test verifies the root cause: after test_a's freeze_uuid context exits,
-    the module's uuid4 is still the patched function (not restored to original).
+    This test verifies the fix: after freeze_uuid context exits,
+    the module's uuid4 is restored to the original function.
     """
     pytester.makepyfile(
         late_import_helper2="""
@@ -118,13 +107,13 @@ def get_uuid4_function():
     )
 
     pytester.makepyfile(
-        test_stale_function="""
+        test_restored_function="""
 import sys
 import uuid
 from pytest_uuid import freeze_uuid
 
-def test_a_creates_stale_reference():
-    '''Import module during freeze_uuid, creating stale reference.'''
+def test_a_module_is_restored_after_exit():
+    '''Import module during freeze_uuid, verify restoration on exit.'''
     if "late_import_helper2" in sys.modules:
         del sys.modules["late_import_helper2"]
 
@@ -132,32 +121,33 @@ def test_a_creates_stale_reference():
         import late_import_helper2
         # Module's uuid4 is now the patched function
 
-    # After __exit__, uuid.uuid4 is restored to original
-    # But late_import_helper2.uuid4 is STILL the patched function
+    # FIXED: After __exit__, module's uuid4 is restored to original
+    # (import hook tracked and restored it)
     original_uuid4 = uuid.uuid4
     module_uuid4 = late_import_helper2.get_uuid4_function()
 
-    # BUG: module_uuid4 should be original_uuid4 but it's not
-    assert module_uuid4 is not original_uuid4, (
-        "BUG: Module's uuid4 is stale patched function, not original"
+    # FIXED: module_uuid4 IS original_uuid4 now
+    assert module_uuid4 is original_uuid4, (
+        "FIXED: Module's uuid4 should be restored to original after __exit__"
     )
 
-def test_b_find_uuid4_imports_misses_module():
-    '''Verify _find_uuid4_imports doesn't find the stale module.'''
+def test_b_find_uuid4_imports_finds_module():
+    '''Verify _find_uuid4_imports finds the module (no longer stale).'''
     import late_import_helper2
     from pytest_uuid._tracking import _find_uuid4_imports
 
     original_uuid4 = uuid.uuid4
     module_uuid4 = late_import_helper2.get_uuid4_function()
 
-    # The module's uuid4 is NOT the original function
-    # So _find_uuid4_imports won't find it
+    # FIXED: The module's uuid4 IS the original function now
+    assert module_uuid4 is original_uuid4, "Module uuid4 should be original"
+
     imports = _find_uuid4_imports(original_uuid4)
     module_names = [m.__name__ for m, _ in imports]
 
-    # BUG: late_import_helper2 is NOT in the list
-    assert "late_import_helper2" not in module_names, (
-        "BUG: _find_uuid4_imports doesn't find module with stale uuid4"
+    # FIXED: late_import_helper2 IS in the list
+    assert "late_import_helper2" in module_names, (
+        "FIXED: _find_uuid4_imports should find module with original uuid4"
     )
 """
     )
