@@ -28,7 +28,7 @@ A pytest plugin for mocking `uuid.uuid4()` calls in your tests.
 ## Features
 
 - Mock `uuid.uuid4()` with deterministic values in your tests
-- Works with both `import uuid` and `from uuid import uuid4` patterns
+- Works with both `import uuid` and `from uuid import uuid4` patterns ([how?](https://captaindriftwood.github.io/pytest-uuid/guide/how-it-works/))
 - Multiple ways to mock: static, sequence, seeded, or node-seeded
 - Decorator, marker, and fixture APIs (inspired by freezegun)
 - Configurable exhaustion behavior for sequences
