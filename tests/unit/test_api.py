@@ -504,3 +504,37 @@ def test_decorator_respects_ignore_defaults_false():
 
     result = func()
     assert str(result) == "55555555-5555-4555-9555-555555555555"
+
+
+# --- Ignore list tracking tests ---
+
+
+def test_ignored_calls_tracked_with_was_mocked_false():
+    """Verify that ignored module calls ARE tracked with was_mocked=False.
+
+    When a module in the ignore list calls uuid.uuid4(), the call should:
+    - Return a real UUID (not from the seeded sequence)
+    - BE tracked (call_count increments, added to calls list)
+    - Be marked with was_mocked=False
+
+    This allows debugging visibility while still returning real UUIDs.
+    """
+    with freeze_uuid(seed=42, ignore=["tests"]) as freezer:
+        # Make a call that will be detected as "from ignored module"
+        # (the tests module is in the ignore list)
+        result = uuid.uuid4()
+
+        # The call IS tracked (for debugging visibility)
+        assert freezer.call_count == 1, "Ignored calls should be tracked"
+        assert len(freezer.calls) == 1, "Ignored calls should appear in calls list"
+        assert len(freezer.generated_uuids) == 1
+
+        # But marked as not mocked
+        call = freezer.calls[0]
+        assert call.was_mocked is False, "Ignored calls should have was_mocked=False"
+        assert len(freezer.real_calls) == 1
+        assert len(freezer.mocked_calls) == 0
+
+        # The result should be a real v4 UUID (not from our seeded generator)
+        assert result.version == 4
+        assert freezer.generated_uuids[0] == result

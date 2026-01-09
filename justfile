@@ -117,9 +117,9 @@ clean-all:
 build: clean
     uv build
 
-# Sync dependencies (create/update venv)
+# Sync dependencies (create/update venv with all groups)
 sync:
-    uv sync
+    uv sync --all-groups
 
 # Lock dependencies
 lock:

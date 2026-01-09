@@ -1,4 +1,29 @@
-"""UUID generation strategies for pytest-uuid."""
+"""UUID generation strategies for pytest-uuid.
+
+This module provides the generator classes that produce UUIDs for mocking.
+Each generator implements the UUIDGenerator protocol and can be used
+internally by UUIDMocker and UUIDFreezer.
+
+Generator Types:
+    StaticUUIDGenerator: Always returns the same UUID. Used when you call
+        mock_uuid.set() with a single UUID.
+
+    SequenceUUIDGenerator: Returns UUIDs from a list in order. Used when
+        you call mock_uuid.set() with multiple UUIDs. Behavior when the
+        sequence is exhausted is controlled by ExhaustionBehavior.
+
+    SeededUUIDGenerator: Produces reproducible UUIDs from a seed value.
+        Used when you call mock_uuid.set_seed() or use seed="node".
+
+    RandomUUIDGenerator: Delegates to the real uuid.uuid4(). Used internally
+        when no mocking is configured but patching is still needed for the
+        ignore list feature.
+
+Extending:
+    To create a custom generator, subclass UUIDGenerator and implement
+    __call__() and reset(). Then pass your generator to UUIDMocker directly
+    via its _generator attribute (advanced usage).
+"""
 
 from __future__ import annotations
 
@@ -13,11 +38,35 @@ if TYPE_CHECKING:
 
 
 class ExhaustionBehavior(Enum):
-    """Behavior when a UUID sequence is exhausted."""
+    """Controls behavior when a UUID sequence runs out of values.
 
-    CYCLE = "cycle"  # Loop back to start
-    RANDOM = "random"  # Fall back to random UUIDs
-    RAISE = "raise"  # Raise UUIDsExhaustedError
+    When using mock_uuid.set() with multiple UUIDs or freeze_uuid with a list,
+    this determines what happens after all UUIDs have been returned once.
+
+    Values:
+        CYCLE: Loop back to the first UUID and repeat the sequence indefinitely.
+            This is the default behavior. Use when you don't care about exact
+            call counts or want infinite UUIDs from a small set.
+
+        RANDOM: Switch to generating random valid UUID v4 values after the
+            sequence is exhausted. Use when you need specific UUIDs for early
+            calls but don't care about later ones.
+
+        RAISE: Raise UUIDsExhaustedError when the sequence runs out. Use when
+            you want to enforce that exactly N uuid4() calls happen in your
+            test - any additional calls will fail the test.
+
+    Example:
+        mock_uuid.set_exhaustion_behavior("raise")
+        mock_uuid.set("uuid1", "uuid2")
+        uuid.uuid4()  # Returns uuid1
+        uuid.uuid4()  # Returns uuid2
+        uuid.uuid4()  # Raises UUIDsExhaustedError
+    """
+
+    CYCLE = "cycle"
+    RANDOM = "random"
+    RAISE = "raise"
 
 
 class UUIDsExhaustedError(Exception):
@@ -68,19 +117,40 @@ def generate_uuid_from_random(rng: random.Random) -> uuid.UUID:
 
 
 class UUIDGenerator(ABC):
-    """Abstract base class for UUID generators."""
+    """Abstract base class for UUID generators.
+
+    All generator classes inherit from this base and implement two methods:
+    - __call__(): Generate and return the next UUID
+    - reset(): Reset internal state to start the sequence over
+
+    The generators are used internally by UUIDMocker and UUIDFreezer.
+    Users typically don't instantiate generators directly; instead, use
+    mock_uuid.set(), mock_uuid.set_seed(), or the freeze_uuid decorator.
+    """
 
     @abstractmethod
     def __call__(self) -> uuid.UUID:
-        """Generate the next UUID."""
+        """Generate and return the next UUID."""
 
     @abstractmethod
     def reset(self) -> None:
-        """Reset the generator to its initial state."""
+        """Reset the generator to its initial state.
+
+        After reset(), the next __call__() will return the first UUID
+        in the sequence (for SequenceUUIDGenerator) or restart the
+        random sequence (for SeededUUIDGenerator with an integer seed).
+        """
 
 
 class StaticUUIDGenerator(UUIDGenerator):
-    """Generator that always returns the same UUID."""
+    """Generator that always returns the same UUID.
+
+    Used internally when mock_uuid.set() is called with a single UUID.
+    Every call to __call__() returns the same UUID instance.
+
+    Args:
+        value: The UUID to return on every call.
+    """
 
     def __init__(self, value: uuid.UUID) -> None:
         self._value = value
@@ -93,7 +163,20 @@ class StaticUUIDGenerator(UUIDGenerator):
 
 
 class SequenceUUIDGenerator(UUIDGenerator):
-    """Generator that returns UUIDs from a sequence."""
+    """Generator that returns UUIDs from a sequence in order.
+
+    Used internally when mock_uuid.set() is called with multiple UUIDs.
+    Returns UUIDs in the order provided, then handles exhaustion according
+    to the on_exhausted parameter.
+
+    Args:
+        uuids: Sequence of UUIDs to return in order.
+        on_exhausted: Behavior when sequence is exhausted (default: CYCLE).
+        fallback_rng: Random instance for RANDOM exhaustion behavior.
+
+    Attributes:
+        is_exhausted: True if the sequence has been fully consumed at least once.
+    """
 
     def __init__(
         self,
@@ -138,7 +221,22 @@ class SequenceUUIDGenerator(UUIDGenerator):
 
 
 class SeededUUIDGenerator(UUIDGenerator):
-    """Generator that produces reproducible UUIDs from a seed."""
+    """Generator that produces reproducible UUIDs from a seed.
+
+    Used internally when mock_uuid.set_seed() is called or when using
+    seed="node" with the freeze_uuid marker. Generates valid UUID v4 values
+    deterministically from the seed.
+
+    Args:
+        seed: Either an integer seed (creates internal Random instance) or
+            a random.Random instance (BYOP - bring your own randomizer).
+            If a Random instance is provided, reset() will have no effect
+            since the caller controls the random state.
+
+    Note:
+        The same seed always produces the same sequence of UUIDs, making
+        tests reproducible. Different seeds produce different sequences.
+    """
 
     def __init__(self, seed: int | random.Random) -> None:
         if isinstance(seed, random.Random):
@@ -159,7 +257,16 @@ class SeededUUIDGenerator(UUIDGenerator):
 
 
 class RandomUUIDGenerator(UUIDGenerator):
-    """Generator that produces random UUIDs (delegates to uuid.uuid4)."""
+    """Generator that produces random UUIDs by delegating to uuid.uuid4().
+
+    Used internally when no specific mocking is configured but the patching
+    infrastructure is still needed (e.g., for the ignore list feature).
+    This generator simply calls the original uuid.uuid4() function.
+
+    Args:
+        original_uuid4: The original uuid.uuid4 function to delegate to.
+            If None, uses uuid.uuid4 directly (which may already be patched).
+    """
 
     def __init__(self, original_uuid4: Callable[[], uuid.UUID] | None = None) -> None:
         self._original_uuid4 = original_uuid4 or uuid.uuid4

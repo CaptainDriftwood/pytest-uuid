@@ -1,6 +1,17 @@
-"""Type definitions for pytest-uuid.
+"""Type definitions and protocols for pytest-uuid.
 
-This module provides Protocol classes for type checking and IDE support.
+This module provides:
+    - UUIDCall: Dataclass for tracking individual uuid4() call metadata
+    - UUIDMockerProtocol: Type protocol for the mock_uuid fixture
+    - UUIDSpyProtocol: Type protocol for the spy_uuid fixture
+
+These protocols enable proper type checking and IDE autocomplete when using
+the fixtures. Import them for type annotations:
+
+    from pytest_uuid import UUIDMockerProtocol, UUIDSpyProtocol
+
+    def test_example(mock_uuid: UUIDMockerProtocol) -> None:
+        mock_uuid.set("...")  # IDE autocomplete works here
 """
 
 from __future__ import annotations
@@ -28,6 +39,12 @@ class UUIDCall:
                    False if the real uuid.uuid4() was called (e.g., ignored module).
         caller_module: The __name__ of the module that called uuid4(), or None.
         caller_file: The file path where the call originated, or None.
+        caller_line: The line number where uuid4() was called, or None.
+        caller_function: The name of the function that called uuid4(), or None.
+        caller_qualname: The qualified name of the function (e.g., "MyClass.method"),
+                        or None. On Python 3.11+, uses native co_qualname. On earlier
+                        versions, uses best-effort reconstruction via self/cls params
+                        and gc.get_referrers().
 
     Example:
         def test_inspect_calls(mock_uuid):
@@ -37,12 +54,18 @@ class UUIDCall:
             call = mock_uuid.calls[0]
             assert call.was_mocked is True
             assert call.caller_module == "test_example"
+            assert call.caller_function == "test_tracking"
+            assert call.caller_qualname == "test_tracking"  # or "MyClass.method"
+            assert call.caller_line is not None
     """
 
     uuid: uuid.UUID
     was_mocked: bool
     caller_module: str | None = None
     caller_file: str | None = None
+    caller_line: int | None = None
+    caller_function: str | None = None
+    caller_qualname: str | None = None
 
 
 @runtime_checkable

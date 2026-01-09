@@ -134,20 +134,31 @@ For session-wide mocking, use a session-scoped autouse fixture in `conftest.py`:
 
 ```python
 # conftest.py
+import hashlib
+
 import pytest
 from pytest_uuid import freeze_uuid
 
 
 @pytest.fixture(scope="session", autouse=True)
 def freeze_uuids_globally(request):
-    # Use session node ID as seed for all tests
-    seed = hash(request.node.nodeid)
+    # Use hashlib for deterministic seeding across processes.
+    # Python's hash() is randomized per-process via PYTHONHASHSEED:
+    # https://docs.python.org/3/using/cmdline.html#envvar-PYTHONHASHSEED
+    #
+    # Convert node ID to a deterministic integer seed:
+    # 1. hashlib.sha256() creates a hash of the node ID string
+    # 2. .hexdigest() returns the hash as a 64-char hex string
+    # 3. [:16] takes first 16 hex chars (64 bits) - plenty of uniqueness
+    # 4. int(..., 16) converts hex string to integer
+    node_bytes = request.node.nodeid.encode()
+    seed = int(hashlib.sha256(node_bytes).hexdigest()[:16], 16)
     with freeze_uuid(seed=seed):
         yield
 ```
 
 !!! note
-    For session-level fixtures, use `request.node.nodeid` directly since `seed="node"` in the marker requires per-test context.
+    For session-level fixtures, use `request.node.nodeid` directly since `seed="node"` in the marker requires per-test context. Always use `hashlib` (not `hash()`) for node-derived seeds, as Python's built-in `hash()` is randomized per-process.
 
 ## Parameters
 

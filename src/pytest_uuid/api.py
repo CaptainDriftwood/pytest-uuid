@@ -1,4 +1,39 @@
-"""Core API for pytest-uuid including the freeze_uuid decorator."""
+"""Core API for pytest-uuid including the freeze_uuid decorator.
+
+This module provides the primary user-facing API for controlling UUID generation:
+
+    freeze_uuid: Factory function that returns a UUIDFreezer. Use this as a
+        decorator (@freeze_uuid("...")) or context manager (with freeze_uuid("...")).
+        This is the recommended way to mock UUIDs in a declarative style.
+
+    UUIDFreezer: The underlying class that handles patching. Supports both
+        decorator and context manager usage. Most users should use freeze_uuid()
+        instead of instantiating UUIDFreezer directly.
+
+How Patching Works:
+    When activated, UUIDFreezer patches uuid.uuid4 globally AND scans sys.modules
+    to find any module that has imported uuid4 directly (via `from uuid import uuid4`).
+    This ensures mocking works regardless of how the code under test imports uuid4.
+
+Thread Safety:
+    UUIDFreezer is NOT thread-safe. Each thread should use its own instance.
+    For multi-threaded tests, consider using separate freezers per thread or
+    synchronizing access to a shared freezer.
+
+Example:
+    # As a decorator
+    @freeze_uuid("12345678-1234-4678-8234-567812345678")
+    def test_user_creation():
+        user = create_user()
+        assert user.id == "12345678-1234-4678-8234-567812345678"
+
+    # As a context manager with call tracking
+    with freeze_uuid(seed=42) as freezer:
+        first = uuid.uuid4()
+        second = uuid.uuid4()
+        assert freezer.call_count == 2
+        assert freezer.generated_uuids == [first, second]
+"""
 
 from __future__ import annotations
 
@@ -8,6 +43,7 @@ import random
 import uuid
 from typing import TYPE_CHECKING, Literal, overload
 
+from pytest_uuid._import_hook import UUIDImportHook, mark_as_patched
 from pytest_uuid._tracking import (
     CallTrackingMixin,
     _find_uuid4_imports,
@@ -55,7 +91,32 @@ class UUIDFreezer(CallTrackingMixin):
     """Context manager and decorator for freezing uuid.uuid4() calls.
 
     This class provides fine-grained control over UUID generation during tests.
-    It can be used as a decorator or context manager.
+    It can be used as a decorator or context manager. Most users should use
+    the freeze_uuid() factory function instead of instantiating this directly.
+
+    Usage Patterns:
+        - As decorator: @freeze_uuid("uuid") applies to entire function
+        - As context manager: with freeze_uuid("uuid") as f: ... for scoped control
+        - On classes: @freeze_uuid("uuid") wraps all test_* methods
+
+    Call Tracking:
+        While active, tracks all uuid4() calls via inherited properties:
+        - call_count: Total number of uuid4() calls
+        - generated_uuids: List of all UUIDs returned
+        - last_uuid: Most recent UUID returned
+        - calls: List of UUIDCall records with metadata
+        - mocked_calls / real_calls: Filtered by whether mocked or ignored
+
+    Example:
+        # Context manager with call inspection
+        with freeze_uuid(seed=42) as freezer:
+            first = uuid.uuid4()
+            second = uuid.uuid4()
+
+        assert freezer.call_count == 2
+        assert freezer.generated_uuids[0] == first
+        for call in freezer.calls:
+            print(f"{call.caller_module}: {call.uuid}")
     """
 
     def __init__(
@@ -105,6 +166,7 @@ class UUIDFreezer(CallTrackingMixin):
         self._generator: UUIDGenerator | None = None
         self._original_uuid4: Callable[[], uuid.UUID] | None = None
         self._patched_locations: list[tuple[object, str, object]] = []
+        self._import_hook: UUIDImportHook | None = None
 
         # Call tracking
         self._call_count: int = 0
@@ -154,20 +216,35 @@ class UUIDFreezer(CallTrackingMixin):
         if not ignore_list:
 
             def patched_uuid4() -> uuid.UUID:
-                caller_module, caller_file = _get_caller_info(skip_frames=2)
+                (
+                    caller_module,
+                    caller_file,
+                    caller_line,
+                    caller_function,
+                    caller_qualname,
+                ) = _get_caller_info(skip_frames=2)
                 result = generator()  # type: ignore[misc]
                 freezer._record_call(
                     result,
                     was_mocked=True,
                     caller_module=caller_module,
                     caller_file=caller_file,
+                    caller_line=caller_line,
+                    caller_function=caller_function,
+                    caller_qualname=caller_qualname,
                 )
                 return result
 
-            return patched_uuid4
+            return mark_as_patched(patched_uuid4)
 
         def patched_uuid4_with_ignore() -> uuid.UUID:
-            caller_module, caller_file = _get_caller_info(skip_frames=2)
+            (
+                caller_module,
+                caller_file,
+                caller_line,
+                caller_function,
+                caller_qualname,
+            ) = _get_caller_info(skip_frames=2)
 
             # Walk up the call stack to check for ignored modules
             frame = inspect.currentframe()
@@ -186,6 +263,9 @@ class UUIDFreezer(CallTrackingMixin):
                             was_mocked=False,
                             caller_module=caller_module,
                             caller_file=caller_file,
+                            caller_line=caller_line,
+                            caller_function=caller_function,
+                            caller_qualname=caller_qualname,
                         )
                         return result
                     frame = frame.f_back
@@ -198,17 +278,28 @@ class UUIDFreezer(CallTrackingMixin):
                 was_mocked=True,
                 caller_module=caller_module,
                 caller_file=caller_file,
+                caller_line=caller_line,
+                caller_function=caller_function,
+                caller_qualname=caller_qualname,
             )
             return result
 
-        return patched_uuid4_with_ignore
+        return mark_as_patched(patched_uuid4_with_ignore)
 
     def __enter__(self) -> UUIDFreezer:
-        """Start freezing uuid.uuid4()."""
+        """Start freezing uuid.uuid4().
+
+        This method:
+        1. Creates the patched uuid4 function (marked with _pytest_uuid_patched)
+        2. Finds all modules with uuid4 references (including stale patches)
+        3. Patches all found locations
+        4. Installs an import hook to catch modules imported during the context
+        """
         self._original_uuid4 = uuid.uuid4
         self._generator = self._create_generator()
         patched = self._create_patched_uuid4()
 
+        # Find all modules with uuid4 references, including stale patched ones
         uuid4_imports = _find_uuid4_imports(self._original_uuid4)
 
         patches_to_apply: list[tuple[object, str, object]] = []
@@ -216,17 +307,36 @@ class UUIDFreezer(CallTrackingMixin):
 
         for module, attr_name in uuid4_imports:
             if module is not uuid:  # Skip uuid module, we already handle it
-                original = getattr(module, attr_name)
-                patches_to_apply.append((module, attr_name, original))
+                # Always restore to true original, not current value (which may be
+                # a stale patched function from a previous context)
+                patches_to_apply.append((module, attr_name, self._original_uuid4))
 
         for module, attr_name, original in patches_to_apply:
             self._patched_locations.append((module, attr_name, original))
             setattr(module, attr_name, patched)
 
+        # Install import hook to catch modules imported during this context
+        # This ensures newly imported modules also get patched and tracked
+        self._import_hook = UUIDImportHook(
+            self._original_uuid4, patched, self._patched_locations
+        )
+        self._import_hook.install()
+
         return self
 
     def __exit__(self, *args: object) -> None:
-        """Stop freezing and restore original uuid.uuid4()."""
+        """Stop freezing and restore original uuid.uuid4().
+
+        This method:
+        1. Uninstalls the import hook
+        2. Restores all patched locations to their original values
+        """
+        # Uninstall import hook first to stop intercepting new imports
+        if self._import_hook is not None:
+            self._import_hook.uninstall()
+            self._import_hook = None
+
+        # Restore all patched locations
         for module, attr_name, original in self._patched_locations:
             setattr(module, attr_name, original)
         self._patched_locations.clear()

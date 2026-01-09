@@ -154,3 +154,6 @@ The `UUIDCall` dataclass contains:
 | `was_mocked` | `True` if mocked, `False` if real |
 | `caller_module` | Name of the module that made the call |
 | `caller_file` | File path where the call originated |
+| `caller_line` | Line number of the call |
+| `caller_function` | Function name where the call originated |
+| `caller_qualname` | Qualified name (e.g., `MyClass.method` or `outer.<locals>.inner`) |

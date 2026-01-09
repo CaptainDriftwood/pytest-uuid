@@ -683,100 +683,111 @@ def test_installed_pkg_both_import_patterns(venv_with_packages, tmp_path):
     assert "3 passed" in result.stdout
 
 
-# --- Botocore default ignore tests ---
-
-
-@pytest.fixture
-def venv_with_botocore(venv):
-    """Create a venv with pytest-uuid and botocore installed."""
-    venv.create()
-
-    # Install pytest-uuid from local source (editable)
-    venv.install(str(PYTEST_UUID_ROOT), editable=True)
-
-    # Install botocore (lightweight, no need for full boto3)
-    venv.install("botocore")
-
-    return venv
+# --- Ignore list call tracking tests ---
 
 
 @pytest.mark.slow
-def test_botocore_ignored_by_default(venv_with_botocore, tmp_path):
-    """Test that botocore receives real UUIDs when freeze_uuid is active.
+def test_installed_pkg_ignored_calls_tracked_with_was_mocked_false(
+    venv_with_packages, tmp_path
+):
+    """Test that ignored module calls are tracked with was_mocked=False.
 
-    This verifies the DEFAULT_IGNORE_PACKAGES functionality works correctly
-    with a real botocore installation. botocore uses uuid.uuid4() internally
-    for generating idempotent ClientTokens in AWS API operations.
+    When a module is in the ignore list, its uuid.uuid4() calls should:
+    - Return real UUIDs (not from the seeded sequence)
+    - BE tracked (call_count increments, added to calls list)
+    - Be marked with was_mocked=False
 
-    We test this by calling botocore.handlers.generate_idempotent_uuid()
-    with a mock model, which triggers botocore's internal uuid.uuid4() call.
+    This tests both import patterns:
+    - service.py uses 'from uuid import uuid4'
+    - alt_service.py uses 'import uuid'
     """
     test_content = textwrap.dedent('''
-        """Test botocore is ignored by default in freeze_uuid."""
+        """Test ignored calls are tracked with was_mocked=False."""
         import uuid
         from pytest_uuid import freeze_uuid
+        from uuid_testpkg import generate_id  # from uuid import uuid4
+        from uuid_testpkg import alt_generate_id  # import uuid
 
-        # Import botocore's internal UUID generator
-        from botocore.handlers import generate_idempotent_uuid
+        def test_ignored_calls_tracked_direct_import():
+            """Test service.py (from uuid import uuid4) tracked correctly."""
+            with freeze_uuid(seed=42, ignore=["uuid_testpkg"]) as freezer:
+                # Call from ignored module
+                from_pkg = generate_id()
 
-        class MockModel:
-            """Mock AWS operation model with idempotent member."""
-            idempotent_members = ["ClientToken"]
+                # Should be tracked
+                assert freezer.call_count >= 1
 
-        def test_botocore_gets_real_uuid_when_mocking_active():
-            """Verify botocore generates real UUIDs even when freeze_uuid is active."""
-            with freeze_uuid("11111111-1111-4111-8111-111111111111"):
-                # Direct uuid.uuid4() should return mocked value
-                direct_uuid = uuid.uuid4()
-                assert str(direct_uuid) == "11111111-1111-4111-8111-111111111111"
+                # Find calls from uuid_testpkg
+                pkg_calls = [
+                    c for c in freezer.calls
+                    if c.caller_module and c.caller_module.startswith("uuid_testpkg")
+                ]
+                assert len(pkg_calls) >= 1, "Should have at least one uuid_testpkg call"
 
-                # botocore's generate_idempotent_uuid should get a REAL UUID
-                # because botocore is in DEFAULT_IGNORE_PACKAGES
-                params = {}
-                generate_idempotent_uuid(params, MockModel())
+                # Ignored calls should be marked as not mocked
+                for call in pkg_calls:
+                    assert call.was_mocked is False, (
+                        f"Ignored call should have was_mocked=False, got {call}"
+                    )
 
-                botocore_uuid = params["ClientToken"]
+        def test_ignored_calls_tracked_module_import():
+            """Test alt_service.py (import uuid) tracked correctly."""
+            with freeze_uuid(seed=42, ignore=["uuid_testpkg"]) as freezer:
+                # Call from ignored module (uses import uuid pattern)
+                from_pkg = alt_generate_id()
 
-                # Should NOT be our mocked UUID
-                assert botocore_uuid != "11111111-1111-4111-8111-111111111111"
+                # Should be tracked
+                assert freezer.call_count >= 1
 
-                # Should be a valid v4 UUID
-                parsed = uuid.UUID(botocore_uuid)
-                assert parsed.version == 4
+                # Find calls from uuid_testpkg
+                pkg_calls = [
+                    c for c in freezer.calls
+                    if c.caller_module and c.caller_module.startswith("uuid_testpkg")
+                ]
+                assert len(pkg_calls) >= 1
 
-        def test_botocore_can_be_explicitly_mocked_by_disabling_defaults():
-            """Verify botocore CAN be mocked if ignore_defaults is False."""
+                # Ignored calls should be marked as not mocked
+                for call in pkg_calls:
+                    assert call.was_mocked is False
+
+        def test_mixed_mocked_and_ignored_calls():
+            """Test tracking both mocked and ignored calls together."""
             with freeze_uuid(
-                "22222222-2222-4222-8222-222222222222",
-                ignore_defaults=False  # Disable default ignore list
-            ):
-                params = {}
-                generate_idempotent_uuid(params, MockModel())
+                "11111111-1111-4111-8111-111111111111",
+                ignore=["uuid_testpkg"]
+            ) as freezer:
+                # Direct call (mocked)
+                direct = uuid.uuid4()
+                assert str(direct) == "11111111-1111-4111-8111-111111111111"
 
-                botocore_uuid = params["ClientToken"]
+                # Ignored calls (real)
+                from_service = generate_id()
+                from_alt = alt_generate_id()
 
-                # NOW it should be mocked since we disabled default ignores
-                assert botocore_uuid == "22222222-2222-4222-8222-222222222222"
+                # Verify tracking
+                assert freezer.call_count == 3
 
-        def test_botocore_ignored_with_decorator():
-            """Test @freeze_uuid decorator also respects default ignore list."""
-            @freeze_uuid("33333333-3333-4333-8333-333333333333")
-            def inner():
-                params = {}
-                generate_idempotent_uuid(params, MockModel())
-                return params["ClientToken"]
+                # Check mocked vs real counts
+                assert freezer.mocked_count == 1
+                assert freezer.real_count == 2
 
-            result = inner()
+                # Verify mocked_calls
+                mocked = freezer.mocked_calls
+                assert len(mocked) == 1
+                assert str(mocked[0].uuid) == "11111111-1111-4111-8111-111111111111"
 
-            # Should be a real UUID, not the mocked one
-            assert result != "33333333-3333-4333-8333-333333333333"
-            assert uuid.UUID(result).version == 4
+                # Verify real_calls
+                real = freezer.real_calls
+                assert len(real) == 2
+                for call in real:
+                    assert call.was_mocked is False
+                    assert call.caller_module.startswith("uuid_testpkg")
     ''')
 
     test_dir = tmp_path / "tests"
     write_test_files(test_dir, test_content)
 
-    result = run_pytest_in_venv(venv_with_botocore, test_dir, "-p", "no:randomly")
+    result = run_pytest_in_venv(venv_with_packages, test_dir, "-p", "no:randomly")
 
     assert result.returncode == 0, (
         f"Tests failed:\\nSTDOUT:\\n{result.stdout}\\nSTDERR:\\n{result.stderr}"
@@ -785,61 +796,89 @@ def test_botocore_ignored_by_default(venv_with_botocore, tmp_path):
 
 
 @pytest.mark.slow
-def test_botocore_freezer_tracks_real_uuid_calls(venv_with_botocore, tmp_path):
-    """Test that freeze_uuid's built-in tracking records botocore's real UUID calls.
+def test_installed_pkg_ignored_calls_dont_affect_sequence(venv_with_packages, tmp_path):
+    """Test that ignored module calls don't affect the seeded sequence position.
 
-    When botocore is ignored, the freezer should still record the call but
-    mark it as was_mocked=False and show the caller_module as botocore.
+    This is the key behavior: when a module is ignored, its uuid.uuid4() calls
+    should NOT consume positions in the seeded sequence. The next mocked call
+    should get the next UUID in sequence as if the ignored calls never happened.
 
-    Note: We use freeze_uuid's built-in tracking instead of spy_uuid because
-    they can't be combined (freeze_uuid patches over the spy).
+    This tests both import patterns to ensure neither affects the sequence.
     """
     test_content = textwrap.dedent('''
-        """Test freeze_uuid tracking of botocore UUID calls."""
+        """Test ignored calls don't affect seeded sequence position."""
         import uuid
         from pytest_uuid import freeze_uuid
+        from uuid_testpkg import generate_id  # from uuid import uuid4
+        from uuid_testpkg import alt_generate_id  # import uuid
 
-        from botocore.handlers import generate_idempotent_uuid
+        def test_ignored_calls_dont_shift_sequence():
+            """Verify ignored calls don't consume sequence positions."""
+            # First, establish baseline: what UUIDs does seed=42 produce?
+            with freeze_uuid(seed=42) as baseline:
+                baseline_uuid1 = uuid.uuid4()
+                baseline_uuid2 = uuid.uuid4()
+                baseline_uuid3 = uuid.uuid4()
 
-        class MockModel:
-            idempotent_members = ["ClientToken"]
+            # Now with ignored module calls interspersed
+            with freeze_uuid(seed=42, ignore=["uuid_testpkg"]) as freezer:
+                # These ignored calls should NOT affect sequence
+                generate_id()  # from uuid import uuid4 pattern
+                alt_generate_id()  # import uuid pattern
+                generate_id()
 
-        def test_freezer_tracks_botocore_real_calls():
-            """Verify freeze_uuid tracks botocore calls as real (not mocked)."""
-            with freeze_uuid("44444444-4444-4444-9444-444444444444") as freezer:
-                # First, a direct call (should be mocked)
-                direct = uuid.uuid4()
-                assert str(direct) == "44444444-4444-4444-9444-444444444444"
+                # Now get mocked UUIDs - should match baseline exactly
+                actual_uuid1 = uuid.uuid4()
+                actual_uuid2 = uuid.uuid4()
 
-                # Then a botocore call (should be real)
-                params = {}
-                generate_idempotent_uuid(params, MockModel())
-                botocore_uuid = params["ClientToken"]
+                # More ignored calls
+                alt_generate_id()
+                generate_id()
 
-                # Check freezer recorded both calls
-                assert freezer.call_count == 2
+                actual_uuid3 = uuid.uuid4()
 
-                # Check the mocked vs real distinction
-                mocked_calls = freezer.mocked_calls
-                real_calls = freezer.real_calls
+            # Key assertion: sequence positions unaffected by ignored calls
+            assert actual_uuid1 == baseline_uuid1, (
+                f"First mocked UUID should be {baseline_uuid1}, got {actual_uuid1}. "
+                f"Ignored calls shifted the sequence!"
+            )
+            assert actual_uuid2 == baseline_uuid2, (
+                f"Second mocked UUID should be {baseline_uuid2}, got {actual_uuid2}"
+            )
+            assert actual_uuid3 == baseline_uuid3, (
+                f"Third mocked UUID should be {baseline_uuid3}, got {actual_uuid3}"
+            )
 
-                assert len(mocked_calls) == 1
-                assert len(real_calls) == 1
+        def test_sequence_with_alternating_mocked_and_ignored():
+            """Test alternating between mocked and ignored calls."""
+            with freeze_uuid(seed=99) as baseline:
+                b1 = uuid.uuid4()
+                b2 = uuid.uuid4()
+                b3 = uuid.uuid4()
+                b4 = uuid.uuid4()
 
-                # Mocked call should be our direct uuid.uuid4()
-                assert str(mocked_calls[0].uuid) == "44444444-4444-4444-9444-444444444444"
+            with freeze_uuid(seed=99, ignore=["uuid_testpkg"]) as freezer:
+                a1 = uuid.uuid4()  # mocked
+                generate_id()  # ignored
+                a2 = uuid.uuid4()  # mocked
+                alt_generate_id()  # ignored
+                generate_id()  # ignored
+                a3 = uuid.uuid4()  # mocked
+                alt_generate_id()  # ignored
+                a4 = uuid.uuid4()  # mocked
 
-                # Real call should be from botocore
-                assert str(real_calls[0].uuid) == botocore_uuid
-                assert real_calls[0].caller_module.startswith("botocore")
+            assert a1 == b1
+            assert a2 == b2
+            assert a3 == b3
+            assert a4 == b4
     ''')
 
     test_dir = tmp_path / "tests"
     write_test_files(test_dir, test_content)
 
-    result = run_pytest_in_venv(venv_with_botocore, test_dir, "-p", "no:randomly")
+    result = run_pytest_in_venv(venv_with_packages, test_dir, "-p", "no:randomly")
 
     assert result.returncode == 0, (
         f"Tests failed:\\nSTDOUT:\\n{result.stdout}\\nSTDERR:\\n{result.stderr}"
     )
-    assert "1 passed" in result.stdout
+    assert "2 passed" in result.stdout

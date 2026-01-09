@@ -241,6 +241,157 @@ def test_mock_uuid_calls_from_filter(pytester):
     result.assert_outcomes(passed=1)
 
 
+def test_mock_uuid_tracks_caller_line_and_function(pytester):
+    """Test that mock_uuid tracks line number and function name for each call."""
+    pytester.makepyfile(
+        test_caller_line_function="""
+import uuid
+
+def test_line_and_function_tracked(mock_uuid):
+    mock_uuid.set("12345678-1234-4678-8234-567812345678")
+
+    # First call on this line
+    uuid.uuid4()  # line 8
+
+    # Second call on different line
+    uuid.uuid4()  # line 11
+
+    assert mock_uuid.call_count == 2
+    call1 = mock_uuid.calls[0]
+    call2 = mock_uuid.calls[1]
+
+    # Both calls should have line numbers
+    assert call1.caller_line is not None
+    assert call2.caller_line is not None
+
+    # Line numbers should be different
+    assert call1.caller_line != call2.caller_line
+
+    # Both should be from the same function
+    assert call1.caller_function == "test_line_and_function_tracked"
+    assert call2.caller_function == "test_line_and_function_tracked"
+"""
+    )
+
+    result = pytester.runpytest("-v")
+    result.assert_outcomes(passed=1)
+
+
+def test_mock_uuid_tracks_caller_function_across_modules(pytester):
+    """Test that caller_function is tracked correctly across different modules."""
+    pytester.makepyfile(
+        helper_funcs="""
+import uuid
+
+def function_one():
+    return uuid.uuid4()
+
+def function_two():
+    return uuid.uuid4()
+
+class MyClass:
+    def method_three(self):
+        return uuid.uuid4()
+"""
+    )
+
+    pytester.makepyfile(
+        test_cross_module_functions="""
+import uuid
+import helper_funcs
+
+def test_function_names_tracked(mock_uuid):
+    mock_uuid.set("12345678-1234-4678-8234-567812345678")
+
+    # Call from this test function
+    uuid.uuid4()
+
+    # Calls from different functions in helper module
+    helper_funcs.function_one()
+    helper_funcs.function_two()
+
+    # Call from a method
+    obj = helper_funcs.MyClass()
+    obj.method_three()
+
+    assert mock_uuid.call_count == 4
+
+    # Verify function names
+    assert mock_uuid.calls[0].caller_function == "test_function_names_tracked"
+    assert mock_uuid.calls[1].caller_function == "function_one"
+    assert mock_uuid.calls[2].caller_function == "function_two"
+    assert mock_uuid.calls[3].caller_function == "method_three"
+"""
+    )
+
+    result = pytester.runpytest("-v")
+    result.assert_outcomes(passed=1)
+
+
+def test_spy_uuid_tracks_caller_line_and_function(pytester):
+    """Test that spy_uuid also tracks line number and function name."""
+    pytester.makepyfile(
+        test_spy_caller_tracking="""
+import uuid
+
+def helper_function():
+    return uuid.uuid4()
+
+def test_spy_tracks_caller_info(spy_uuid):
+    # Direct call
+    uuid.uuid4()
+
+    # Call from helper
+    helper_function()
+
+    assert spy_uuid.call_count == 2
+
+    # First call from test function
+    call1 = spy_uuid.calls[0]
+    assert call1.caller_function == "test_spy_tracks_caller_info"
+    assert call1.caller_line is not None
+
+    # Second call from helper function
+    call2 = spy_uuid.calls[1]
+    assert call2.caller_function == "helper_function"
+    assert call2.caller_line is not None
+"""
+    )
+
+    result = pytester.runpytest("-v")
+    result.assert_outcomes(passed=1)
+
+
+def test_freeze_uuid_decorator_tracks_caller_info(pytester):
+    """Test that @freeze_uuid decorator tracks caller_line and caller_function."""
+    pytester.makepyfile(
+        test_decorator_caller_tracking="""
+import uuid
+from pytest_uuid import freeze_uuid
+
+@freeze_uuid(seed=42)
+def test_decorator_tracks_caller():
+    def inner_helper():
+        return uuid.uuid4()
+
+    # Direct call
+    first = uuid.uuid4()
+
+    # Call from inner function
+    second = inner_helper()
+
+    # Note: We can't access the freezer directly with decorator,
+    # but we can verify the UUIDs are deterministic (tracking works)
+    # The main verification is that no errors occur during tracking
+    assert first.version == 4
+    assert second.version == 4
+"""
+    )
+
+    result = pytester.runpytest("-v")
+    result.assert_outcomes(passed=1)
+
+
 def test_mock_uuid_mocked_vs_real_with_spy_mode(pytester):
     """Test tracking mocked vs real calls with spy mode."""
     pytester.makepyfile(

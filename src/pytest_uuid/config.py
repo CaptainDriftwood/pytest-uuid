@@ -1,4 +1,37 @@
-"""Global configuration for pytest-uuid."""
+"""Global configuration for pytest-uuid.
+
+This module manages plugin-wide settings that apply to all UUID mocking
+unless overridden at the individual test or decorator level.
+
+Configuration Sources (in order of precedence):
+    1. Test-level: @freeze_uuid(..., ignore=["pkg"]) or mock_uuid.set_ignore("pkg")
+    2. Session-level: configure() in conftest.py
+    3. File-level: [tool.pytest_uuid] in pyproject.toml
+
+Key Configuration Options:
+    default_ignore_list: Packages that should never have uuid4 patched.
+        Default includes "botocore" to avoid interfering with AWS SDK
+        idempotency token generation.
+
+    extend_ignore_list: Additional packages to ignore (added to defaults).
+
+    default_exhaustion_behavior: What happens when a UUID sequence runs out.
+        Options: "cycle" (default), "random", "raise".
+
+Example pyproject.toml:
+    [tool.pytest_uuid]
+    extend_ignore_list = ["sqlalchemy", "celery"]
+    default_exhaustion_behavior = "raise"
+
+Example conftest.py:
+    import pytest_uuid
+
+    def pytest_configure(config):
+        pytest_uuid.configure(
+            extend_ignore_list=["myapp.internal"],
+            default_exhaustion_behavior="raise",
+        )
+"""
 
 from __future__ import annotations
 
@@ -38,24 +71,40 @@ DEFAULT_IGNORE_PACKAGES: list[str] = ["botocore"]
 class PytestUUIDConfig:
     """Global configuration for pytest-uuid.
 
-    This class manages global settings that apply to all UUID mocking
-    unless overridden at the individual test/decorator level.
+    This dataclass holds settings that apply to all UUID mocking operations
+    unless overridden at the individual test or decorator level.
+
+    Attributes:
+        default_ignore_list: Module prefixes that should never have uuid4 patched.
+            Default: ["botocore"]. Set via configure(default_ignore_list=[...])
+            to replace entirely.
+
+        extend_ignore_list: Additional module prefixes to ignore, added to
+            default_ignore_list. Use configure(extend_ignore_list=[...]) to add
+            packages without losing the defaults.
+
+        default_exhaustion_behavior: What happens when a UUID sequence runs out.
+            Default: ExhaustionBehavior.CYCLE (loop back to start).
+
+    Note:
+        This class is managed internally. Use the configure() function to
+        modify settings, or set them in [tool.pytest_uuid] in pyproject.toml.
     """
 
-    # Default packages to ignore when patching uuid4
-    # These packages will continue to use real uuid.uuid4()
     default_ignore_list: list[str] = field(
         default_factory=lambda: list(DEFAULT_IGNORE_PACKAGES)
     )
 
-    # Additional packages to ignore (extends default_ignore_list)
     extend_ignore_list: list[str] = field(default_factory=list)
 
-    # Default behavior when UUID sequence is exhausted
     default_exhaustion_behavior: ExhaustionBehavior = ExhaustionBehavior.CYCLE
 
     def get_ignore_list(self) -> tuple[str, ...]:
-        """Get the combined ignore list as a tuple."""
+        """Get the combined ignore list (default + extended) as a tuple.
+
+        Returns:
+            Tuple of module prefixes that should be excluded from uuid4 patching.
+        """
         return tuple(self.default_ignore_list + self.extend_ignore_list)
 
 

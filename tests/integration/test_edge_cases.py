@@ -1492,3 +1492,56 @@ def test_deep_nesting_different_configs(pytester):
 
     result = pytester.runpytest("-v")
     result.assert_outcomes(passed=1)
+
+
+def test_nested_contexts_with_module_imports(pytester):
+    """Test nested freeze_uuid with modules using 'from uuid import uuid4'.
+
+    This specifically tests that modules with direct uuid4 imports are
+    correctly patched and restored through nested contexts.
+    """
+    pytester.makepyfile(
+        uuid_helper="""
+from uuid import uuid4
+
+def generate():
+    return uuid4()
+"""
+    )
+
+    pytester.makepyfile(
+        test_nested_with_imports="""
+import uuid
+import uuid_helper
+from pytest_uuid.api import freeze_uuid
+
+def test_nested_module_imports():
+    # Outer context with seed=1
+    with freeze_uuid(seed=1) as outer:
+        outer.reset()
+        outer_uuid1 = uuid_helper.generate()
+
+        # Inner context with seed=2
+        with freeze_uuid(seed=2) as inner:
+            inner.reset()
+            inner_uuid1 = uuid_helper.generate()
+
+            # Inner should use seed=2, different from outer
+            inner.reset()
+            inner_uuid2 = uuid_helper.generate()
+            assert inner_uuid1 == inner_uuid2, "Inner should be deterministic"
+
+        # After inner exits, outer should still work with seed=1
+        outer.reset()
+        outer_uuid2 = uuid_helper.generate()
+        assert outer_uuid1 == outer_uuid2, "Outer should still be deterministic after inner exits"
+
+    # After all contexts exit, uuid_helper should have true original
+    assert uuid_helper.uuid4 is uuid.uuid4, (
+        "Module's uuid4 should be restored to true original"
+    )
+"""
+    )
+
+    result = pytester.runpytest("-v")
+    result.assert_outcomes(passed=1)

@@ -6,11 +6,14 @@ across UUIDMocker, UUIDSpy, and UUIDFreezer classes.
 
 from __future__ import annotations
 
+import gc
 import hashlib
 import inspect
 import sys
 import uuid
+from types import FrameType, FunctionType
 
+from pytest_uuid._import_hook import is_patched_uuid4
 from pytest_uuid.types import UUIDCall
 
 
@@ -26,15 +29,78 @@ def _get_node_seed(node_id: str) -> int:
     return int(hashlib.md5(node_id.encode()).hexdigest()[:8], 16)  # noqa: S324
 
 
-def _get_caller_info(skip_frames: int = 2) -> tuple[str | None, str | None]:
-    """Get caller module and file information.
+def _get_qualname(frame: FrameType) -> str | None:
+    """Get qualified name of the function from a frame.
+
+    On Python 3.11+, uses the native co_qualname attribute which provides
+    accurate qualified names in all cases.
+
+    On Python 3.9/3.10, uses best-effort reconstruction via:
+    1. Instance method detection (self parameter) -> type(self).__qualname__.method
+    2. Class method detection (cls parameter) -> cls.__qualname__.method
+    3. gc.get_referrers() to find the function object when unambiguous
+    4. Fallback to simple function name
+
+    Note: The fallback approach has semantic differences in some edge cases:
+    - Inherited methods: Returns Child.method instead of Parent.method
+    - Multiple closures sharing code: Returns simple name when ambiguous
+
+    Args:
+        frame: The frame object to extract qualified name from.
+
+    Returns:
+        Qualified name like "MyClass.method" or "outer.<locals>.inner",
+        or the simple function name if reconstruction fails, or None.
+    """
+    # Python 3.11+: use native co_qualname
+    # TODO: When minimum Python version is 3.11+, simplify to just:
+    #       return frame.f_code.co_qualname
+    if sys.version_info >= (3, 11):
+        return frame.f_code.co_qualname  # type: ignore[attr-defined]
+
+    func_name = frame.f_code.co_name
+
+    # Approach 1: Instance method (check for 'self')
+    self_obj = frame.f_locals.get("self")
+    if self_obj is not None:
+        return f"{type(self_obj).__qualname__}.{func_name}"
+
+    # Approach 2: Class method (check for 'cls')
+    cls_obj = frame.f_locals.get("cls")
+    if cls_obj is not None and isinstance(cls_obj, type):
+        return f"{cls_obj.__qualname__}.{func_name}"
+
+    # Approach 3: Use gc.get_referrers() to find function object
+    code = frame.f_code
+    try:
+        funcs = [f for f in gc.get_referrers(code) if isinstance(f, FunctionType)]
+        if len(funcs) == 1:
+            return funcs[0].__qualname__
+        if len(funcs) > 1:
+            # Try to disambiguate by matching __name__
+            matching = [f for f in funcs if f.__name__ == func_name]
+            if len(matching) == 1:
+                return matching[0].__qualname__
+    except Exception:  # noqa: S110
+        # gc.get_referrers can fail in edge cases; fall back to simple name
+        pass
+
+    # Fallback to simple name
+    return func_name
+
+
+def _get_caller_info(
+    skip_frames: int = 2,
+) -> tuple[str | None, str | None, int | None, str | None, str | None]:
+    """Get caller module, file, line number, function name, and qualname.
 
     Args:
         skip_frames: Number of frames to skip (default 2 skips this function
                     and the calling function).
 
     Returns:
-        Tuple of (module_name, file_path) or (None, None) if unavailable.
+        Tuple of (module_name, file_path, line_number, function_name, qualname).
+        Any or all values may be None if unavailable.
     """
     frame = inspect.currentframe()
     try:
@@ -44,11 +110,14 @@ def _get_caller_info(skip_frames: int = 2) -> tuple[str | None, str | None]:
                 frame = frame.f_back
 
         if frame is None:
-            return None, None
+            return None, None, None, None, None
 
         module_name = frame.f_globals.get("__name__")
         file_path = frame.f_code.co_filename
-        return module_name, file_path
+        line_number = frame.f_lineno
+        function_name = frame.f_code.co_name
+        qualname = _get_qualname(frame)
+        return module_name, file_path, line_number, function_name, qualname
     finally:
         del frame
 
@@ -57,9 +126,16 @@ def _find_uuid4_imports(original_uuid4: object) -> list[tuple[object, str]]:
     """Find all modules that have imported uuid4 directly.
 
     Returns a list of (module, attribute_name) tuples for modules that have
-    the original uuid4 function as an attribute. This handles both standard
-    imports (from uuid import uuid4) and aliased imports
-    (from uuid import uuid4 as my_uuid).
+    either:
+    1. The original uuid4 function (by identity)
+    2. A stale patched uuid4 from a previous freeze_uuid context (by marker)
+
+    This handles both standard imports (from uuid import uuid4) and aliased
+    imports (from uuid import uuid4 as my_uuid).
+
+    The stale patch detection (via marker) fixes Bug #31 where modules imported
+    DURING a freeze_uuid context get a patched uuid4 that isn't restored on
+    __exit__, causing subsequent contexts to miss these modules.
     """
     imports = []
     for module in sys.modules.values():
@@ -69,10 +145,11 @@ def _find_uuid4_imports(original_uuid4: object) -> list[tuple[object, str]]:
             module_dict = getattr(module, "__dict__", None)
             if module_dict is None:
                 continue
-            # Scan all attributes to find any that reference the original uuid4.
+            # Scan all attributes to find any that reference uuid4.
             # This handles aliased imports like: from uuid import uuid4 as my_uuid
             for attr_name, attr_value in module_dict.items():
-                if attr_value is original_uuid4:
+                # Case 1: Original uuid4 function (normal case)
+                if attr_value is original_uuid4 or is_patched_uuid4(attr_value):
                     imports.append((module, attr_name))
         except (TypeError, AttributeError, RuntimeError):
             # TypeError: unusual module types
@@ -109,6 +186,9 @@ class CallTrackingMixin:
         was_mocked: bool,
         caller_module: str | None,
         caller_file: str | None,
+        caller_line: int | None = None,
+        caller_function: str | None = None,
+        caller_qualname: str | None = None,
     ) -> None:
         """Record a uuid4 call for tracking.
 
@@ -117,6 +197,9 @@ class CallTrackingMixin:
             was_mocked: True if the UUID was mocked, False if real.
             caller_module: The module name where the call originated.
             caller_file: The file path where the call originated.
+            caller_line: The line number where the call originated.
+            caller_function: The function name where the call originated.
+            caller_qualname: The qualified name of the function (e.g., "MyClass.method").
         """
         self._call_count += 1
         self._generated_uuids.append(result)
@@ -126,6 +209,9 @@ class CallTrackingMixin:
                 was_mocked=was_mocked,
                 caller_module=caller_module,
                 caller_file=caller_file,
+                caller_line=caller_line,
+                caller_function=caller_function,
+                caller_qualname=caller_qualname,
             )
         )
 

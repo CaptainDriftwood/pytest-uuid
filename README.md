@@ -219,19 +219,30 @@ def test_create_admin():
 
 ```python
 # conftest.py
+import hashlib
+
 import pytest
 from pytest_uuid import freeze_uuid
 
 
 @pytest.fixture(scope="session", autouse=True)
 def freeze_uuids_globally(request):
-    # Use session node ID as seed for all tests
-    seed = hash(request.node.nodeid)
+    # Use hashlib for deterministic seeding across processes.
+    # Python's hash() is randomized per-process via PYTHONHASHSEED:
+    # https://docs.python.org/3/using/cmdline.html#envvar-PYTHONHASHSEED
+    #
+    # Convert node ID to a deterministic integer seed:
+    # 1. hashlib.sha256() creates a hash of the node ID string
+    # 2. .hexdigest() returns the hash as a 64-char hex string
+    # 3. [:16] takes first 16 hex chars (64 bits) - plenty of uniqueness
+    # 4. int(..., 16) converts hex string to integer
+    node_bytes = request.node.nodeid.encode()
+    seed = int(hashlib.sha256(node_bytes).hexdigest()[:16], 16)
     with freeze_uuid(seed=seed):
         yield
 ```
 
-> **Note:** For session-level fixtures, use `request.node.nodeid` directly since `seed="node"` in the marker requires per-test context. Alternatively, use a fixed seed for true global determinism.
+> **Note:** For session-level fixtures, use `request.node.nodeid` directly since `seed="node"` in the marker requires per-test context. Alternatively, use a fixed seed for true global determinism. Always use `hashlib` (not `hash()`) for node-derived seeds, as Python's built-in `hash()` is randomized per-process.
 
 ### Exhaustion Behavior
 
@@ -580,6 +591,9 @@ def test_call_tracking(mock_uuid):
 - `was_mocked` - `True` if mocked, `False` if real (spy mode or ignored module)
 - `caller_module` - Name of the module that made the call
 - `caller_file` - File path where the call originated
+- `caller_line` - Line number of the call
+- `caller_function` - Function name where the call originated
+- `caller_qualname` - Qualified name (e.g., `MyClass.method` or `outer.<locals>.inner`)
 
 **Tracking Properties** (available on both `mock_uuid` and `spy_uuid`):
 - `call_count` - Total number of uuid4 calls
