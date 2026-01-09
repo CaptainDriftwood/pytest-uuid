@@ -156,3 +156,4 @@ The `UUIDCall` dataclass contains:
 | `caller_file` | File path where the call originated |
 | `caller_line` | Line number of the call |
 | `caller_function` | Function name where the call originated |
+| `caller_qualname` | Qualified name (e.g., `MyClass.method` or `outer.<locals>.inner`) |

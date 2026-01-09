@@ -593,6 +593,7 @@ def test_call_tracking(mock_uuid):
 - `caller_file` - File path where the call originated
 - `caller_line` - Line number of the call
 - `caller_function` - Function name where the call originated
+- `caller_qualname` - Qualified name (e.g., `MyClass.method` or `outer.<locals>.inner`)
 
 **Tracking Properties** (available on both `mock_uuid` and `spy_uuid`):
 - `call_count` - Total number of uuid4 calls

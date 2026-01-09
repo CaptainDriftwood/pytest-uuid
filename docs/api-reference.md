@@ -173,6 +173,7 @@ from pytest_uuid.types import UUIDCall
 | `caller_file` | `str \| None` | File path of the call |
 | `caller_line` | `int \| None` | Line number of the call |
 | `caller_function` | `str \| None` | Function name where the call originated |
+| `caller_qualname` | `str \| None` | Qualified name (e.g., `MyClass.method`) |
 
 ---
 
