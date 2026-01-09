@@ -256,8 +256,8 @@ class UUIDMocker(CallTrackingMixin):
             The next UUID from the generator, or a random UUID if no
             generator is configured.
         """
-        caller_module, caller_file, caller_line, caller_function = _get_caller_info(
-            skip_frames=2
+        caller_module, caller_file, caller_line, caller_function, caller_qualname = (
+            _get_caller_info(skip_frames=2)
         )
 
         # Check if any frame in the call stack should be ignored
@@ -279,6 +279,7 @@ class UUIDMocker(CallTrackingMixin):
                             caller_file,
                             caller_line,
                             caller_function,
+                            caller_qualname,
                         )
                         return result
                     frame = frame.f_back
@@ -293,7 +294,13 @@ class UUIDMocker(CallTrackingMixin):
             was_mocked = False
 
         self._record_call(
-            result, was_mocked, caller_module, caller_file, caller_line, caller_function
+            result,
+            was_mocked,
+            caller_module,
+            caller_file,
+            caller_line,
+            caller_function,
+            caller_qualname,
         )
         return result
 
@@ -360,8 +367,8 @@ class UUIDSpy(CallTrackingMixin):
 
     def __call__(self) -> uuid.UUID:
         """Generate a real UUID and track it."""
-        caller_module, caller_file, caller_line, caller_function = _get_caller_info(
-            skip_frames=2
+        caller_module, caller_file, caller_line, caller_function, caller_qualname = (
+            _get_caller_info(skip_frames=2)
         )
         result = self._original_uuid4()
         self._record_call(
@@ -371,6 +378,7 @@ class UUIDSpy(CallTrackingMixin):
             caller_file=caller_file,
             caller_line=caller_line,
             caller_function=caller_function,
+            caller_qualname=caller_qualname,
         )
         return result
 

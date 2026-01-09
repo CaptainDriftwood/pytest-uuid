@@ -216,9 +216,13 @@ class UUIDFreezer(CallTrackingMixin):
         if not ignore_list:
 
             def patched_uuid4() -> uuid.UUID:
-                caller_module, caller_file, caller_line, caller_function = (
-                    _get_caller_info(skip_frames=2)
-                )
+                (
+                    caller_module,
+                    caller_file,
+                    caller_line,
+                    caller_function,
+                    caller_qualname,
+                ) = _get_caller_info(skip_frames=2)
                 result = generator()  # type: ignore[misc]
                 freezer._record_call(
                     result,
@@ -227,15 +231,20 @@ class UUIDFreezer(CallTrackingMixin):
                     caller_file=caller_file,
                     caller_line=caller_line,
                     caller_function=caller_function,
+                    caller_qualname=caller_qualname,
                 )
                 return result
 
             return mark_as_patched(patched_uuid4)
 
         def patched_uuid4_with_ignore() -> uuid.UUID:
-            caller_module, caller_file, caller_line, caller_function = _get_caller_info(
-                skip_frames=2
-            )
+            (
+                caller_module,
+                caller_file,
+                caller_line,
+                caller_function,
+                caller_qualname,
+            ) = _get_caller_info(skip_frames=2)
 
             # Walk up the call stack to check for ignored modules
             frame = inspect.currentframe()
@@ -256,6 +265,7 @@ class UUIDFreezer(CallTrackingMixin):
                             caller_file=caller_file,
                             caller_line=caller_line,
                             caller_function=caller_function,
+                            caller_qualname=caller_qualname,
                         )
                         return result
                     frame = frame.f_back
@@ -270,6 +280,7 @@ class UUIDFreezer(CallTrackingMixin):
                 caller_file=caller_file,
                 caller_line=caller_line,
                 caller_function=caller_function,
+                caller_qualname=caller_qualname,
             )
             return result
 

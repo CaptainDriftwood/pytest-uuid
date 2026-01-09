@@ -41,6 +41,10 @@ class UUIDCall:
         caller_file: The file path where the call originated, or None.
         caller_line: The line number where uuid4() was called, or None.
         caller_function: The name of the function that called uuid4(), or None.
+        caller_qualname: The qualified name of the function (e.g., "MyClass.method"),
+                        or None. On Python 3.11+, uses native co_qualname. On earlier
+                        versions, uses best-effort reconstruction via self/cls params
+                        and gc.get_referrers().
 
     Example:
         def test_inspect_calls(mock_uuid):
@@ -51,6 +55,7 @@ class UUIDCall:
             assert call.was_mocked is True
             assert call.caller_module == "test_example"
             assert call.caller_function == "test_tracking"
+            assert call.caller_qualname == "test_tracking"  # or "MyClass.method"
             assert call.caller_line is not None
     """
 
@@ -60,6 +65,7 @@ class UUIDCall:
     caller_file: str | None = None
     caller_line: int | None = None
     caller_function: str | None = None
+    caller_qualname: str | None = None
 
 
 @runtime_checkable

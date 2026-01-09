@@ -12,6 +12,7 @@ from pytest_uuid._tracking import (
     CallTrackingMixin,
     _find_uuid4_imports,
     _get_caller_info,
+    _get_qualname,
 )
 from pytest_uuid.types import UUIDCall
 
@@ -256,7 +257,7 @@ def test_tracking_calls_returns_copy():
 
 def test_get_caller_info_returns_module_and_file():
     """Test that _get_caller_info captures caller info."""
-    module, file, line, function = _get_caller_info(skip_frames=1)
+    module, file, line, function, qualname = _get_caller_info(skip_frames=1)
 
     assert module is not None
     assert "test_tracking" in module
@@ -265,6 +266,7 @@ def test_get_caller_info_returns_module_and_file():
     assert line is not None
     assert isinstance(line, int)
     assert function == "test_get_caller_info_returns_module_and_file"
+    assert qualname == "test_get_caller_info_returns_module_and_file"
 
 
 def test_get_caller_info_skip_frames_works():
@@ -273,12 +275,13 @@ def test_get_caller_info_skip_frames_works():
     def inner():
         return _get_caller_info(skip_frames=2)
 
-    module, _file, _line, function = inner()
+    module, _file, _line, function, qualname = inner()
 
     # Should capture this test method, not inner()
     assert module is not None
     assert "test_tracking" in module
     assert function == "test_get_caller_info_skip_frames_works"
+    assert qualname == "test_get_caller_info_skip_frames_works"
 
 
 def test_get_caller_info_deep_call_stack():
@@ -293,7 +296,7 @@ def test_get_caller_info_deep_call_stack():
         return create_nested_caller(depth - 1)
 
     # Test with 15 nested frames
-    module, file, line, function = create_nested_caller(15)
+    module, file, line, function, qualname = create_nested_caller(15)
 
     # Should still get valid caller info
     assert module is not None
@@ -301,30 +304,34 @@ def test_get_caller_info_deep_call_stack():
     assert file.endswith(".py")
     assert line is not None
     assert function is not None
+    assert qualname is not None
 
 
 def test_get_caller_info_skip_frames_beyond_stack():
     """Test _get_caller_info when skip_frames exceeds stack depth."""
     # Skip more frames than exist in the stack
-    module, file, line, function = _get_caller_info(skip_frames=1000)
+    module, file, line, function, qualname = _get_caller_info(skip_frames=1000)
 
     # Should return None for all values gracefully
     assert module is None
     assert file is None
     assert line is None
     assert function is None
+    assert qualname is None
 
 
 def test_get_caller_info_from_lambda():
     """Test _get_caller_info called from a lambda."""
     get_info = lambda: _get_caller_info(skip_frames=1)  # noqa: E731
-    module, file, line, function = get_info()
+    module, file, line, function, qualname = get_info()
 
     assert module is not None
     assert "test_tracking" in module
     assert file is not None
     assert line is not None
     assert function == "<lambda>"
+    # qualname for lambda varies by Python version, but should not be None
+    assert qualname is not None
 
 
 def test_get_caller_info_from_nested_class():
@@ -335,13 +342,16 @@ def test_get_caller_info_from_nested_class():
             return _get_caller_info(skip_frames=1)
 
     obj = NestedClass()
-    module, file, line, function = obj.get_caller_info()
+    module, file, line, function, qualname = obj.get_caller_info()
 
     assert module is not None
     assert "test_tracking" in module
     assert file is not None
     assert line is not None
     assert function == "get_caller_info"
+    # qualname should include class name
+    assert "NestedClass" in qualname
+    assert "get_caller_info" in qualname
 
 
 def test_get_caller_info_from_builtin_callback():
@@ -356,11 +366,207 @@ def test_get_caller_info_from_builtin_callback():
     list(filter(capture_info, [1]))
 
     assert len(results) == 1
-    _module, file, line, function = results[0]
+    _module, file, line, function, qualname = results[0]
     # The frame should still be accessible
     assert file is not None
     assert line is not None
     assert function == "capture_info"
+    assert qualname is not None
+
+
+# --- _get_qualname ---
+
+
+def test_get_qualname_from_instance_method():
+    """Test _get_qualname correctly identifies instance methods via self."""
+    import inspect
+
+    class MyClass:
+        def my_method(self):
+            frame = inspect.currentframe()
+            try:
+                return _get_qualname(frame)
+            finally:
+                del frame
+
+    obj = MyClass()
+    qualname = obj.my_method()
+
+    assert qualname is not None
+    assert "MyClass" in qualname
+    assert "my_method" in qualname
+
+
+def test_get_qualname_from_classmethod():
+    """Test _get_qualname correctly identifies classmethods via cls."""
+    import inspect
+
+    class MyClass:
+        @classmethod
+        def my_classmethod(cls):
+            frame = inspect.currentframe()
+            try:
+                return _get_qualname(frame)
+            finally:
+                del frame
+
+    qualname = MyClass.my_classmethod()
+
+    assert qualname is not None
+    assert "MyClass" in qualname
+    assert "my_classmethod" in qualname
+
+
+def test_get_qualname_from_staticmethod():
+    """Test _get_qualname with staticmethod (no self/cls)."""
+    import inspect
+
+    class MyClass:
+        @staticmethod
+        def my_staticmethod():
+            frame = inspect.currentframe()
+            try:
+                return _get_qualname(frame)
+            finally:
+                del frame
+
+    qualname = MyClass.my_staticmethod()
+
+    # Static methods don't have self/cls, so detection varies by Python version
+    # On Python 3.11+, co_qualname gives full name
+    # On Python 3.9/3.10, may only get simple name or gc-based detection
+    assert qualname is not None
+    assert "my_staticmethod" in qualname
+
+
+def test_get_qualname_from_nested_class():
+    """Test _get_qualname with nested class methods."""
+    import inspect
+
+    class Outer:
+        class Inner:
+            def inner_method(self):
+                frame = inspect.currentframe()
+                try:
+                    return _get_qualname(frame)
+                finally:
+                    del frame
+
+    obj = Outer.Inner()
+    qualname = obj.inner_method()
+
+    assert qualname is not None
+    # Should contain both class names or at least the method name
+    assert "inner_method" in qualname
+
+
+def test_get_qualname_from_closure():
+    """Test _get_qualname with closure/nested function."""
+    import inspect
+
+    def outer():
+        def inner():
+            frame = inspect.currentframe()
+            try:
+                return _get_qualname(frame)
+            finally:
+                del frame
+
+        return inner()
+
+    qualname = outer()
+
+    assert qualname is not None
+    assert "inner" in qualname
+
+
+def test_get_qualname_from_module_level_function():
+    """Test _get_qualname from a module-level function."""
+    import inspect
+
+    frame = inspect.currentframe()
+    try:
+        qualname = _get_qualname(frame)
+    finally:
+        del frame
+
+    assert qualname is not None
+    assert "test_get_qualname_from_module_level_function" in qualname
+
+
+def test_get_qualname_with_none_frame():
+    """Test _get_qualname returns None when frame is None."""
+    # _get_qualname expects a frame, but we can test with edge cases
+    # by checking how _get_caller_info handles it
+    _module, _file, _line, _function, qualname = _get_caller_info(skip_frames=1000)
+
+    # When frame is None, qualname should be None too
+    assert qualname is None
+
+
+def test_get_qualname_inherited_method():
+    """Test _get_qualname with inherited methods.
+
+    On Python 3.9/3.10, the fallback uses type(self).__qualname__ which gives
+    Child.method instead of Parent.method. On Python 3.11+, co_qualname gives
+    the actual defining class.
+    """
+    import inspect
+    import sys
+
+    class Parent:
+        def inherited_method(self):
+            frame = inspect.currentframe()
+            try:
+                return _get_qualname(frame)
+            finally:
+                del frame
+
+    class Child(Parent):
+        pass
+
+    obj = Child()
+    qualname = obj.inherited_method()
+
+    assert qualname is not None
+    # On Python 3.11+, this should be Parent.inherited_method
+    # On Python 3.9/3.10, this will be Child.inherited_method (semantic difference)
+    if sys.version_info >= (3, 11):
+        assert "Parent" in qualname
+    else:
+        # On older versions, we get the runtime type, not defining class
+        assert "Child" in qualname or "Parent" in qualname
+    assert "inherited_method" in qualname
+
+
+def test_get_qualname_lambda():
+    """Test _get_qualname with lambda function."""
+    import inspect
+
+    get_qualname_from_lambda = lambda: _get_qualname(inspect.currentframe())  # noqa: E731
+
+    qualname = get_qualname_from_lambda()
+
+    assert qualname is not None
+    assert "<lambda>" in qualname
+
+
+def test_get_qualname_generator_function():
+    """Test _get_qualname from within a generator function."""
+    import inspect
+
+    def my_generator():
+        frame = inspect.currentframe()
+        try:
+            yield _get_qualname(frame)
+        finally:
+            del frame
+
+    gen = my_generator()
+    qualname = next(gen)
+
+    assert qualname is not None
+    assert "my_generator" in qualname
 
 
 # --- _find_uuid4_imports ---
