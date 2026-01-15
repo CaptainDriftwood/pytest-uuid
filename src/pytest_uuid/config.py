@@ -1,3 +1,28 @@
+
+
+from __future__ import annotations
+
+import contextvars
+import hashlib
+import sys
+import uuid
+import warnings
+from collections.abc import Iterable
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from pytest_uuid.generators import ExhaustionBehavior
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib
+
+
+
 """Global configuration for pytest-uuid.
 
 This module manages plugin-wide settings that apply to all UUID mocking
@@ -24,7 +49,6 @@ Example pyproject.toml:
     default_exhaustion_behavior = "raise"
 
 Example conftest.py:
-    import pytest_uuid
 
     def pytest_configure(config):
         pytest_uuid.configure(
@@ -33,31 +57,13 @@ Example conftest.py:
         )
 """
 
-from __future__ import annotations
-
-import contextvars
-import hashlib
-import sys
-import warnings
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import TYPE_CHECKING, Any
-
-from pytest_uuid.generators import ExhaustionBehavior
-
-if TYPE_CHECKING:
-    import pytest
-
 # TOML parsing - use stdlib on 3.11+, fallback to tomli
 if sys.version_info >= (3, 11):
-    import tomllib
 
     TOMLDecodeError = tomllib.TOMLDecodeError
 else:
-    import tomli as tomllib  # type: ignore[import-not-found]
 
     TOMLDecodeError = tomllib.TOMLDecodeError
-
 
 # Default packages to ignore when patching uuid4.
 # botocore: Uses uuid.uuid4() in generate_idempotent_uuid() (botocore/handlers.py)
@@ -66,7 +72,6 @@ else:
 # logic and idempotency guarantees. Note: moto does NOT need to be ignored - it uses
 # its own MotoRandom.uuid4() implementation that doesn't call uuid.uuid4().
 DEFAULT_IGNORE_PACKAGES: list[str] = ["botocore"]
-
 
 @dataclass
 class PytestUUIDConfig:
@@ -108,11 +113,9 @@ class PytestUUIDConfig:
         """
         return tuple(self.default_ignore_list + self.extend_ignore_list)
 
-
 # StashKey for storing configuration in pytest.Config
 # We use a try/except for compatibility with older pytest versions
 try:
-    import pytest
 
     _config_key = pytest.StashKey[PytestUUIDConfig]()  # type: ignore[attr-defined]
     _has_stash = True
@@ -128,7 +131,6 @@ _active_pytest_config: contextvars.ContextVar[pytest.Config | None] = (
 
 # Stack of tokens for nested pytest sessions (e.g., pytester in-process runs)
 _config_tokens: list[contextvars.Token[pytest.Config | None]] = []
-
 
 def get_config() -> PytestUUIDConfig:
     """Get the current configuration from pytest.Config.stash.
@@ -151,7 +153,6 @@ def get_config() -> PytestUUIDConfig:
             "pytest-uuid requires pytest with stash support (pytest 7.0+)."
         )
     return pytest_config.stash[_config_key]
-
 
 def configure(
     *,
@@ -176,7 +177,6 @@ def configure(
         RuntimeError: If called outside of a pytest session.
 
     Example:
-        import pytest_uuid
 
         pytest_uuid.configure(
             default_ignore_list=["sqlalchemy", "celery"],
@@ -200,7 +200,6 @@ def configure(
         else:
             config.default_exhaustion_behavior = default_exhaustion_behavior
 
-
 def reset_config() -> None:
     """Reset configuration to defaults. Primarily for testing."""
     pytest_config = _active_pytest_config.get()
@@ -212,7 +211,6 @@ def reset_config() -> None:
     ):
         pytest_config.stash[_config_key] = PytestUUIDConfig()
 
-
 def _set_active_pytest_config(config: pytest.Config) -> None:
     """Set the active pytest config reference.
 
@@ -221,7 +219,6 @@ def _set_active_pytest_config(config: pytest.Config) -> None:
     """
     token = _active_pytest_config.set(config)
     _config_tokens.append(token)
-
 
 def _clear_active_pytest_config() -> None:
     """Restore the previous pytest config reference.
@@ -232,7 +229,6 @@ def _clear_active_pytest_config() -> None:
     if _config_tokens:
         token = _config_tokens.pop()
         _active_pytest_config.reset(token)
-
 
 def _load_pyproject_config(rootdir: Path | None = None) -> dict[str, Any]:
     """Load pytest-uuid config from pyproject.toml.
@@ -273,7 +269,6 @@ def _load_pyproject_config(rootdir: Path | None = None) -> dict[str, Any]:
         )
         return {}
 
-
 def load_config_from_pyproject(rootdir: Path | None = None) -> None:
     """Load configuration from pyproject.toml and apply it.
 
@@ -304,8 +299,16 @@ def load_config_from_pyproject(rootdir: Path | None = None) -> None:
         default_exhaustion_behavior=config_data.get("default_exhaustion_behavior"),
     )
 
-
 def _get_node_seed(node_id: str) -> int:
     """Generate a deterministic seed from a pytest node ID."""
     return int(hashlib.sha256(node_id.encode("utf-8")).hexdigest(), 16)
-# trigger ci build
+
+def parse_uuid(value: Any) -> uuid.UUID:
+    """Parse a value into a UUID object."""
+    if isinstance(value, uuid.UUID):
+        return value
+    return uuid.UUID(str(value))
+
+def parse_uuids(values: Iterable[Any]) -> list[uuid.UUID]:
+    """Parse a list of values into UUID objects."""
+    return [parse_uuid(v) for v in values]
