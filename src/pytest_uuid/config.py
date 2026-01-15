@@ -36,6 +36,7 @@ Example conftest.py:
 from __future__ import annotations
 
 import contextvars
+import hashlib
 import sys
 import warnings
 from dataclasses import dataclass, field
@@ -302,3 +303,8 @@ def load_config_from_pyproject(rootdir: Path | None = None) -> None:
         extend_ignore_list=config_data.get("extend_ignore_list"),
         default_exhaustion_behavior=config_data.get("default_exhaustion_behavior"),
     )
+
+
+def _get_node_seed(node_id: str) -> int:
+    """Generate a deterministic seed from a pytest node ID."""
+    return int(hashlib.sha256(node_id.encode("utf-8")).hexdigest(), 16)

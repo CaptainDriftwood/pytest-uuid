@@ -57,7 +57,9 @@ class UUIDMocker(CallTrackingMixin):
         - freeze_uuid: Decorator/context manager alternative
     """
 
-    def __init__(self) -> None:
+    def __init__(self, monkeypatch: Any = None, node_id: str = "") -> None:
+        self._monkeypatch = monkeypatch
+        self._node_id = node_id
         self._uuids: list[uuid.UUID] = []
         self._index: int = 0
         self._default: uuid.UUID | None = None
