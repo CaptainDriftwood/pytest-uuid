@@ -1,8 +1,21 @@
+import random
 import uuid
+from contextlib import contextmanager
 from typing import Any
 from unittest.mock import patch
 
 import pytest
+
+from ._tracking import CallTrackingMixin
+from .config import _get_node_seed, get_config, parse_uuid, parse_uuids
+from .generators import (
+    SeededUUIDGenerator,
+    SequenceUUIDGenerator,
+    StaticUUIDGenerator,
+)
+from .types import ExhaustionBehavior
+
+# Try to import helper, if it fails we will fix it in next step
 
 
 class UUIDMocker(CallTrackingMixin):
@@ -168,6 +181,25 @@ class UUIDMocker(CallTrackingMixin):
         return self._real_uuid4()
 
 
+
+
+
+
+def _find_uuid4_imports(original_uuid4: Any) -> list[tuple[Any, str]]:
+    import sys
+    imports = []
+    # Simple scanning to find where uuid4 might have been imported from
+    for name, module in list(sys.modules.items()):
+        if name.startswith("pytest_uuid"):
+            continue
+        try:
+            if getattr(module, "uuid4", None) is original_uuid4:
+                imports.append((module, "uuid4"))
+        except (ImportError, AttributeError):
+            pass
+    return imports
+
+
 @pytest.fixture
 def mock_uuid() -> Any:
     """Fixture that provides a UUIDMocker for controlling uuid.uuid4() calls.
@@ -198,7 +230,7 @@ def mock_uuid() -> Any:
             mock_uuid.set_seed(42)  # Reset with same seed
             assert uuid.uuid4() == first
 
-        def test_node_seeded(mock_uuid):
+        def test_node_seeded(monkeypatch, request, mock_uuid):
             mock_uuid.set_seed_from_node()
             # Same test always gets the same UUIDs
 
@@ -258,8 +290,6 @@ def mock_uuid_factory() -> Any:
         mocker = UUIDMocker()
         with patch(f"{module_path}.uuid4", mocker):
             yield mocker
-        finally:
-            monkeypatch.setattr(module, "uuid4", original)
 
     return factory
 
