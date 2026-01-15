@@ -9,11 +9,11 @@ import pytest
 from ._tracking import CallTrackingMixin
 from .config import _get_node_seed, get_config, parse_uuid, parse_uuids
 from .generators import (
+    ExhaustionBehavior,
     SeededUUIDGenerator,
     SequenceUUIDGenerator,
     StaticUUIDGenerator,
 )
-from .types import ExhaustionBehavior
 
 # Try to import helper, if it fails we will fix it in next step
 
@@ -60,6 +60,7 @@ class UUIDMocker(CallTrackingMixin):
     def __init__(self, monkeypatch: Any = None, node_id: str = "") -> None:
         self._monkeypatch = monkeypatch
         self._node_id = node_id
+        self._ignore_defaults = False
         self._uuids: list[uuid.UUID] = []
         self._index: int = 0
         self._default: uuid.UUID | None = None
@@ -325,4 +326,3 @@ def spy_uuid() -> Any:
     mocker = UUIDMocker()
     with patch("uuid.uuid4", side_effect=mocker):
         yield mocker
-# trigger ci build
