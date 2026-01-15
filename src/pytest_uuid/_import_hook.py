@@ -19,8 +19,8 @@ from __future__ import annotations
 
 import builtins
 import sys
-from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import uuid

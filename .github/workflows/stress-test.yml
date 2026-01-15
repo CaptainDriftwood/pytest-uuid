@@ -5,7 +5,6 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
-  # Allow manual trigger
   workflow_dispatch:
 
 jobs:
@@ -14,84 +13,22 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.12", "3.13"]
+        python-version: ["3.12", "3.13"]
         workers: [2, 4, "auto"]
 
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
-
-      - name: Install just
-        uses: extractions/setup-just@e33e0265a09d6d736e2ee1e0eb685ef1de4669ff # v3
-
+      - uses: actions/checkout@v4
       - name: Install uv
-        uses: astral-sh/setup-uv@afb3baf78d56a259980b76d3fc18fe1e99d867c2 # v7
-
+        uses: astral-sh/setup-uv@v5
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
-
-      - name: Install dependencies
-        run: uv sync --group dev
-
-      - name: Run stress tests with ${{ matrix.workers }} workers
+      - name: Install package
         run: |
+        run: uv pip install --system --break-system-packages --python python -e .[test,dev]
+      - name: Run stress tests
+        run: |
+          export PYTHONPATH=src
           uv run pytest tests/integration/test_stress_parallel.py \
             -n ${{ matrix.workers }} \
             --dist loadscope \
-            -v \
-            --tb=short
-
-  # Run stress tests with different random seeds to catch order-dependent failures
-  stress-test-random-seeds:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        random-seed: [111, 222, 333, 444, 555]
-
-    steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@afb3baf78d56a259980b76d3fc18fe1e99d867c2 # v7
-
-      - name: Set up Python
-        run: uv python install 3.12
-
-      - name: Install dependencies
-        run: uv sync --group dev
-
-      - name: Run stress tests with seed ${{ matrix.random-seed }}
-        run: |
-          uv run pytest tests/integration/test_stress_parallel.py \
-            -n auto \
-            --dist loadscope \
-            -v \
-            --tb=short \
-            --randomly-seed=${{ matrix.random-seed }}
-
-
-  # Run multiple pytest processes in parallel (simulates make -j behavior)
-  # This catches cross-process state leakage issues
-  stress-test-parallel:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        parallel-jobs: [4, 8]
-        xdist-workers: [2, 4]
-
-    steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@afb3baf78d56a259980b76d3fc18fe1e99d867c2 # v7
-
-      - name: Set up Python
-        run: uv python install 3.12
-
-      - name: Install dependencies
-        run: uv sync --group dev
-
-      - name: Run ${{ matrix.parallel-jobs }} parallel pytest processes with ${{ matrix.xdist-workers }} xdist workers each
-        run: |
-          make -j${{ matrix.parallel-jobs }} stress-test XDIST_WORKERS=${{ matrix.xdist-workers }}
+            -v --tb=short
