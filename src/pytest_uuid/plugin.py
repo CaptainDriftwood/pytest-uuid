@@ -201,7 +201,7 @@ def _find_uuid4_imports(original_uuid4: Any) -> list[tuple[Any, str]]:
 
 
 @pytest.fixture
-def mock_uuid() -> Any:
+def mock_uuid(monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest) -> Any:
     """Fixture that provides a UUIDMocker for controlling uuid.uuid4() calls.
 
     This fixture patches uuid.uuid4 globally AND any modules that have imported
