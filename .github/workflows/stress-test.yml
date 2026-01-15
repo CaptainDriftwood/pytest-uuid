@@ -1,0 +1,34 @@
+name: Stress Test
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  stress-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+        workers: [2, 4, "auto"]
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+      - name: Install package
+        run: |
+        run: uv pip install --system --break-system-packages --python python -e .[test,dev]
+      - name: Run stress tests
+        run: |
+          export PYTHONPATH=src
+          uv run pytest tests/integration/test_stress_parallel.py \
+            -n ${{ matrix.workers }} \
+            --dist loadscope \
+            -v --tb=short

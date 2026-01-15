@@ -1,16 +1,8 @@
-"""pytest plugin for mocking uuid.uuid4() calls."""
-
-from __future__ import annotations
-
 import uuid
-from collections.abc import Iterator
-from typing import TYPE_CHECKING
+from typing import Any
 from unittest.mock import patch
 
 import pytest
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
 
 
 class UUIDMocker:
@@ -25,6 +17,7 @@ class UUIDMocker:
         self._uuids: list[uuid.UUID] = []
         self._index: int = 0
         self._default: uuid.UUID | None = None
+        self._real_uuid4 = uuid.uuid4
 
     def set(self, *uuids: str | uuid.UUID) -> None:
         """Set the UUID(s) to return.
@@ -66,11 +59,11 @@ class UUIDMocker:
             return result
         if self._default is not None:
             return self._default
-        return uuid.uuid4()
+        return self._real_uuid4()
 
 
 @pytest.fixture
-def mock_uuid() -> Iterator[UUIDMocker]:
+def mock_uuid() -> Any:
     """Fixture that provides a UUIDMocker for controlling uuid.uuid4() calls.
 
     This fixture patches uuid.uuid4 globally, allowing you to control what
@@ -101,7 +94,7 @@ def mock_uuid() -> Iterator[UUIDMocker]:
 
 
 @pytest.fixture
-def mock_uuid_factory() -> Callable[[str], Iterator[UUIDMocker]]:
+def mock_uuid_factory() -> Any:
     """Fixture factory for mocking uuid.uuid4() in specific modules.
 
     Use this when you need to mock uuid.uuid4() in a specific module where
@@ -121,9 +114,43 @@ def mock_uuid_factory() -> Callable[[str], Iterator[UUIDMocker]]:
     from contextlib import contextmanager
 
     @contextmanager
-    def factory(module_path: str) -> Iterator[UUIDMocker]:
+    def factory(module_path: str) -> Any:
         mocker = UUIDMocker()
         with patch(f"{module_path}.uuid4", mocker):
             yield mocker
 
     return factory
+
+
+UUIDSpy = UUIDMocker
+
+
+UUIDSpy = UUIDMocker
+
+
+UUIDSpy = UUIDMocker
+
+
+UUIDSpy = UUIDMocker
+
+
+UUIDSpy = UUIDMocker
+
+
+UUIDSpy = UUIDMocker
+# Force Update Wed Jan 14 23:18:54 IST 2026
+# Force Update Wed Jan 14 23:22:07 IST 2026
+
+
+UUIDSpy = UUIDMocker
+# Force Sync Wed Jan 14 23:25:56 IST 2026
+
+
+@pytest.fixture
+def spy_uuid() -> Any:
+    """
+    Fixture that spies on UUID generation without mocking it by default.
+    """
+    mocker = UUIDMocker()
+    with patch("uuid.uuid4", side_effect=mocker):
+        yield mocker

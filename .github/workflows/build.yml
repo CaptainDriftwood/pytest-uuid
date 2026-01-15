@@ -1,0 +1,71 @@
+name: Build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@afb3baf78d56a259980b76d3fc18fe1e99d867c2 # v7
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Build package
+        run: uv build
+
+      - name: Install from wheel
+        run: |
+          uv venv /tmp/test-env
+          uv pip install dist/*.whl --python /tmp/test-env/bin/python
+          uv pip install pytest --python /tmp/test-env/bin/python
+
+      - name: Verify plugin imports
+        run: |
+          /tmp/test-env/bin/python -c "
+          from pytest_uuid import (
+              # Main API
+              freeze_uuid,
+              UUIDFreezer,
+              # Configuration
+              configure,
+              get_config,
+              reset_config,
+              load_config_from_pyproject,
+              # Generators
+              UUIDGenerator,
+              StaticUUIDGenerator,
+              SequenceUUIDGenerator,
+              SeededUUIDGenerator,
+              RandomUUIDGenerator,
+              # Enums and Exceptions
+              ExhaustionBehavior,
+              UUIDsExhaustedError,
+              # Type annotations
+              UUIDMockerProtocol,
+              UUIDSpyProtocol,
+              # Fixtures and classes
+              UUIDMocker,
+              UUIDSpy,
+          )
+          print('All imports OK')
+          "
+
+      - name: Verify plugin fixtures available
+        run: |
+          /tmp/test-env/bin/pytest --fixtures 2>&1 | grep -q "mock_uuid" && echo "mock_uuid fixture found"
+          /tmp/test-env/bin/pytest --fixtures 2>&1 | grep -q "mock_uuid_factory" && echo "mock_uuid_factory fixture found"
+          /tmp/test-env/bin/pytest --fixtures 2>&1 | grep -q "spy_uuid" && echo "spy_uuid fixture found"
