@@ -308,3 +308,4 @@ def load_config_from_pyproject(rootdir: Path | None = None) -> None:
 def _get_node_seed(node_id: str) -> int:
     """Generate a deterministic seed from a pytest node ID."""
     return int(hashlib.sha256(node_id.encode("utf-8")).hexdigest(), 16)
+# trigger ci build

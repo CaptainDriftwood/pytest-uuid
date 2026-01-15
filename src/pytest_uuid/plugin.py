@@ -325,3 +325,4 @@ def spy_uuid() -> Any:
     mocker = UUIDMocker()
     with patch("uuid.uuid4", side_effect=mocker):
         yield mocker
+# trigger ci build
