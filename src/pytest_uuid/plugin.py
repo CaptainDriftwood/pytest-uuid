@@ -181,12 +181,9 @@ class UUIDMocker(CallTrackingMixin):
         return self._real_uuid4()
 
 
-
-
-
-
 def _find_uuid4_imports(original_uuid4: Any) -> list[tuple[Any, str]]:
     import sys
+
     imports = []
     # Simple scanning to find where uuid4 might have been imported from
     for name, module in list(sys.modules.items()):
