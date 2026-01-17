@@ -5,7 +5,7 @@ import nox_uv
 
 nox.options.default_venv_backend = "uv"
 
-PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]
 
 
 @nox_uv.session(python=PYTHON_VERSIONS, uv_groups=["dev"])
