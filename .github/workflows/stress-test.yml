@@ -18,7 +18,7 @@ jobs:
         workers: [2, 4, "auto"]
 
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Install just
         uses: extractions/setup-just@e33e0265a09d6d736e2ee1e0eb685ef1de4669ff # v3
@@ -49,7 +49,7 @@ jobs:
         random-seed: [111, 222, 333, 444, 555]
 
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Install uv
         uses: astral-sh/setup-uv@afb3baf78d56a259980b76d3fc18fe1e99d867c2 # v7
@@ -81,7 +81,7 @@ jobs:
         xdist-workers: [2, 4]
 
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Install uv
         uses: astral-sh/setup-uv@afb3baf78d56a259980b76d3fc18fe1e99d867c2 # v7
