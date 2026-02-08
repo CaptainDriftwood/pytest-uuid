@@ -82,6 +82,7 @@ class UUIDImportHook:
         self.patched_locations = patched_locations
         self._original_import: Callable[..., Any] | None = None
         self._installed = False
+        self._scanned_modules: set[int] = set()
 
     def install(self) -> None:
         """Install the import hook."""
@@ -143,6 +144,16 @@ class UUIDImportHook:
 
         This handles aliased imports like `from uuid import uuid4 as uid4`.
         """
+        # Skip already-scanned modules to avoid redundant work
+        module_id = id(module)
+        if module_id in self._scanned_modules:
+            return
+        self._scanned_modules.add(module_id)
+
+        # Skip the uuid module itself - already patched directly by UUIDFreezer
+        if getattr(module, "__name__", None) == "uuid":
+            return
+
         try:
             module_dict = getattr(module, "__dict__", None)
             if module_dict is None:

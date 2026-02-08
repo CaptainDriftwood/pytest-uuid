@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-02-08
+
+### Added
+
+- Python 3.15 support - added to CI test matrix, nox sessions, and pyproject.toml classifiers ([#46](https://github.com/CaptainDriftwood/pytest-uuid/pull/46))
+
+### Changed
+
+- Optimized import hook with module ID caching to avoid redundant scanning ([#46](https://github.com/CaptainDriftwood/pytest-uuid/pull/46))
+- Skip patching uuid module directly in import hook since it's already patched by UUIDFreezer ([#46](https://github.com/CaptainDriftwood/pytest-uuid/pull/46))
+
 ## [0.5.0] - 2026-02-08
 
 ### Added

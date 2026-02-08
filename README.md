@@ -15,7 +15,7 @@ A pytest plugin for mocking `uuid.uuid4()` calls in your tests.
 [![ty](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ty/main/assets/badge/v0.json)](https://github.com/astral-sh/ty)
 [![pytest](https://img.shields.io/badge/pytest-plugin-blue.svg)](https://docs.pytest.org/)
 
-![Python](https://img.shields.io/badge/python-3.9%20|%203.10%20|%203.11%20|%203.12%20|%203.13%20|%203.14-blue.svg)
+![Python](https://img.shields.io/badge/python-3.9%20|%203.10%20|%203.11%20|%203.12%20|%203.13%20|%203.14%20|%203.15-blue.svg)
 
 - [Features](#features)
 - [Installation](#installation)
