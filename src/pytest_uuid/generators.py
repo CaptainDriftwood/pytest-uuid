@@ -255,6 +255,15 @@ class SeededUUIDGenerator(UUIDGenerator):
         # If initialized with a Random instance, reset does nothing
         # (user controls the state)
 
+    @property
+    def seed(self) -> int | None:
+        """The seed value used for reproducible UUID generation.
+
+        Returns the integer seed if one was provided, or None if initialized
+        with a random.Random instance (BYOP mode).
+        """
+        return self._seed
+
 
 class RandomUUIDGenerator(UUIDGenerator):
     """Generator that produces random UUIDs by delegating to uuid.uuid4().

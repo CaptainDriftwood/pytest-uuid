@@ -135,6 +135,38 @@ def test_mock_uuid_set_seed_from_node(mock_uuid):
     assert first == second
 
 
+def test_mock_uuid_seed_property_with_integer(mock_uuid):
+    """Test that seed property returns the integer seed."""
+    mock_uuid.set_seed(42)
+    assert mock_uuid.seed == 42
+
+
+def test_mock_uuid_seed_property_with_random_instance(mock_uuid):
+    """Test that seed property returns None when using Random instance."""
+    rng = random.Random(42)
+    mock_uuid.set_seed(rng)
+    assert mock_uuid.seed is None
+
+
+def test_mock_uuid_seed_property_from_node(mock_uuid):
+    """Test that seed property returns computed seed from node ID."""
+    mock_uuid.set_seed_from_node()
+    # Should return an integer derived from the node ID
+    assert mock_uuid.seed is not None
+    assert isinstance(mock_uuid.seed, int)
+
+
+def test_mock_uuid_seed_property_with_static_uuid(mock_uuid):
+    """Test that seed property returns None when using static UUIDs."""
+    mock_uuid.set("12345678-1234-4678-8234-567812345678")
+    assert mock_uuid.seed is None
+
+
+def test_mock_uuid_seed_property_no_generator(mock_uuid):
+    """Test that seed property returns None when no generator is set."""
+    assert mock_uuid.seed is None
+
+
 @pytest.mark.parametrize(
     "behavior_input",
     [

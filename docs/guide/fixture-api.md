@@ -65,6 +65,25 @@ def test_node_seeded(mock_uuid):
     # Same test always produces the same sequence
 ```
 
+### Inspecting the Seed Value
+
+Use the `seed` property to see the actual seed being used:
+
+```python
+def test_inspect_seed(mock_uuid):
+    mock_uuid.set_seed(42)
+    assert mock_uuid.seed == 42
+
+def test_inspect_node_seed(mock_uuid):
+    mock_uuid.set_seed_from_node()
+    # See the computed seed derived from the test's node ID
+    print(f"Using seed: {mock_uuid.seed}")  # e.g., 8427193654
+```
+
+!!! tip "Debugging reproducibility"
+    The `seed` property is useful for debugging. If a test fails, log the seed value
+    so you can reproduce the exact sequence later by passing that seed to `set_seed()`.
+
 ### Exhaustion Behavior
 
 Control what happens when a UUID sequence is exhausted:
