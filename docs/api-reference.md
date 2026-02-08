@@ -21,10 +21,12 @@ Main fixture for controlling `uuid.uuid4()` calls.
 | `spy` | `spy()` | Switch to spy mode |
 | `reset` | `reset()` | Reset to initial state |
 
-**Tracking Properties:**
+**Properties:**
 
 | Property | Type | Description |
 |----------|------|-------------|
+| `seed` | `int \| None` | The active seed value (see below) |
+| `generator` | `UUIDGenerator \| None` | The current UUID generator |
 | `call_count` | `int` | Total uuid4 calls |
 | `generated_uuids` | `list[UUID]` | All returned UUIDs |
 | `last_uuid` | `UUID \| None` | Most recent UUID |
@@ -33,6 +35,11 @@ Main fixture for controlling `uuid.uuid4()` calls.
 | `real_calls` | `list[UUIDCall]` | Only real calls |
 | `mocked_count` | `int` | Number of mocked calls |
 | `real_count` | `int` | Number of real calls |
+
+!!! info "The `seed` property"
+    Returns the actual integer seed being used for reproducible UUID generation.
+    This is especially useful when using `set_seed_from_node()` to see the computed seed.
+    Returns `None` if not using seeded generation or if a `random.Random` instance was passed.
 
 **Filtering Method:**
 

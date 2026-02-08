@@ -153,6 +153,24 @@ def test_with_freezer():
         uuid.uuid4()
 ```
 
+### Inspecting the Seed Value
+
+When using seeded generation, access the `seed` property to see the actual seed:
+
+```python
+def test_inspect_seed():
+    with freeze_uuid(seed=42) as freezer:
+        assert freezer.seed == 42
+
+    # With node-based seeding, see the computed seed
+    with freeze_uuid(seed="node", node_id="test.py::test_foo") as freezer:
+        print(f"Computed seed: {freezer.seed}")  # e.g., 8427193654
+```
+
+!!! note
+    The `seed` property returns `None` when using static UUIDs, sequences,
+    or when a `random.Random` instance was passed directly.
+
 ## Parameters
 
 | Parameter | Type | Description |
