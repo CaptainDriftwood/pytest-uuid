@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-02-08
+
+### Added
+
+- `seed` property on `UUIDFreezer`, `UUIDMocker`, and `SeededUUIDGenerator` to expose the active seed value for introspection ([#45](https://github.com/CaptainDriftwood/pytest-uuid/pull/45))
+
+### Fixed
+
+- Ruff lint error (PLC0207) by adding `maxsplit=1` to `str.split()` call in plugin.py
+
 ## [0.4.0] - 2026-01-08
 
 ### Added
