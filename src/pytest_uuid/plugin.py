@@ -309,6 +309,23 @@ class UUIDMocker(CallTrackingMixin):
         """Get the current UUID generator."""
         return self._generator
 
+    @property
+    def seed(self) -> int | None:
+        """The seed value used for reproducible UUID generation.
+
+        Returns the actual integer seed being used, including when
+        set_seed_from_node() was called (where the seed is derived
+        from the test's node ID).
+
+        Returns None if:
+        - Not using seeded generation (using static UUIDs or sequences)
+        - A random.Random instance was passed to set_seed() (BYOP mode)
+        - No generator has been configured yet
+        """
+        if isinstance(self._generator, SeededUUIDGenerator):
+            return self._generator.seed
+        return None
+
     def spy(self) -> None:
         """Enable spy mode - track calls but return real UUIDs.
 
@@ -554,7 +571,7 @@ def mock_uuid_factory(
             raise KeyError(
                 f"Module '{module_path}' is not loaded. "
                 f"Make sure to import the module before using mock_uuid_factory. "
-                f"Example: import {module_path.split('.')[0]}"
+                f"Example: import {module_path.split('.', maxsplit=1)[0]}"
             ) from None
 
         if not hasattr(module, "uuid4"):

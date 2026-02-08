@@ -405,6 +405,22 @@ class UUIDFreezer(CallTrackingMixin):
         """Get the current generator (only available while frozen)."""
         return self._generator
 
+    @property
+    def seed(self) -> int | None:
+        """The seed value used for reproducible UUID generation.
+
+        Returns the actual integer seed being used, even when seed="node" was
+        specified (in which case the seed is derived from the test's node ID).
+
+        Returns None if:
+        - Not using seeded generation (using static UUIDs or sequences)
+        - A random.Random instance was passed directly (BYOP mode)
+        - The freezer is not currently active
+        """
+        if isinstance(self._generator, SeededUUIDGenerator):
+            return self._generator.seed
+        return None
+
     def reset(self) -> None:
         """Reset the generator and tracking data to initial state."""
         if self._generator is not None:

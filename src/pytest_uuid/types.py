@@ -146,6 +146,15 @@ class UUIDMockerProtocol(Protocol):
         ...
 
     @property
+    def seed(self) -> int | None:
+        """The seed value used for reproducible UUID generation.
+
+        Returns the actual integer seed being used, or None if not using
+        seeded generation or if a random.Random instance was passed directly.
+        """
+        ...
+
+    @property
     def call_count(self) -> int:
         """Get the number of times uuid4 was called."""
         ...

@@ -235,6 +235,19 @@ def test_seeded_generator_reset_with_random_instance_does_nothing():
     assert generator() != first
 
 
+def test_seeded_generator_seed_property_with_integer():
+    """Test that seed property returns the integer seed."""
+    generator = SeededUUIDGenerator(42)
+    assert generator.seed == 42
+
+
+def test_seeded_generator_seed_property_with_random_instance():
+    """Test that seed property returns None when using Random instance."""
+    rng = random.Random(42)
+    generator = SeededUUIDGenerator(rng)
+    assert generator.seed is None
+
+
 # --- RandomUUIDGenerator ---
 
 

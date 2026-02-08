@@ -283,6 +283,41 @@ def test_freezer_generator_property():
     assert freezer.generator is None
 
 
+def test_freezer_seed_property_with_integer():
+    """Test that seed property returns the integer seed."""
+    with UUIDFreezer(seed=42) as freezer:
+        assert freezer.seed == 42
+
+
+def test_freezer_seed_property_with_node_seed():
+    """Test that seed property returns computed seed when using seed='node'."""
+    with UUIDFreezer(seed="node", node_id="test.py::test_foo") as freezer:
+        # Should return an integer, not "node"
+        assert freezer.seed is not None
+        assert isinstance(freezer.seed, int)
+
+
+def test_freezer_seed_property_with_random_instance():
+    """Test that seed property returns None when using Random instance."""
+    import random
+
+    rng = random.Random(42)
+    with UUIDFreezer(seed=rng) as freezer:
+        assert freezer.seed is None
+
+
+def test_freezer_seed_property_with_static_uuid():
+    """Test that seed property returns None when using static UUIDs."""
+    with UUIDFreezer("12345678-1234-4678-8234-567812345678") as freezer:
+        assert freezer.seed is None
+
+
+def test_freezer_seed_property_when_not_active():
+    """Test that seed property returns None when freezer is not active."""
+    freezer = UUIDFreezer(seed=42)
+    assert freezer.seed is None
+
+
 # --- UUIDFreezer call tracking integration ---
 
 
