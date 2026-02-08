@@ -1,3 +1,25 @@
+from __future__ import annotations
+
+import contextvars
+import hashlib
+import sys
+import uuid
+import warnings
+from collections.abc import Iterable
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from pytest_uuid.generators import ExhaustionBehavior
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib
+
+
 """Global configuration for pytest-uuid.
 
 This module manages plugin-wide settings that apply to all UUID mocking
@@ -24,7 +46,6 @@ Example pyproject.toml:
     default_exhaustion_behavior = "raise"
 
 Example conftest.py:
-    import pytest_uuid
 
     def pytest_configure(config):
         pytest_uuid.configure(
@@ -33,30 +54,11 @@ Example conftest.py:
         )
 """
 
-from __future__ import annotations
-
-import contextvars
-import sys
-import warnings
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import TYPE_CHECKING, Any
-
-from pytest_uuid.generators import ExhaustionBehavior
-
-if TYPE_CHECKING:
-    import pytest
-
 # TOML parsing - use stdlib on 3.11+, fallback to tomli
 if sys.version_info >= (3, 11):
-    import tomllib
-
     TOMLDecodeError = tomllib.TOMLDecodeError
 else:
-    import tomli as tomllib  # type: ignore[import-not-found]
-
     TOMLDecodeError = tomllib.TOMLDecodeError
-
 
 # Default packages to ignore when patching uuid4.
 # botocore: Uses uuid.uuid4() in generate_idempotent_uuid() (botocore/handlers.py)
@@ -111,8 +113,6 @@ class PytestUUIDConfig:
 # StashKey for storing configuration in pytest.Config
 # We use a try/except for compatibility with older pytest versions
 try:
-    import pytest
-
     _config_key = pytest.StashKey[PytestUUIDConfig]()  # type: ignore[attr-defined]
     _has_stash = True
 except (ImportError, AttributeError):
@@ -175,7 +175,6 @@ def configure(
         RuntimeError: If called outside of a pytest session.
 
     Example:
-        import pytest_uuid
 
         pytest_uuid.configure(
             default_ignore_list=["sqlalchemy", "celery"],
@@ -302,3 +301,20 @@ def load_config_from_pyproject(rootdir: Path | None = None) -> None:
         extend_ignore_list=config_data.get("extend_ignore_list"),
         default_exhaustion_behavior=config_data.get("default_exhaustion_behavior"),
     )
+
+
+def _get_node_seed(node_id: str) -> int:
+    """Generate a deterministic seed from a pytest node ID."""
+    return int(hashlib.sha256(node_id.encode("utf-8")).hexdigest(), 16)
+
+
+def parse_uuid(value: Any) -> uuid.UUID:
+    """Parse a value into a UUID object."""
+    if isinstance(value, uuid.UUID):
+        return value
+    return uuid.UUID(str(value))
+
+
+def parse_uuids(values: Iterable[Any]) -> list[uuid.UUID]:
+    """Parse a list of values into UUID objects."""
+    return [parse_uuid(v) for v in values]
