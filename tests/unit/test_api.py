@@ -299,8 +299,6 @@ def test_freezer_seed_property_with_node_seed():
 
 def test_freezer_seed_property_with_random_instance():
     """Test that seed property returns None when using Random instance."""
-    import random
-
     rng = random.Random(42)
     with UUIDFreezer(seed=rng) as freezer:
         assert freezer.seed is None
