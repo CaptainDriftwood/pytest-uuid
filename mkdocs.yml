@@ -65,6 +65,7 @@ nav:
       - Marker API: guide/marker-api.md
       - Spy Mode: guide/spy-mode.md
       - Configuration: guide/configuration.md
+      - How It Works: guide/how-it-works.md
   - API Reference: api-reference.md
   - Contributing: contributing.md
 
