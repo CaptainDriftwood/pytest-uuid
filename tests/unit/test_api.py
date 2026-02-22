@@ -87,14 +87,20 @@ def test_freeze_context_reset():
         assert uuid.uuid4() == first
 
 
-def test_freeze_context_restores_uuid4_after_exit():
-    """Test that uuid.uuid4 is restored after exiting context."""
-    original = uuid.uuid4
-
+def test_freeze_context_restores_behavior_after_exit():
+    """Test that uuid.uuid4 generates random UUIDs after exiting context."""
+    # With the proxy approach, uuid.uuid4 is always the proxy
+    # But behavior changes based on context variable
     with freeze_uuid("12345678-1234-4678-8234-567812345678"):
-        assert uuid.uuid4 is not original
+        mocked = uuid.uuid4()
+        assert str(mocked) == "12345678-1234-4678-8234-567812345678"
 
-    assert uuid.uuid4 is original
+    # After exit, should return random UUIDs (not the mocked one)
+    random1 = uuid.uuid4()
+    random2 = uuid.uuid4()
+    # Random UUIDs should be different from each other and from the mocked one
+    assert random1 != random2
+    assert str(random1) != "12345678-1234-4678-8234-567812345678"
 
 
 def test_freeze_context_uuid_object_input():

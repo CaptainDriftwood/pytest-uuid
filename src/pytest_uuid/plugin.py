@@ -40,7 +40,6 @@ from __future__ import annotations
 
 import inspect
 import random
-import sys
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -48,9 +47,15 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from pytest_uuid._proxy import (
+    get_current_generator,
+    get_original_uuid4,
+    install_proxy,
+    reset_generator,
+    set_generator,
+)
 from pytest_uuid._tracking import (
     CallTrackingMixin,
-    _find_uuid4_imports,
     _get_caller_info,
     _get_node_seed,
 )
@@ -121,19 +126,19 @@ class UUIDMocker(CallTrackingMixin):
 
     def __init__(
         self,
-        monkeypatch: pytest.MonkeyPatch,
         node_id: str | None = None,
         ignore: list[str] | None = None,
         ignore_defaults: bool = True,
+        delegate_to: Callable[[], uuid.UUID] | None = None,
     ) -> None:
-        self._monkeypatch = monkeypatch
         self._node_id = node_id
         self._generator: UUIDGenerator | None = None
+        self._delegate_to = (
+            delegate_to  # Generator to delegate to when no local generator
+        )
         self._on_exhausted: ExhaustionBehavior = (
             get_config().default_exhaustion_behavior
         )
-        # Store reference to original uuid4 to avoid recursion when patched
-        self._original_uuid4 = uuid.uuid4
         self._call_count: int = 0
         self._generated_uuids: list[uuid.UUID] = []
         self._calls: list[UUIDCall] = []
@@ -256,8 +261,9 @@ class UUIDMocker(CallTrackingMixin):
             The next UUID from the generator, or a random UUID if no
             generator is configured.
         """
+        # skip_frames=3: _get_caller_info -> __call__ -> _proxy_uuid4 -> caller
         caller_module, caller_file, caller_line, caller_function, caller_qualname = (
-            _get_caller_info(skip_frames=2)
+            _get_caller_info(skip_frames=3)
         )
 
         # Check if any frame in the call stack should be ignored
@@ -271,7 +277,7 @@ class UUIDMocker(CallTrackingMixin):
                 # Check if any caller should be ignored
                 while frame is not None:
                     if _should_ignore_frame(frame, self._ignore_list):
-                        result = self._original_uuid4()
+                        result = get_original_uuid4()()
                         self._record_call(
                             result,
                             False,
@@ -289,8 +295,12 @@ class UUIDMocker(CallTrackingMixin):
         if self._generator is not None:
             result = self._generator()
             was_mocked = True
+        elif self._delegate_to is not None:
+            # Delegate to marker's generator (e.g., from @pytest.mark.freeze_uuid)
+            result = self._delegate_to()
+            was_mocked = True
         else:
-            result = self._original_uuid4()
+            result = get_original_uuid4()()
             was_mocked = False
 
         self._record_call(
@@ -376,18 +386,18 @@ class UUIDSpy(CallTrackingMixin):
         - mock_uuid.spy(): Switches a UUIDMocker to spy mode
     """
 
-    def __init__(self, original_uuid4: Callable[[], uuid.UUID]) -> None:
-        self._original_uuid4 = original_uuid4
+    def __init__(self) -> None:
         self._call_count: int = 0
         self._generated_uuids: list[uuid.UUID] = []
         self._calls: list[UUIDCall] = []
 
     def __call__(self) -> uuid.UUID:
         """Generate a real UUID and track it."""
+        # skip_frames=3: _get_caller_info -> __call__ -> _proxy_uuid4 -> caller
         caller_module, caller_file, caller_line, caller_function, caller_qualname = (
-            _get_caller_info(skip_frames=2)
+            _get_caller_info(skip_frames=3)
         )
-        result = self._original_uuid4()
+        result = get_original_uuid4()()
         self._record_call(
             result,
             was_mocked=False,
@@ -404,11 +414,35 @@ class UUIDSpy(CallTrackingMixin):
         self._reset_tracking()
 
 
+def pytest_load_initial_conftests(
+    early_config: pytest.Config,
+    parser: pytest.Parser,  # noqa: ARG001
+    args: list[str],  # noqa: ARG001
+) -> None:
+    """Install the uuid4 proxy BEFORE conftest files are loaded.
+
+    This is critical: conftest files may import modules that do
+    `from uuid import uuid4`, and we need our proxy installed first
+    so those imports capture the proxy, not the original function.
+
+    pytest hook order for reference:
+    1. pytest_load_initial_conftests (proxy installed here)
+    2. conftest.py files are loaded
+    3. pytest_configure (config setup here)
+    """
+    install_proxy()
+    # Also set early config so freeze_uuid can access it during conftest loading
+    _set_active_pytest_config(early_config)
+
+
 def pytest_configure(config: pytest.Config) -> None:
     """Load config from pyproject.toml and register the freeze_uuid marker."""
     from pathlib import Path
 
-    # Set active pytest config FIRST (enables get_config() to work)
+    # Update active config (early_config may have been replaced)
+    _set_active_pytest_config(config)
+
+    # Set active pytest config (enables get_config() to work)
     _set_active_pytest_config(config)
 
     # Initialize stash with default config
@@ -469,13 +503,12 @@ def pytest_runtest_teardown(item: pytest.Item) -> None:
 
 @pytest.fixture
 def mock_uuid(
-    monkeypatch: pytest.MonkeyPatch,
     request: pytest.FixtureRequest,
-) -> UUIDMocker:
+) -> Iterator[UUIDMocker]:
     """Fixture that provides a UUIDMocker for controlling uuid.uuid4() calls.
 
-    This fixture patches uuid.uuid4 globally AND any modules that have imported
-    uuid4 directly (via `from uuid import uuid4`).
+    This fixture uses the proxy system to intercept all uuid.uuid4() calls,
+    including those captured at import time (e.g., Pydantic default_factory).
 
     Example:
         def test_something(mock_uuid):
@@ -507,98 +540,81 @@ def mock_uuid(
     Returns:
         UUIDMocker: An object to control the mocked UUIDs.
     """
-    # Check for fixture conflict - detect if spy_uuid already patched uuid.uuid4
-    if isinstance(uuid.uuid4, UUIDSpy):
+    # Check for fixture conflict - if another fixture already set a generator
+    current = get_current_generator()
+    if current is not None and isinstance(current, UUIDSpy):
         raise pytest.UsageError(
             "Cannot use both 'mock_uuid' and 'spy_uuid' fixtures in the same test. "
             "Use mock_uuid.spy() to switch to spy mode instead."
         )
 
-    mocker = UUIDMocker(monkeypatch, node_id=request.node.nodeid)
-    original_uuid4 = uuid.uuid4
-    uuid4_imports = _find_uuid4_imports(original_uuid4)
+    # Check if marker set a generator that we should delegate to
+    marker_freezer = getattr(request.node, "_uuid_freezer", None)
+    delegate_to = current if marker_freezer is not None else None
 
-    monkeypatch.setattr(uuid, "uuid4", mocker)
-    for module, attr_name in uuid4_imports:
-        monkeypatch.setattr(module, attr_name, mocker)
-
-    return mocker
+    mocker = UUIDMocker(node_id=request.node.nodeid, delegate_to=delegate_to)
+    token = set_generator(mocker)
+    yield mocker
+    reset_generator(token)
 
 
 @pytest.fixture
-def mock_uuid_factory(
-    monkeypatch: pytest.MonkeyPatch,
-) -> Callable[..., AbstractContextManager[UUIDMocker]]:
-    """Fixture factory for mocking uuid.uuid4() in specific modules.
+def mock_uuid_factory() -> Callable[..., AbstractContextManager[UUIDMocker]]:
+    """Fixture factory for creating scoped UUIDMocker instances.
 
-    Use this when you need to mock uuid.uuid4() in a specific module where
-    it has been imported directly (e.g., `from uuid import uuid4`).
+    With the proxy-based architecture, all uuid.uuid4() calls go through
+    the global proxy. This factory creates a context manager that sets up
+    and tears down a UUIDMocker for the duration of the context.
+
+    Note: The module_path parameter is now optional and primarily used for
+    documentation/clarity. The proxy affects all uuid4 calls globally.
 
     Example:
-        def test_with_module_mock(mock_uuid_factory):
-            with mock_uuid_factory("myapp.models") as mocker:
+        def test_with_scoped_mock(mock_uuid_factory):
+            with mock_uuid_factory() as mocker:
                 mocker.set("12345678-1234-4678-8234-567812345678")
-                # uuid4() calls in myapp.models will return the mocked UUID
                 result = create_model()  # Calls uuid4() internally
                 assert result.id == "12345678-1234-4678-8234-567812345678"
 
         def test_mock_default_ignored_package(mock_uuid_factory):
             # Mock packages that are normally ignored (e.g., botocore)
-            with mock_uuid_factory("botocore.handlers", ignore_defaults=False) as mocker:
+            with mock_uuid_factory(ignore_defaults=False) as mocker:
                 mocker.set("12345678-1234-4678-8234-567812345678")
                 # botocore will now receive mocked UUIDs
 
     Args:
-        module_path: The module path to mock uuid4 in.
+        module_path: Optional module path (for documentation/backward compat).
         ignore_defaults: Whether to include default ignore list (default True).
             Set to False to mock all modules including those in DEFAULT_IGNORE_PACKAGES.
 
     Returns:
-        A context manager factory that takes a module path and yields a UUIDMocker.
+        A context manager factory that yields a UUIDMocker.
     """
 
     @contextmanager
     def factory(
-        module_path: str,
+        module_path: str | None = None,
         *,
         ignore_defaults: bool = True,
     ) -> Iterator[UUIDMocker]:
-        mocker = UUIDMocker(monkeypatch, ignore_defaults=ignore_defaults)
-
-        try:
-            module = sys.modules[module_path]
-        except KeyError:
-            raise KeyError(
-                f"Module '{module_path}' is not loaded. "
-                f"Make sure to import the module before using mock_uuid_factory. "
-                f"Example: import {module_path.split('.', maxsplit=1)[0]}"
-            ) from None
-
-        if not hasattr(module, "uuid4"):
-            raise AttributeError(
-                f"Module '{module_path}' does not have a 'uuid4' attribute. "
-                f"This fixture only works with modules that use "
-                f"'from uuid import uuid4'. "
-                f"For modules using 'import uuid', use the mock_uuid fixture instead."
-            )
-
-        original = module.uuid4  # type: ignore[attr-defined]
-        monkeypatch.setattr(module, "uuid4", mocker)
+        # module_path is kept for backward compatibility but no longer used
+        # with the proxy approach (all uuid4 calls go through the proxy)
+        _ = module_path
+        mocker = UUIDMocker(ignore_defaults=ignore_defaults)
+        token = set_generator(mocker)
         try:
             yield mocker
         finally:
-            monkeypatch.setattr(module, "uuid4", original)
+            reset_generator(token)
 
     return factory
 
 
 @pytest.fixture
-def spy_uuid(
-    monkeypatch: pytest.MonkeyPatch,
-) -> UUIDSpy:
+def spy_uuid() -> Iterator[UUIDSpy]:
     """Fixture that spies on uuid.uuid4() calls without mocking.
 
-    This fixture patches uuid.uuid4 to track all calls while still
+    This fixture uses the proxy to track all uuid.uuid4() calls while still
     returning real random UUIDs. Use this when you need to verify
     that uuid.uuid4() was called, but don't need to control its output.
 
@@ -614,19 +630,15 @@ def spy_uuid(
     Returns:
         UUIDSpy: An object to inspect uuid4 calls.
     """
-    # Check for fixture conflict - detect if mock_uuid already patched uuid.uuid4
-    if isinstance(uuid.uuid4, UUIDMocker):
+    # Check for fixture conflict - if another fixture already set a generator
+    current = get_current_generator()
+    if current is not None and isinstance(current, UUIDMocker):
         raise pytest.UsageError(
             "Cannot use both 'mock_uuid' and 'spy_uuid' fixtures in the same test. "
             "Use mock_uuid.spy() to switch to spy mode instead."
         )
 
-    original_uuid4 = uuid.uuid4
-    spy = UUIDSpy(original_uuid4)
-    uuid4_imports = _find_uuid4_imports(original_uuid4)
-
-    monkeypatch.setattr(uuid, "uuid4", spy)
-    for module, attr_name in uuid4_imports:
-        monkeypatch.setattr(module, attr_name, spy)
-
-    return spy
+    spy = UUIDSpy()
+    token = set_generator(spy)
+    yield spy
+    reset_generator(token)

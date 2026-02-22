@@ -199,13 +199,13 @@ def test_mock_uuid_generator_property(mock_uuid):
 # --- mock_uuid_factory ---
 
 
-def test_mock_uuid_factory_mocks_specific_module(mock_uuid_factory):
-    """Test that the factory can mock a specific module."""
+def test_mock_uuid_factory_creates_scoped_mocker(mock_uuid_factory):
+    """Test that the factory creates a scoped mocker via proxy."""
     expected = "12345678-1234-4678-8234-567812345678"
 
-    with mock_uuid_factory("uuid") as mocker:
+    # With proxy approach, module_path is optional (for backward compat)
+    with mock_uuid_factory() as mocker:
         mocker.set(expected)
-        # Access through the module to get the patched version
         result = uuid.uuid4()
 
     assert str(result) == expected
@@ -213,7 +213,7 @@ def test_mock_uuid_factory_mocks_specific_module(mock_uuid_factory):
 
 def test_mock_uuid_factory_returns_mocker_with_all_methods(mock_uuid_factory):
     """Test that the factory returns a fully functional mocker."""
-    with mock_uuid_factory("uuid") as mocker:
+    with mock_uuid_factory() as mocker:
         # Test set
         mocker.set("11111111-1111-4111-8111-111111111111")
         assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
@@ -226,29 +226,16 @@ def test_mock_uuid_factory_returns_mocker_with_all_methods(mock_uuid_factory):
         assert str(uuid.uuid4()) == "22222222-2222-4222-8222-222222222222"
 
 
-def test_mock_uuid_factory_raises_keyerror_for_unloaded_module(mock_uuid_factory):
-    """Test that factory raises helpful KeyError for unloaded modules."""
-    with (
-        pytest.raises(KeyError) as exc_info,
-        mock_uuid_factory("nonexistent.module"),
-    ):
-        pass
+def test_mock_uuid_factory_accepts_module_path_for_backward_compat(mock_uuid_factory):
+    """Test that factory accepts module_path for backward compatibility."""
+    expected = "12345678-1234-4678-8234-567812345678"
 
-    error_msg = str(exc_info.value)
-    assert "nonexistent.module" in error_msg
-    assert "not loaded" in error_msg
+    # module_path is accepted but no longer used for validation
+    with mock_uuid_factory("uuid") as mocker:
+        mocker.set(expected)
+        result = uuid.uuid4()
 
-
-def test_mock_uuid_factory_raises_attributeerror_without_uuid4(mock_uuid_factory):
-    """Test that factory raises helpful AttributeError when module lacks uuid4."""
-    # Use a module that exists but doesn't have uuid4 (sys is always loaded)
-    with pytest.raises(AttributeError) as exc_info, mock_uuid_factory("sys"):
-        pass
-
-    error_msg = str(exc_info.value)
-    assert "sys" in error_msg
-    assert "uuid4" in error_msg
-    assert "mock_uuid fixture" in error_msg
+    assert str(result) == expected
 
 
 # --- Plugin integration ---
@@ -267,14 +254,14 @@ def test_mock_uuid_factory_fixture_is_available(mock_uuid_factory):
 
 def test_mock_uuid_factory_ignore_defaults_true_by_default(mock_uuid_factory):
     """Test that ignore_defaults=True is the default behavior."""
-    with mock_uuid_factory("uuid") as mocker:
+    with mock_uuid_factory() as mocker:
         # Default behavior: botocore should be in the ignore list
         assert "botocore" in mocker._ignore_list
 
 
 def test_mock_uuid_factory_ignore_defaults_false(mock_uuid_factory):
     """Test that ignore_defaults=False excludes default packages from ignore list."""
-    with mock_uuid_factory("uuid", ignore_defaults=False) as mocker:
+    with mock_uuid_factory(ignore_defaults=False) as mocker:
         # With ignore_defaults=False, botocore should NOT be in the ignore list
         assert "botocore" not in mocker._ignore_list
 

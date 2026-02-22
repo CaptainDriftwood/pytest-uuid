@@ -34,7 +34,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Sequence
 
 
 class ExhaustionBehavior(Enum):
@@ -270,18 +270,16 @@ class RandomUUIDGenerator(UUIDGenerator):
 
     Used internally when no specific mocking is configured but the patching
     infrastructure is still needed (e.g., for the ignore list feature).
-    This generator simply calls the original uuid.uuid4() function.
-
-    Args:
-        original_uuid4: The original uuid.uuid4 function to delegate to.
-            If None, uses uuid.uuid4 directly (which may already be patched).
+    This generator calls the original uuid.uuid4() function via the proxy.
     """
 
-    def __init__(self, original_uuid4: Callable[[], uuid.UUID] | None = None) -> None:
-        self._original_uuid4 = original_uuid4 or uuid.uuid4
+    def __init__(self) -> None:
+        pass  # No state needed - uses get_original_uuid4() at call time
 
     def __call__(self) -> uuid.UUID:
-        return self._original_uuid4()
+        from pytest_uuid._proxy import get_original_uuid4
+
+        return get_original_uuid4()()
 
     def reset(self) -> None:
         pass  # No state to reset
