@@ -63,6 +63,9 @@ from pytest_uuid.config import (
 )
 from pytest_uuid.generators import (
     ExhaustionBehavior,
+    RandomUUID1Generator,
+    RandomUUID6Generator,
+    RandomUUID7Generator,
     RandomUUIDGenerator,
     SeededUUIDGenerator,
     SequenceUUIDGenerator,
@@ -103,6 +106,9 @@ __all__ = [
     "SequenceUUIDGenerator",
     "SeededUUIDGenerator",
     "RandomUUIDGenerator",
+    "RandomUUID1Generator",
+    "RandomUUID6Generator",
+    "RandomUUID7Generator",
     # Enums and Exceptions
     "ExhaustionBehavior",
     "UUIDsExhaustedError",

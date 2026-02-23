@@ -151,8 +151,9 @@ class CallTrackingMixin:
         caller_line: int | None = None,
         caller_function: str | None = None,
         caller_qualname: str | None = None,
+        uuid_version: int = 4,
     ) -> None:
-        """Record a uuid4 call for tracking.
+        """Record a UUID call for tracking.
 
         Args:
             result: The UUID that was generated.
@@ -162,6 +163,7 @@ class CallTrackingMixin:
             caller_line: The line number where the call originated.
             caller_function: The function name where the call originated.
             caller_qualname: The qualified name of the function (e.g., "MyClass.method").
+            uuid_version: The UUID version (1, 3, 4, 5, 6, 7, or 8). Defaults to 4.
         """
         self._call_count += 1
         self._generated_uuids.append(result)
@@ -169,6 +171,7 @@ class CallTrackingMixin:
             UUIDCall(
                 uuid=result,
                 was_mocked=was_mocked,
+                uuid_version=uuid_version,
                 caller_module=caller_module,
                 caller_file=caller_file,
                 caller_line=caller_line,

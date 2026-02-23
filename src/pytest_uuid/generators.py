@@ -274,12 +274,95 @@ class RandomUUIDGenerator(UUIDGenerator):
     """
 
     def __init__(self) -> None:
-        pass  # No state needed - uses get_original_uuid4() at call time
+        pass  # No state needed - uses get_original() at call time
 
     def __call__(self) -> uuid.UUID:
-        from pytest_uuid._proxy import get_original_uuid4
+        from pytest_uuid._proxy import get_original
 
-        return get_original_uuid4()()
+        return get_original("uuid4")()
+
+    def reset(self) -> None:
+        pass  # No state to reset
+
+
+class RandomUUID1Generator(UUIDGenerator):
+    """Generator that produces UUIDs by delegating to uuid.uuid1().
+
+    Used internally when no specific mocking is configured but the patching
+    infrastructure is still needed. Supports optional node and clock_seq
+    parameters.
+
+    Args:
+        node: The hardware address (48-bit integer). If None, uses system MAC.
+        clock_seq: The clock sequence (14-bit integer). If None, uses random.
+    """
+
+    def __init__(
+        self,
+        node: int | None = None,
+        clock_seq: int | None = None,
+    ) -> None:
+        self._node = node
+        self._clock_seq = clock_seq
+
+    def __call__(self) -> uuid.UUID:
+        from pytest_uuid._proxy import get_original
+
+        return get_original("uuid1")(node=self._node, clock_seq=self._clock_seq)
+
+    def reset(self) -> None:
+        pass  # No state to reset
+
+
+class RandomUUID6Generator(UUIDGenerator):
+    """Generator that produces UUIDs by delegating to uuid.uuid6().
+
+    Used internally when no specific mocking is configured. Requires
+    Python 3.14+ or the uuid6 backport package.
+
+    Args:
+        node: The hardware address (48-bit integer). If None, uses system MAC.
+        clock_seq: The clock sequence (14-bit integer). If None, uses random.
+    """
+
+    def __init__(
+        self,
+        node: int | None = None,
+        clock_seq: int | None = None,
+    ) -> None:
+        self._node = node
+        self._clock_seq = clock_seq
+
+    def __call__(self) -> uuid.UUID:
+        from pytest_uuid._compat import require_uuid6_7_8
+        from pytest_uuid._proxy import get_original
+
+        require_uuid6_7_8("uuid6")
+        return get_original("uuid6")(node=self._node, clock_seq=self._clock_seq)
+
+    def reset(self) -> None:
+        pass  # No state to reset
+
+
+class RandomUUID7Generator(UUIDGenerator):
+    """Generator that produces UUIDs by delegating to uuid.uuid7().
+
+    Used internally when no specific mocking is configured. Requires
+    Python 3.14+ or the uuid6 backport package.
+
+    uuid7() uses Unix timestamp (milliseconds) with a monotonic counter
+    for sub-millisecond ordering.
+    """
+
+    def __init__(self) -> None:
+        pass  # No configuration - uuid7 takes no parameters
+
+    def __call__(self) -> uuid.UUID:
+        from pytest_uuid._compat import require_uuid6_7_8
+        from pytest_uuid._proxy import get_original
+
+        require_uuid6_7_8("uuid7")
+        return get_original("uuid7")()
 
     def reset(self) -> None:
         pass  # No state to reset
