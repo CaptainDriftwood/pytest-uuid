@@ -77,7 +77,12 @@ from pytest_uuid.plugin import (
     mock_uuid_factory,
     spy_uuid,
 )
-from pytest_uuid.types import UUIDMockerProtocol, UUIDSpyProtocol
+from pytest_uuid.types import (
+    NamespaceUUIDCall,
+    UUIDCall,
+    UUIDMockerProtocol,
+    UUIDSpyProtocol,
+)
 
 try:
     __version__ = version("pytest-uuid")
@@ -101,7 +106,9 @@ __all__ = [
     # Enums and Exceptions
     "ExhaustionBehavior",
     "UUIDsExhaustedError",
-    # Type annotations
+    # Type annotations and call tracking
+    "UUIDCall",
+    "NamespaceUUIDCall",
     "UUIDMockerProtocol",
     "UUIDSpyProtocol",
     # Fixtures (for documentation - actual fixtures registered via plugin)

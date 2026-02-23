@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class UUIDCall:
-    """Record of a single uuid.uuid4() call.
+    """Record of a single UUID function call.
 
     This dataclass captures metadata about each UUID generation call,
     enabling detailed inspection of which calls were mocked vs real
@@ -36,11 +36,13 @@ class UUIDCall:
     Attributes:
         uuid: The UUID that was returned.
         was_mocked: True if a mocked/generated UUID was returned,
-                   False if the real uuid.uuid4() was called (e.g., ignored module).
-        caller_module: The __name__ of the module that called uuid4(), or None.
+                   False if the real UUID function was called (e.g., ignored module).
+        uuid_version: The UUID version (1, 3, 4, 5, 6, 7, or 8). Defaults to 4
+                     for backward compatibility.
+        caller_module: The __name__ of the module that called the function, or None.
         caller_file: The file path where the call originated, or None.
-        caller_line: The line number where uuid4() was called, or None.
-        caller_function: The name of the function that called uuid4(), or None.
+        caller_line: The line number where the function was called, or None.
+        caller_function: The name of the function that made the call, or None.
         caller_qualname: The qualified name of the function (e.g., "MyClass.method"),
                         or None. On Python 3.11+, uses native co_qualname. On earlier
                         versions, uses best-effort reconstruction via self/cls params
@@ -53,6 +55,7 @@ class UUIDCall:
 
             call = mock_uuid.calls[0]
             assert call.was_mocked is True
+            assert call.uuid_version == 4
             assert call.caller_module == "test_example"
             assert call.caller_function == "test_tracking"
             assert call.caller_qualname == "test_tracking"  # or "MyClass.method"
@@ -61,6 +64,48 @@ class UUIDCall:
 
     uuid: uuid.UUID
     was_mocked: bool
+    uuid_version: int = 4
+    caller_module: str | None = None
+    caller_file: str | None = None
+    caller_line: int | None = None
+    caller_function: str | None = None
+    caller_qualname: str | None = None
+
+
+@dataclass(frozen=True)
+class NamespaceUUIDCall:
+    """Record of a single uuid3() or uuid5() call.
+
+    This dataclass captures metadata about namespace-based UUID generation calls,
+    including the namespace and name arguments used to generate the UUID.
+
+    Attributes:
+        uuid: The UUID that was returned.
+        uuid_version: The UUID version (3 for MD5, 5 for SHA-1).
+        namespace: The namespace UUID used for generation.
+        name: The name string used for generation.
+        caller_module: The __name__ of the module that called the function, or None.
+        caller_file: The file path where the call originated, or None.
+        caller_line: The line number where the function was called, or None.
+        caller_function: The name of the function that made the call, or None.
+        caller_qualname: The qualified name of the function, or None.
+
+    Example:
+        def test_inspect_namespace_calls(mock_uuid):
+            # Enable spy mode for uuid5
+            mock_uuid.uuid5.spy()
+            uuid.uuid5(uuid.NAMESPACE_DNS, "example.com")
+
+            call = mock_uuid.uuid5.calls[0]
+            assert call.uuid_version == 5
+            assert call.namespace == uuid.NAMESPACE_DNS
+            assert call.name == "example.com"
+    """
+
+    uuid: uuid.UUID
+    uuid_version: int
+    namespace: uuid.UUID
+    name: str
     caller_module: str | None = None
     caller_file: str | None = None
     caller_line: int | None = None
