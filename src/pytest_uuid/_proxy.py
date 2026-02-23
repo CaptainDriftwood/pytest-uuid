@@ -146,7 +146,13 @@ def install_proxy() -> None:
                 original = func_map.get(func_name)
                 if original is not None:
                     _originals[func_name] = original
-                    # Note: We don't patch uuid6 module itself, just track original
+                    # Also patch the uuid6 module so direct imports get the proxy
+                    try:
+                        import uuid6 as uuid6_module
+
+                        setattr(uuid6_module, func_name, _create_proxy(func_name))
+                    except ImportError:
+                        pass  # uuid6 package not available
 
     _proxy_installed = True
 
@@ -170,8 +176,18 @@ def uninstall_proxy() -> None:
 
     # Restore extended functions (only if they were patched)
     for func_name in EXTENDED_UUID_FUNCS:
-        if hasattr(uuid, func_name) and func_name in _originals:
-            setattr(uuid, func_name, _originals[func_name])
+        if func_name in _originals:
+            if hasattr(uuid, func_name):
+                # Python 3.14+ - restore stdlib
+                setattr(uuid, func_name, _originals[func_name])
+            else:
+                # Python < 3.14 - restore uuid6 module
+                try:
+                    import uuid6 as uuid6_module
+
+                    setattr(uuid6_module, func_name, _originals[func_name])
+                except ImportError:
+                    pass
 
     _originals.clear()
     _proxy_installed = False

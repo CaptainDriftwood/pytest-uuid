@@ -32,8 +32,6 @@ class TestUUID3Spy:
         result = uuid.uuid3(uuid.NAMESPACE_DNS, "example.com")
 
         # uuid3 is deterministic - same inputs = same output
-        expected = uuid.uuid3(uuid.NAMESPACE_DNS, "example.com")
-        # Note: We can't compare directly since the spy is still active
         # Just verify it's a valid UUID v3
         assert result.version == 3
 
