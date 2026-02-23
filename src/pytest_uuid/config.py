@@ -113,10 +113,10 @@ class PytestUUIDConfig:
 try:
     import pytest
 
-    _config_key = pytest.StashKey[PytestUUIDConfig]()  # type: ignore[attr-defined]
+    _config_key = pytest.StashKey[PytestUUIDConfig]()
     _has_stash = True
 except (ImportError, AttributeError):
-    _config_key = None  # type: ignore[assignment]
+    _config_key = None
     _has_stash = False
 
 # ContextVar to track the active pytest.Config reference

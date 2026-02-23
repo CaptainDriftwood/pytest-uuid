@@ -55,7 +55,7 @@ def _get_qualname(frame: FrameType) -> str | None:
     # TODO: When minimum Python version is 3.11+, simplify to just:
     #       return frame.f_code.co_qualname
     if sys.version_info >= (3, 11):
-        return frame.f_code.co_qualname  # type: ignore[attr-defined]
+        return frame.f_code.co_qualname
 
     func_name = frame.f_code.co_name
 
