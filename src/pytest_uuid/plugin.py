@@ -80,7 +80,7 @@ from pytest_uuid.generators import (
     parse_uuid,
     parse_uuids,
 )
-from pytest_uuid.types import UUIDCall
+from pytest_uuid.types import NamespaceUUIDCall, UUIDCall
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -157,6 +157,10 @@ class UUIDMocker(CallTrackingMixin):
         # Sub-mockers for other UUID versions (lazily initialized)
         self._uuid1_mocker: UUID1Mocker | None = None
         self._uuid1_token: GeneratorToken | None = None
+        self._uuid3_spy: NamespaceUUIDSpy | None = None
+        self._uuid3_token: GeneratorToken | None = None
+        self._uuid5_spy: NamespaceUUIDSpy | None = None
+        self._uuid5_token: GeneratorToken | None = None
 
     def set(self, *uuids: str | uuid.UUID) -> None:
         """Set the UUID(s) to return.
@@ -383,12 +387,62 @@ class UUIDMocker(CallTrackingMixin):
             self._uuid1_token = set_generator(self._uuid1_mocker, func_name="uuid1")
         return self._uuid1_mocker
 
+    @property
+    def uuid3(self) -> NamespaceUUIDSpy:
+        """Access UUID3 spy API.
+
+        Returns a NamespaceUUIDSpy instance for tracking uuid.uuid3() calls.
+        Since uuid3 is deterministic (same namespace + name = same UUID),
+        only spy functionality is provided.
+
+        Example:
+            def test_uuid3_tracking(mock_uuid):
+                result = uuid.uuid3(uuid.NAMESPACE_DNS, "example.com")
+
+                assert mock_uuid.uuid3.call_count == 1
+                assert mock_uuid.uuid3.calls[0].namespace == uuid.NAMESPACE_DNS
+                assert mock_uuid.uuid3.calls[0].name == "example.com"
+        """
+        if self._uuid3_spy is None:
+            self._uuid3_spy = NamespaceUUIDSpy(uuid_version=3)
+            self._uuid3_token = set_generator(self._uuid3_spy, func_name="uuid3")
+        return self._uuid3_spy
+
+    @property
+    def uuid5(self) -> NamespaceUUIDSpy:
+        """Access UUID5 spy API.
+
+        Returns a NamespaceUUIDSpy instance for tracking uuid.uuid5() calls.
+        Since uuid5 is deterministic (same namespace + name = same UUID),
+        only spy functionality is provided.
+
+        Example:
+            def test_uuid5_tracking(mock_uuid):
+                result = uuid.uuid5(uuid.NAMESPACE_DNS, "example.com")
+
+                assert mock_uuid.uuid5.call_count == 1
+                assert mock_uuid.uuid5.calls[0].namespace == uuid.NAMESPACE_DNS
+                assert mock_uuid.uuid5.calls[0].name == "example.com"
+        """
+        if self._uuid5_spy is None:
+            self._uuid5_spy = NamespaceUUIDSpy(uuid_version=5)
+            self._uuid5_token = set_generator(self._uuid5_spy, func_name="uuid5")
+        return self._uuid5_spy
+
     def _cleanup_sub_mockers(self) -> None:
         """Clean up any sub-mockers that were initialized."""
         if self._uuid1_token is not None:
             reset_generator(self._uuid1_token)
             self._uuid1_token = None
             self._uuid1_mocker = None
+        if self._uuid3_token is not None:
+            reset_generator(self._uuid3_token)
+            self._uuid3_token = None
+            self._uuid3_spy = None
+        if self._uuid5_token is not None:
+            reset_generator(self._uuid5_token)
+            self._uuid5_token = None
+            self._uuid5_spy = None
 
 
 class UUIDSpy(CallTrackingMixin):
@@ -647,6 +701,154 @@ class UUID1Mocker(CallTrackingMixin):
     def spy(self) -> None:
         """Enable spy mode - track calls but return real uuid1 values."""
         self._generator = None
+
+
+class NamespaceUUIDSpy:
+    """A class to spy on uuid3() or uuid5() calls.
+
+    Since uuid3 and uuid5 are deterministic (same inputs = same output),
+    this class only provides spy functionality - it tracks calls with their
+    namespace and name arguments without modifying the output.
+
+    Attributes:
+        uuid_version: The UUID version being tracked (3 or 5).
+        call_count: Number of calls tracked.
+        calls: List of NamespaceUUIDCall records with full metadata.
+
+    Example:
+        def test_uuid5_tracking(mock_uuid):
+            mock_uuid.uuid5.enable()
+            result = uuid.uuid5(uuid.NAMESPACE_DNS, "example.com")
+
+            assert mock_uuid.uuid5.call_count == 1
+            assert mock_uuid.uuid5.calls[0].namespace == uuid.NAMESPACE_DNS
+            assert mock_uuid.uuid5.calls[0].name == "example.com"
+    """
+
+    def __init__(self, uuid_version: int) -> None:
+        if uuid_version not in (3, 5):
+            raise ValueError(
+                "NamespaceUUIDSpy only supports uuid3 (version=3) or uuid5 (version=5)"
+            )
+        self._uuid_version = uuid_version
+        self._call_count: int = 0
+        self._generated_uuids: list[uuid.UUID] = []
+        self._calls: list[NamespaceUUIDCall] = []
+        self._enabled: bool = False
+
+    def enable(self) -> None:
+        """Start tracking calls to this UUID function."""
+        self._enabled = True
+
+    def disable(self) -> None:
+        """Stop tracking calls to this UUID function."""
+        self._enabled = False
+
+    def reset(self) -> None:
+        """Reset tracking data."""
+        self._call_count = 0
+        self._generated_uuids.clear()
+        self._calls.clear()
+
+    def __call__(self, namespace: uuid.UUID, name: str) -> uuid.UUID:
+        """Track the call and return the real UUID.
+
+        Args:
+            namespace: The namespace UUID.
+            name: The name to hash with the namespace.
+
+        Returns:
+            The real uuid3 or uuid5 result.
+        """
+        # Get caller info
+        caller_module, caller_file, caller_line, caller_function, caller_qualname = (
+            _get_caller_info(skip_frames=3)
+        )
+
+        # Call the original function
+        func_name = f"uuid{self._uuid_version}"
+        result = get_original(func_name)(namespace, name)
+
+        # Record the call
+        self._call_count += 1
+        self._generated_uuids.append(result)
+        self._calls.append(
+            NamespaceUUIDCall(
+                uuid=result,
+                uuid_version=self._uuid_version,
+                namespace=namespace,
+                name=name,
+                caller_module=caller_module,
+                caller_file=caller_file,
+                caller_line=caller_line,
+                caller_function=caller_function,
+                caller_qualname=caller_qualname,
+            )
+        )
+
+        return result
+
+    @property
+    def uuid_version(self) -> int:
+        """The UUID version being tracked (3 or 5)."""
+        return self._uuid_version
+
+    @property
+    def call_count(self) -> int:
+        """Get the number of calls tracked."""
+        return self._call_count
+
+    @property
+    def generated_uuids(self) -> list[uuid.UUID]:
+        """Get a list of all UUIDs that have been generated."""
+        return list(self._generated_uuids)
+
+    @property
+    def last_uuid(self) -> uuid.UUID | None:
+        """Get the most recently generated UUID, or None if none generated."""
+        return self._generated_uuids[-1] if self._generated_uuids else None
+
+    @property
+    def calls(self) -> list[NamespaceUUIDCall]:
+        """Get detailed metadata for all calls."""
+        return list(self._calls)
+
+    def calls_from(self, module_prefix: str) -> list[NamespaceUUIDCall]:
+        """Get calls from modules matching the given prefix.
+
+        Args:
+            module_prefix: Module name prefix to filter by.
+
+        Returns:
+            List of NamespaceUUIDCall records from matching modules.
+        """
+        return [
+            c
+            for c in self._calls
+            if c.caller_module and c.caller_module.startswith(module_prefix)
+        ]
+
+    def calls_with_namespace(self, namespace: uuid.UUID) -> list[NamespaceUUIDCall]:
+        """Get calls that used a specific namespace.
+
+        Args:
+            namespace: The namespace UUID to filter by.
+
+        Returns:
+            List of NamespaceUUIDCall records using that namespace.
+        """
+        return [c for c in self._calls if c.namespace == namespace]
+
+    def calls_with_name(self, name: str) -> list[NamespaceUUIDCall]:
+        """Get calls that used a specific name.
+
+        Args:
+            name: The name to filter by.
+
+        Returns:
+            List of NamespaceUUIDCall records using that name.
+        """
+        return [c for c in self._calls if c.name == name]
 
 
 def pytest_load_initial_conftests(

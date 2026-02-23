@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import uuid
 
-import pytest
-
 
 class TestUUID1Mocker:
     """Tests for mock_uuid.uuid1 functionality."""
