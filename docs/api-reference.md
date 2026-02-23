@@ -47,6 +47,20 @@ Main fixture for controlling `uuid.uuid4()` calls.
 |--------|-----------|-------------|
 | `calls_from` | `calls_from(module_prefix: str) -> list[UUIDCall]` | Filter calls by module |
 
+**Sub-Mockers (accessed as properties):**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `uuid1` | `UUID1Mocker` | Control `uuid.uuid1()` - time-based with MAC |
+| `uuid3` | `NamespaceUUIDSpy` | Track `uuid.uuid3()` - MD5 namespace hash |
+| `uuid5` | `NamespaceUUIDSpy` | Track `uuid.uuid5()` - SHA-1 namespace hash |
+| `uuid6` | `UUID6Mocker` | Control `uuid.uuid6()` - reordered time-based |
+| `uuid7` | `UUID7Mocker` | Control `uuid.uuid7()` - Unix timestamp-based |
+| `uuid8` | `UUID8Mocker` | Control `uuid.uuid8()` - experimental format |
+
+!!! note "uuid6/uuid7/uuid8 availability"
+    These require Python 3.14+ or the [uuid6](https://pypi.org/project/uuid6/) package on earlier versions.
+
 ---
 
 ### mock_uuid_factory
@@ -181,6 +195,94 @@ from pytest_uuid.types import UUIDCall
 | `caller_line` | `int \| None` | Line number of the call |
 | `caller_function` | `str \| None` | Function name where the call originated |
 | `caller_qualname` | `str \| None` | Qualified name (e.g., `MyClass.method`) |
+| `uuid_version` | `int` | UUID version (1, 3, 4, 5, 6, 7, or 8) |
+
+---
+
+### NamespaceUUIDCall
+
+Dataclass for uuid3/uuid5 calls with namespace information.
+
+```python
+from pytest_uuid.types import NamespaceUUIDCall
+```
+
+**Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `uuid` | `UUID` | The returned UUID |
+| `uuid_version` | `int` | UUID version (3 or 5) |
+| `namespace` | `UUID` | The namespace UUID used |
+| `name` | `str` | The name string used |
+| `caller_module` | `str \| None` | Module that made the call |
+| `caller_file` | `str \| None` | File path of the call |
+| `caller_line` | `int \| None` | Line number of the call |
+| `caller_function` | `str \| None` | Function name |
+| `caller_qualname` | `str \| None` | Qualified name |
+
+---
+
+### UUID1Mocker
+
+Mocker for `uuid.uuid1()` calls, accessed via `mock_uuid.uuid1`.
+
+**Methods:**
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `set` | `set(*uuids: str \| UUID)` | Set UUID(s) to return |
+| `set_seed` | `set_seed(seed: int)` | Set seed for reproducible generation |
+| `set_node` | `set_node(node: int)` | Set fixed MAC address for real uuid1 |
+| `set_clock_seq` | `set_clock_seq(seq: int)` | Set fixed clock sequence |
+| `spy` | `spy()` | Enable spy mode |
+| `reset` | `reset()` | Reset to initial state |
+
+**Properties:** Same as `mock_uuid` (`call_count`, `calls`, `last_uuid`, etc.)
+
+---
+
+### NamespaceUUIDSpy
+
+Spy for `uuid.uuid3()` and `uuid.uuid5()` calls, accessed via `mock_uuid.uuid3` and `mock_uuid.uuid5`.
+
+!!! info "Spy-only mode"
+    uuid3 and uuid5 are deterministic (same inputs = same output), so they only support tracking, not mocking.
+
+**Methods:**
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `calls_with_namespace` | `calls_with_namespace(ns: UUID) -> list[NamespaceUUIDCall]` | Filter by namespace |
+| `calls_with_name` | `calls_with_name(name: str) -> list[NamespaceUUIDCall]` | Filter by name |
+| `reset` | `reset()` | Reset tracking |
+
+**Properties:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `call_count` | `int` | Number of calls |
+| `calls` | `list[NamespaceUUIDCall]` | All call records |
+| `last_uuid` | `UUID \| None` | Most recent UUID |
+
+---
+
+### UUID6Mocker, UUID7Mocker, UUID8Mocker
+
+Mockers for the newer RFC 9562 UUID versions, accessed via `mock_uuid.uuid6`, `mock_uuid.uuid7`, `mock_uuid.uuid8`.
+
+**Methods:**
+
+| Method | Available On | Description |
+|--------|--------------|-------------|
+| `set(*uuids)` | All | Set UUID(s) to return |
+| `set_seed(seed)` | All | Set seed for reproducible generation |
+| `set_node(node)` | uuid6 only | Set fixed node (MAC address) |
+| `set_clock_seq(seq)` | uuid6 only | Set fixed clock sequence |
+| `spy()` | All | Enable spy mode |
+| `reset()` | All | Reset to initial state |
+
+**Properties:** Same as `mock_uuid` (`call_count`, `calls`, `last_uuid`, etc.)
 
 ---
 

@@ -140,6 +140,96 @@ def test_reset(mock_uuid):
     # Back to initial state - no UUIDs configured
 ```
 
+## Additional UUID Versions
+
+The `mock_uuid` fixture provides access to sub-mockers for all UUID versions via properties.
+
+### UUID1 (Time-based with MAC)
+
+```python
+import uuid
+
+def test_uuid1_mocked(mock_uuid):
+    mock_uuid.uuid1.set("12345678-1234-1234-8234-567812345678")
+    assert str(uuid.uuid1()) == "12345678-1234-1234-8234-567812345678"
+
+def test_uuid1_seeded(mock_uuid):
+    mock_uuid.uuid1.set_seed(42)
+    first = uuid.uuid1()
+    mock_uuid.uuid1.reset()
+    mock_uuid.uuid1.set_seed(42)
+    assert uuid.uuid1() == first
+
+def test_uuid1_fixed_node(mock_uuid):
+    # Return real uuid1 values with a fixed node (MAC address)
+    mock_uuid.uuid1.set_node(0x123456789ABC)
+    result = uuid.uuid1()
+    assert result.node == 0x123456789ABC
+```
+
+### UUID3 and UUID5 (Namespace-based)
+
+UUID3 (MD5) and UUID5 (SHA-1) are deterministic, so they only support spy mode:
+
+```python
+import uuid
+
+def test_uuid3_tracking(mock_uuid):
+    _ = mock_uuid.uuid3  # Initialize spy
+    result = uuid.uuid3(uuid.NAMESPACE_DNS, "example.com")
+
+    assert mock_uuid.uuid3.call_count == 1
+    assert mock_uuid.uuid3.calls[0].namespace == uuid.NAMESPACE_DNS
+    assert mock_uuid.uuid3.calls[0].name == "example.com"
+
+def test_uuid5_filtering(mock_uuid):
+    _ = mock_uuid.uuid5
+    uuid.uuid5(uuid.NAMESPACE_DNS, "example.com")
+    uuid.uuid5(uuid.NAMESPACE_URL, "https://example.com")
+
+    dns_calls = mock_uuid.uuid5.calls_with_namespace(uuid.NAMESPACE_DNS)
+    assert len(dns_calls) == 1
+```
+
+### UUID6, UUID7, UUID8 (RFC 9562)
+
+These require Python 3.14+ or the [uuid6](https://pypi.org/project/uuid6/) package:
+
+```python
+from uuid6 import uuid6, uuid7, uuid8  # or from uuid import ... on Python 3.14+
+
+def test_uuid7_mocked(mock_uuid):
+    mock_uuid.uuid7.set("12345678-1234-7234-8234-567812345678")
+    result = uuid7()
+    assert str(result) == "12345678-1234-7234-8234-567812345678"
+
+def test_uuid7_seeded(mock_uuid):
+    mock_uuid.uuid7.set_seed(42)
+    first = uuid7()
+    mock_uuid.uuid7.reset()
+    mock_uuid.uuid7.set_seed(42)
+    assert uuid7() == first
+```
+
+### Independent Call Tracking
+
+Each UUID version is tracked independently:
+
+```python
+def test_all_versions_independent(mock_uuid):
+    mock_uuid.set("44444444-4444-4444-8444-444444444444")  # uuid4
+    mock_uuid.uuid1.set("11111111-1111-1111-8111-111111111111")
+
+    uuid.uuid4()
+    uuid.uuid4()
+    uuid.uuid1()
+
+    assert mock_uuid.call_count == 2      # uuid4 only
+    assert mock_uuid.uuid1.call_count == 1
+```
+
+---
+
 ## mock_uuid_factory Fixture
 
 For module-specific mocking:
