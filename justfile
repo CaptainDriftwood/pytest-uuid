@@ -62,12 +62,12 @@ nox version="":
     fi
 
 # Run linting
-lint:
-    uv run ruff check src tests noxfile.py
+lint *args:
+    uv run ruff check src tests noxfile.py {{ args }}
 
 # Run type checking
-type:
-    uv run ty check src/
+type *args:
+    uv run ty check src/ {{ args }}
 
 # Run formatter check
 format-check:
