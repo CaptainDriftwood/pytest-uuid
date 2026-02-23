@@ -70,8 +70,8 @@ type *args:
     uv run ty check src/ {{ args }}
 
 # Run formatter check
-format-check:
-    uv run ruff format --check src tests noxfile.py
+format-check *args:
+    uv run ruff format --check src tests noxfile.py {{ args }}
 
 # Format code and sort imports (isort convention)
 format:
