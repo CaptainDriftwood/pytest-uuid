@@ -74,6 +74,11 @@ from pytest_uuid.generators import (
     UUIDsExhaustedError,
 )
 from pytest_uuid.plugin import (
+    NamespaceUUIDSpy,
+    UUID1Mocker,
+    UUID6Mocker,
+    UUID7Mocker,
+    UUID8Mocker,
     UUIDMocker,
     UUIDSpy,
     mock_uuid,
@@ -123,4 +128,10 @@ __all__ = [
     "spy_uuid",
     "UUIDMocker",
     "UUIDSpy",
+    # Sub-mockers for specific UUID versions
+    "UUID1Mocker",
+    "UUID6Mocker",
+    "UUID7Mocker",
+    "UUID8Mocker",
+    "NamespaceUUIDSpy",
 ]

@@ -4,7 +4,7 @@
 
 <h1 align="center">pytest-uuid</h1>
 
-A pytest plugin for mocking `uuid.uuid4()` calls in your tests.
+A pytest plugin for mocking UUID generation in your tests. Supports uuid1, uuid3, uuid4, uuid5, uuid6, uuid7, and uuid8.
 
 [![PyPI version](https://img.shields.io/pypi/v/pytest-uuid.svg)](https://pypi.org/project/pytest-uuid/)
 [![Docs](https://img.shields.io/badge/docs-latest-blue.svg)](https://captaindriftwood.github.io/pytest-uuid/)
@@ -29,7 +29,7 @@ A pytest plugin for mocking `uuid.uuid4()` calls in your tests.
 
 ## Features
 
-- Mock `uuid.uuid4()` with deterministic values in your tests
+- Mock all UUID versions: uuid1, uuid3, uuid4, uuid5, uuid6, uuid7, uuid8
 - Works with both `import uuid` and `from uuid import uuid4` patterns ([how?](https://captaindriftwood.github.io/pytest-uuid/guide/how-it-works/))
 - Multiple ways to mock: static, sequence, seeded, or node-seeded
 - Decorator, marker, and fixture APIs (inspired by freezegun)
@@ -39,6 +39,7 @@ A pytest plugin for mocking `uuid.uuid4()` calls in your tests.
 - Detailed call tracking with caller module/file info
 - Automatic cleanup after each test
 - Zero configuration required - just use the fixture
+- uuid6/uuid7/uuid8 support via [uuid6](https://pypi.org/project/uuid6/) backport (Python < 3.14)
 
 ## Installation
 
@@ -323,6 +324,90 @@ def test_start_mocked_then_spy(mock_uuid):
 
 > **When to use which:** Use `spy_uuid` when you never need mocking in the test. Use `mock_uuid.spy()` when you need to switch between mocked and real UUIDs within the same test.
 
+### Additional UUID Versions
+
+In addition to uuid4, pytest-uuid supports mocking all UUID versions:
+
+#### UUID1 (Time-based with MAC)
+
+```python
+def test_uuid1(mock_uuid):
+    mock_uuid.uuid1.set("12345678-1234-1234-8234-567812345678")
+    assert str(uuid.uuid1()) == "12345678-1234-1234-8234-567812345678"
+
+def test_uuid1_seeded(mock_uuid):
+    mock_uuid.uuid1.set_seed(42)
+    first = uuid.uuid1()
+    mock_uuid.uuid1.reset()
+    mock_uuid.uuid1.set_seed(42)
+    assert uuid.uuid1() == first
+
+def test_uuid1_fixed_node(mock_uuid):
+    # Return real uuid1 values with a fixed node (MAC address)
+    mock_uuid.uuid1.set_node(0x123456789ABC)
+    result = uuid.uuid1()
+    assert result.node == 0x123456789ABC
+```
+
+#### UUID3 and UUID5 (Namespace-based)
+
+UUID3 (MD5) and UUID5 (SHA-1) are deterministic - the same namespace and name always produce the same UUID. These functions are tracked in spy mode only:
+
+```python
+def test_uuid3_tracking(mock_uuid):
+    _ = mock_uuid.uuid3  # Initialize spy
+    result = uuid.uuid3(uuid.NAMESPACE_DNS, "example.com")
+
+    assert mock_uuid.uuid3.call_count == 1
+    assert mock_uuid.uuid3.calls[0].namespace == uuid.NAMESPACE_DNS
+    assert mock_uuid.uuid3.calls[0].name == "example.com"
+
+def test_uuid5_filtering(mock_uuid):
+    _ = mock_uuid.uuid5
+    uuid.uuid5(uuid.NAMESPACE_DNS, "example.com")
+    uuid.uuid5(uuid.NAMESPACE_URL, "https://example.com")
+
+    dns_calls = mock_uuid.uuid5.calls_with_namespace(uuid.NAMESPACE_DNS)
+    assert len(dns_calls) == 1
+```
+
+#### UUID6, UUID7, UUID8 (RFC 9562)
+
+These newer UUID versions require Python 3.14+ or the [uuid6](https://pypi.org/project/uuid6/) backport package:
+
+```python
+from uuid6 import uuid6, uuid7, uuid8  # or from uuid import ... on Python 3.14+
+
+def test_uuid7(mock_uuid):
+    mock_uuid.uuid7.set("12345678-1234-7234-8234-567812345678")
+    result = uuid7()
+    assert str(result) == "12345678-1234-7234-8234-567812345678"
+
+def test_uuid7_seeded(mock_uuid):
+    mock_uuid.uuid7.set_seed(42)
+    first = uuid7()
+    mock_uuid.uuid7.reset()
+    mock_uuid.uuid7.set_seed(42)
+    assert uuid7() == first
+
+def test_all_versions_independent(mock_uuid):
+    """Each UUID version is mocked independently."""
+    mock_uuid.set("44444444-4444-4444-8444-444444444444")  # uuid4
+    mock_uuid.uuid1.set("11111111-1111-1111-8111-111111111111")
+    mock_uuid.uuid7.set("77777777-7777-7777-8777-777777777777")
+
+    assert str(uuid.uuid4()) == "44444444-4444-4444-8444-444444444444"
+    assert str(uuid.uuid1()) == "11111111-1111-1111-8111-111111111111"
+    assert str(uuid7()) == "77777777-7777-7777-8777-777777777777"
+
+    # Call counts are tracked independently
+    assert mock_uuid.call_count == 1      # uuid4
+    assert mock_uuid.uuid1.call_count == 1
+    assert mock_uuid.uuid7.call_count == 1
+```
+
+> **Note:** uuid6/uuid7/uuid8 require the `uuid6` package on Python < 3.14. Install with `pip install uuid6` or it will be installed automatically as a dependency.
+
 ### Ignoring Modules
 
 Exclude specific packages from UUID mocking so they receive real UUIDs. This is useful for third-party libraries like SQLAlchemy or Celery that need real UUIDs for internal operations.
@@ -539,6 +624,14 @@ Main fixture for controlling `uuid.uuid4()` calls.
 - `reset()` - Reset to initial state
 - `set_ignore(*module_prefixes)` - Set modules to ignore (returns real UUIDs)
 
+**Sub-Mockers (accessed as properties):**
+- `mock_uuid.uuid1` - UUID1Mocker for `uuid.uuid1()` with `set()`, `set_seed()`, `set_node()`, `set_clock_seq()`
+- `mock_uuid.uuid3` - NamespaceUUIDSpy for `uuid.uuid3()` (spy-only, tracks namespace/name)
+- `mock_uuid.uuid5` - NamespaceUUIDSpy for `uuid.uuid5()` (spy-only, tracks namespace/name)
+- `mock_uuid.uuid6` - UUID6Mocker for `uuid.uuid6()` with `set()`, `set_seed()`, `set_node()` (requires uuid6 package)
+- `mock_uuid.uuid7` - UUID7Mocker for `uuid.uuid7()` with `set()`, `set_seed()` (requires uuid6 package)
+- `mock_uuid.uuid8` - UUID8Mocker for `uuid.uuid8()` with `set()`, `set_seed()` (requires uuid6 package)
+
 #### `mock_uuid_factory`
 
 Factory for module-specific mocking.
@@ -591,6 +684,7 @@ def test_call_tracking(mock_uuid):
 **`UUIDCall` Fields:**
 - `uuid` - The UUID that was returned
 - `was_mocked` - `True` if mocked, `False` if real (spy mode or ignored module)
+- `uuid_version` - The UUID version (1, 3, 4, 5, 6, 7, or 8)
 - `caller_module` - Name of the module that made the call
 - `caller_file` - File path where the call originated
 - `caller_line` - Line number of the call
