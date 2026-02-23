@@ -1,0 +1,745 @@
+# pytest-uuid
+
+> A pytest plugin for mocking `uuid.uuid4()` calls with deterministic values. Works with both `import uuid` and `from uuid import uuid4` patterns using a permanent proxy system.
+
+pytest-uuid provides fixtures, decorators, and markers for controlling UUID generation in tests. Key features include static UUIDs, sequences, seeded generation, node-seeded reproducibility, spy mode for tracking without mocking, and module ignore lists.
+
+---
+
+# Quick Start
+
+The simplest way to use pytest-uuid is with the `mock_uuid` fixture:
+
+```python
+import uuid
+
+def test_single_uuid(mock_uuid):
+    mock_uuid.set("12345678-1234-4678-8234-567812345678")
+    assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
+```
+
+## Multiple UUIDs
+
+Return different UUIDs for each call:
+
+```python
+def test_multiple_uuids(mock_uuid):
+    mock_uuid.set(
+        "11111111-1111-4111-8111-111111111111",
+        "22222222-2222-4222-8222-222222222222",
+    )
+    assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
+    assert str(uuid.uuid4()) == "22222222-2222-4222-8222-222222222222"
+    # Cycles back to the first UUID
+    assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
+```
+
+## Using Decorators
+
+```python
+import uuid
+from pytest_uuid import freeze_uuid
+
+@freeze_uuid("12345678-1234-4678-8234-567812345678")
+def test_with_decorator():
+    assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
+```
+
+## Using Markers
+
+```python
+import uuid
+import pytest
+
+@pytest.mark.freeze_uuid("12345678-1234-4678-8234-567812345678")
+def test_with_marker():
+    assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
+```
+
+## Seeded UUIDs
+
+For reproducible but not hardcoded UUIDs:
+
+```python
+@freeze_uuid(seed=42)
+def test_seeded():
+    result = uuid.uuid4()
+    assert result.version == 4
+```
+
+## Node-Seeded UUIDs (Recommended)
+
+Each test gets deterministic UUIDs based on its name:
+
+```python
+@pytest.mark.freeze_uuid(seed="node")
+def test_node_seeded():
+    result = uuid.uuid4()
+    assert result.version == 4
+```
+
+Node-seeded UUIDs give you deterministic, reproducible tests without hardcoding values. Each test gets its own unique seed derived from its fully-qualified name.
+
+---
+
+# Fixture API
+
+## mock_uuid Fixture
+
+The main fixture for controlling `uuid.uuid4()` calls.
+
+### Basic Usage
+
+```python
+import uuid
+
+def test_basic(mock_uuid):
+    mock_uuid.set("12345678-1234-4678-8234-567812345678")
+    assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
+```
+
+### Static UUIDs
+
+Return the same UUID every time:
+
+```python
+def test_static(mock_uuid):
+    mock_uuid.set("12345678-1234-4678-8234-567812345678")
+    assert uuid.uuid4() == uuid.uuid4()  # Same UUID
+```
+
+### UUID Sequences
+
+Return UUIDs from a list:
+
+```python
+def test_sequence(mock_uuid):
+    mock_uuid.set(
+        "11111111-1111-4111-8111-111111111111",
+        "22222222-2222-4222-8222-222222222222",
+    )
+    assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
+    assert str(uuid.uuid4()) == "22222222-2222-4222-8222-222222222222"
+    # Cycles back by default
+    assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
+```
+
+### Seeded UUIDs
+
+Generate reproducible UUIDs from a seed:
+
+```python
+def test_seeded(mock_uuid):
+    mock_uuid.set_seed(42)
+    first = uuid.uuid4()
+
+    mock_uuid.set_seed(42)  # Reset to same seed
+    assert uuid.uuid4() == first  # Same UUID
+```
+
+### Node-Seeded UUIDs
+
+Derive the seed from the test's node ID:
+
+```python
+def test_node_seeded(mock_uuid):
+    mock_uuid.set_seed_from_node()
+    # Same test always produces the same sequence
+```
+
+### Inspecting the Seed Value
+
+Use the `seed` property to see the actual seed being used:
+
+```python
+def test_inspect_seed(mock_uuid):
+    mock_uuid.set_seed(42)
+    assert mock_uuid.seed == 42
+
+def test_inspect_node_seed(mock_uuid):
+    mock_uuid.set_seed_from_node()
+    print(f"Using seed: {mock_uuid.seed}")  # e.g., 8427193654
+```
+
+### Exhaustion Behavior
+
+Control what happens when a UUID sequence is exhausted:
+
+```python
+from pytest_uuid import UUIDsExhaustedError
+
+def test_exhaustion_raise(mock_uuid):
+    mock_uuid.set_exhaustion_behavior("raise")
+    mock_uuid.set("11111111-1111-4111-8111-111111111111")
+
+    uuid.uuid4()  # Returns the UUID
+
+    with pytest.raises(UUIDsExhaustedError):
+        uuid.uuid4()  # Raises - sequence exhausted
+```
+
+Exhaustion behaviors:
+- `"cycle"` (default): Loop back to the start of the sequence
+- `"random"`: Fall back to generating random UUIDs
+- `"raise"`: Raise `UUIDsExhaustedError`
+
+### Ignoring Modules
+
+Exclude specific packages from UUID mocking:
+
+```python
+def test_with_ignored_modules(mock_uuid):
+    mock_uuid.set("12345678-1234-4678-8234-567812345678")
+    mock_uuid.set_ignore("sqlalchemy", "celery")
+
+    # Direct calls are mocked
+    assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
+
+    # Calls from sqlalchemy/celery get real UUIDs
+```
+
+The ignore check inspects the entire call stack, not just the immediate caller.
+
+### Reset
+
+Reset the fixture to its initial state:
+
+```python
+def test_reset(mock_uuid):
+    mock_uuid.set("12345678-1234-4678-8234-567812345678")
+    uuid.uuid4()
+
+    mock_uuid.reset()
+    # Back to initial state - no UUIDs configured
+```
+
+## mock_uuid_factory Fixture
+
+For module-specific mocking:
+
+```python
+# myapp/models.py
+from uuid import uuid4
+
+def create_user():
+    return {"id": str(uuid4()), "name": "John"}
+
+# tests/test_models.py
+def test_create_user(mock_uuid_factory):
+    with mock_uuid_factory("myapp.models") as mocker:
+        mocker.set("12345678-1234-4678-8234-567812345678")
+        user = create_user()
+        assert user["id"] == "12345678-1234-4678-8234-567812345678"
+```
+
+## Methods Reference
+
+| Method | Description |
+|--------|-------------|
+| `set(*uuids)` | Set one or more UUIDs to return (cycles by default) |
+| `set_default(uuid)` | Set a default UUID for all calls |
+| `set_seed(seed)` | Set a seed for reproducible generation |
+| `set_seed_from_node()` | Use test node ID as seed |
+| `set_exhaustion_behavior(behavior)` | Set behavior when sequence exhausted |
+| `spy()` | Switch to spy mode (return real UUIDs while tracking) |
+| `reset()` | Reset to initial state |
+| `set_ignore(*module_prefixes)` | Set modules to ignore |
+
+---
+
+# Decorator API
+
+The `@freeze_uuid` decorator provides a clean way to configure UUID mocking at the function or class level.
+
+## Basic Usage
+
+```python
+import uuid
+from pytest_uuid import freeze_uuid
+
+@freeze_uuid("12345678-1234-4678-8234-567812345678")
+def test_with_decorator():
+    assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
+```
+
+## Multiple UUIDs
+
+Pass multiple UUIDs as a list:
+
+```python
+@freeze_uuid([
+    "11111111-1111-4111-8111-111111111111",
+    "22222222-2222-4222-8222-222222222222",
+])
+def test_sequence():
+    assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
+    assert str(uuid.uuid4()) == "22222222-2222-4222-8222-222222222222"
+```
+
+## Seeded UUIDs
+
+```python
+@freeze_uuid(seed=42)
+def test_seeded():
+    result = uuid.uuid4()
+    assert result.version == 4
+```
+
+## Custom Random Generator
+
+```python
+import random
+
+rng = random.Random(42)
+rng.random()  # Advance the state
+
+@freeze_uuid(seed=rng)
+def test_custom_rng():
+    result = uuid.uuid4()
+```
+
+## Exhaustion Behavior
+
+```python
+@freeze_uuid(
+    ["11111111-1111-4111-8111-111111111111"],
+    on_exhausted="raise",
+)
+def test_exhaustion():
+    uuid.uuid4()  # OK
+    with pytest.raises(UUIDsExhaustedError):
+        uuid.uuid4()  # Raises
+```
+
+Options: `"cycle"` (default), `"random"`, `"raise"`
+
+## Ignoring Modules
+
+```python
+@freeze_uuid("12345678-1234-4678-8234-567812345678", ignore=["sqlalchemy"])
+def test_with_ignored():
+    assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
+```
+
+## Opting Out of Default Ignores
+
+```python
+@freeze_uuid("12345678-1234-4678-8234-567812345678", ignore_defaults=False)
+def test_mock_everything():
+    pass
+```
+
+## Class-Level Decorator
+
+```python
+@freeze_uuid("12345678-1234-4678-8234-567812345678")
+class TestUserService:
+    def test_create(self):
+        assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
+
+    def test_update(self):
+        assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
+```
+
+## Context Manager
+
+```python
+def test_context_manager():
+    with freeze_uuid("12345678-1234-4678-8234-567812345678"):
+        assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
+
+    # Original uuid.uuid4 is restored
+```
+
+## Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `uuids` | `str`, `UUID`, or sequence | UUID(s) to return |
+| `seed` | `int`, `Random`, or `"node"` | Seed for reproducible generation |
+| `on_exhausted` | `str` | `"cycle"`, `"random"`, or `"raise"` |
+| `ignore` | `list[str]` | Module prefixes to exclude from mocking |
+| `ignore_defaults` | `bool` | Include default ignore list (default `True`) |
+
+---
+
+# Spy Mode
+
+Spy mode tracks `uuid.uuid4()` calls without mocking them.
+
+## spy_uuid Fixture
+
+```python
+# myapp/models.py
+from uuid import uuid4
+
+class User:
+    def __init__(self, name):
+        self.id = str(uuid4())
+        self.name = name
+
+# tests/test_models.py
+def test_user_generates_uuid(spy_uuid):
+    user = User("Alice")
+
+    assert spy_uuid.call_count == 1
+    assert user.id == str(spy_uuid.last_uuid)
+```
+
+## Switching to Spy Mode
+
+Use `mock_uuid.spy()` to switch from mocked to real UUIDs mid-test:
+
+```python
+def test_start_mocked_then_spy(mock_uuid):
+    mock_uuid.set("12345678-1234-4678-8234-567812345678")
+    first = uuid.uuid4()  # Mocked
+
+    mock_uuid.spy()  # Switch to spy mode
+    second = uuid.uuid4()  # Real random UUID
+
+    assert str(first) == "12345678-1234-4678-8234-567812345678"
+    assert first != second
+    assert mock_uuid.mocked_count == 1
+    assert mock_uuid.real_count == 1
+```
+
+## Call Tracking
+
+```python
+def test_call_tracking(spy_uuid):
+    first = uuid.uuid4()
+    second = uuid.uuid4()
+
+    assert spy_uuid.call_count == 2
+    assert spy_uuid.generated_uuids == [first, second]
+    assert spy_uuid.last_uuid == second
+```
+
+## Call Details
+
+```python
+def test_call_details(spy_uuid):
+    uuid.uuid4()
+
+    call = spy_uuid.calls[0]
+    assert call.uuid is not None
+    assert call.was_mocked is False
+    assert call.caller_module is not None
+    assert call.caller_file is not None
+```
+
+## Properties
+
+| Property | Description |
+|----------|-------------|
+| `call_count` | Number of times uuid4 was called |
+| `generated_uuids` | List of all generated UUIDs |
+| `last_uuid` | Most recently generated UUID |
+| `calls` | List of `UUIDCall` records with metadata |
+
+## Methods
+
+| Method | Description |
+|--------|-------------|
+| `reset()` | Reset tracking data |
+| `calls_from(module_prefix)` | Filter calls by module prefix |
+
+## UUIDCall Dataclass
+
+| Field | Description |
+|-------|-------------|
+| `uuid` | The UUID that was returned |
+| `was_mocked` | `True` if mocked, `False` if real |
+| `caller_module` | Name of the module that made the call |
+| `caller_file` | File path where the call originated |
+| `caller_line` | Line number of the call |
+| `caller_function` | Function name where the call originated |
+| `caller_qualname` | Qualified name (e.g., `MyClass.method`) |
+
+---
+
+# Configuration
+
+## pyproject.toml
+
+```toml
+[tool.pytest_uuid]
+default_ignore_list = ["sqlalchemy", "celery"]
+extend_ignore_list = ["myapp.internal"]
+default_exhaustion_behavior = "raise"
+```
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `default_ignore_list` | `list[str]` | `["botocore"]` | Modules that always receive real UUIDs |
+| `extend_ignore_list` | `list[str]` | `[]` | Additional modules to add to ignore list |
+| `default_exhaustion_behavior` | `str` | `"cycle"` | Default behavior when UUIDs exhausted |
+
+## Programmatic Configuration
+
+```python
+# conftest.py
+import pytest_uuid
+
+pytest_uuid.configure(
+    default_ignore_list=["sqlalchemy", "celery"],
+    extend_ignore_list=["myapp.internal"],
+    default_exhaustion_behavior="raise",
+)
+```
+
+## How Ignore Works
+
+The ignore check inspects the entire call stack:
+
+1. When `uuid.uuid4()` is called, pytest-uuid walks the call stack
+2. If any frame is from a module matching an ignored prefix, a real UUID is returned
+3. This handles cases where your code calls a library that internally calls `uuid.uuid4()`
+
+## Exhaustion Behavior
+
+| Behavior | Description |
+|----------|-------------|
+| `"cycle"` | Loop back to the start of the sequence (default) |
+| `"random"` | Generate random UUIDs |
+| `"raise"` | Raise `UUIDsExhaustedError` |
+
+---
+
+# API Reference
+
+## Fixtures
+
+### mock_uuid
+
+Main fixture for controlling `uuid.uuid4()` calls.
+
+**Methods:**
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `set` | `set(*uuids: str \| UUID)` | Set one or more UUIDs to return |
+| `set_default` | `set_default(uuid: str \| UUID)` | Set a default UUID for all calls |
+| `set_seed` | `set_seed(seed: int)` | Set a seed for reproducible generation |
+| `set_seed_from_node` | `set_seed_from_node()` | Use test node ID as seed |
+| `set_exhaustion_behavior` | `set_exhaustion_behavior(behavior: str)` | Set exhaustion behavior |
+| `set_ignore` | `set_ignore(*module_prefixes: str)` | Set modules to ignore |
+| `spy` | `spy()` | Switch to spy mode |
+| `reset` | `reset()` | Reset to initial state |
+
+**Properties:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `seed` | `int \| None` | The active seed value |
+| `generator` | `UUIDGenerator \| None` | The current UUID generator |
+| `call_count` | `int` | Total uuid4 calls |
+| `generated_uuids` | `list[UUID]` | All returned UUIDs |
+| `last_uuid` | `UUID \| None` | Most recent UUID |
+| `calls` | `list[UUIDCall]` | Call records with metadata |
+| `mocked_calls` | `list[UUIDCall]` | Only mocked calls |
+| `real_calls` | `list[UUIDCall]` | Only real calls |
+| `mocked_count` | `int` | Number of mocked calls |
+| `real_count` | `int` | Number of real calls |
+
+### spy_uuid
+
+Spy fixture that tracks `uuid.uuid4()` calls without mocking.
+
+**Properties:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `call_count` | `int` | Number of uuid4 calls |
+| `generated_uuids` | `list[UUID]` | All generated UUIDs |
+| `last_uuid` | `UUID \| None` | Most recent UUID |
+| `calls` | `list[UUIDCall]` | Call records with metadata |
+
+## Decorator / Context Manager
+
+### freeze_uuid
+
+```python
+from pytest_uuid import freeze_uuid
+```
+
+**Signature:**
+
+```python
+freeze_uuid(
+    uuids: str | UUID | Sequence[str | UUID] = None,
+    *,
+    seed: int | Random | Literal["node"] = None,
+    on_exhausted: Literal["cycle", "random", "raise"] = "cycle",
+    ignore: Sequence[str] = None,
+)
+```
+
+## Marker
+
+### @pytest.mark.freeze_uuid
+
+```python
+@pytest.mark.freeze_uuid(uuids, *, seed=None, on_exhausted="cycle", ignore=None)
+```
+
+Same parameters as `freeze_uuid` decorator, except `seed` cannot be a `Random` instance.
+
+## Types
+
+### UUIDCall
+
+Dataclass containing call metadata.
+
+```python
+from pytest_uuid.types import UUIDCall
+```
+
+### ExhaustionBehavior
+
+```python
+from pytest_uuid import ExhaustionBehavior
+
+ExhaustionBehavior.CYCLE   # Loop back to start
+ExhaustionBehavior.RANDOM  # Generate random UUIDs
+ExhaustionBehavior.RAISE   # Raise UUIDsExhaustedError
+```
+
+## Exceptions
+
+### UUIDsExhaustedError
+
+Raised when UUID sequence is exhausted and behavior is `"raise"`.
+
+```python
+from pytest_uuid import UUIDsExhaustedError
+```
+
+## Configuration Function
+
+```python
+import pytest_uuid
+
+pytest_uuid.configure(
+    default_ignore_list: Sequence[str] = None,
+    extend_ignore_list: Sequence[str] = None,
+    default_exhaustion_behavior: str = None,
+)
+```
+
+---
+
+# How It Works
+
+pytest-uuid provides seamless UUID mocking that works with both import patterns:
+
+```python
+import uuid
+uuid.uuid4()  # Mocked
+
+from uuid import uuid4
+uuid4()  # Also mocked
+```
+
+## The Challenge: Python's Import System
+
+When you write `from uuid import uuid4`, Python creates a **direct reference** to the function in your module's namespace. If a mocking library only patches `uuid.uuid4`, modules that used `from uuid import uuid4` still have their original reference.
+
+## The Solution: Permanent Proxy
+
+pytest-uuid uses a **proxy function** that replaces `uuid.uuid4` at plugin initialization:
+
+1. Save original uuid.uuid4 function
+2. Replace uuid.uuid4 with proxy function
+3. Any code importing uuid4 after this gets the proxy
+
+The proxy is installed in `pytest_load_initial_conftests`, which runs **before** conftest files are loaded.
+
+## How the Proxy Works
+
+```python
+# Simplified version
+_original_uuid4 = None
+_generator_stack = []  # Thread-safe stack of generators
+
+def _proxy_uuid4():
+    if _generator_stack:
+        generator = _generator_stack[-1]
+        return generator()
+    return _original_uuid4()
+```
+
+When you use `freeze_uuid`:
+1. `__enter__` pushes a generator onto the stack
+2. All `uuid.uuid4()` calls go through the proxy -> generator
+3. `__exit__` pops the generator from the stack
+
+## Thread Safety
+
+The proxy uses a thread-safe global stack protected by a lock:
+- All threads see the same active generator
+- Lock protects stack operations
+- For pytest-xdist, each worker is a separate process with its own proxy
+
+## Nested Contexts
+
+The stack-based approach supports nested contexts:
+
+```python
+with freeze_uuid(seed=42):
+    uuid.uuid4()  # Uses seed=42 generator
+
+    with freeze_uuid(seed=99):
+        uuid.uuid4()  # Uses seed=99 generator (inner)
+
+    uuid.uuid4()  # Back to seed=42 generator
+```
+
+## Compatibility
+
+| Library | Compatible | Notes |
+|---------|------------|-------|
+| moto | Yes | Uses decorator/context manager patching |
+| freezegun | Yes | Patches loaded modules |
+| responses | Yes | Socket-level patching |
+| pytest-mock | Yes | Thin wrapper over unittest.mock |
+| Pydantic | Yes | `default_factory=uuid4` works correctly |
+
+---
+
+# Architecture (For Contributors)
+
+## Overview
+
+pytest-uuid is a pytest plugin for mocking UUID generation with deterministic sequences.
+
+### Key Concepts
+
+- **`freeze_uuid` context manager** - Creates deterministic UUID sequences from a seed
+- **Proxy system** - A permanent proxy installed at `uuid.uuid4` that delegates to either the original function or a test generator
+- **Thread-safe stack** - Lock-protected generator stack for nested contexts and thread safety
+- **Call tracking** - Records which modules called uuid4 for debugging
+
+## Critical Code Paths
+
+| Path | Purpose | Notes |
+|------|---------|-------|
+| `plugin.py:pytest_configure` | Plugin initialization, proxy installation | Runs once per session |
+| `_proxy.py` | UUID4 proxy and ContextVar management | Core of the patching system |
+| `_tracking.py` | Call tracking, caller info extraction | Performance-sensitive |
+| `generators.py` | UUID generation strategies | Seedable random or sequential |
+| `api.py:UUIDFreezer` | The `freeze_uuid` context manager | User-facing API |
+
+## Module Responsibilities
+
+| Module | Responsibility |
+|--------|----------------|
+| `plugin.py` | Pytest hooks, fixtures, config loading |
+| `api.py` | Public API (`freeze_uuid`, `UUIDFreezer`) |
+| `_proxy.py` | Proxy function, ContextVar, generator management |
+| `_tracking.py` | Call tracking, caller info, qualname extraction |
+| `generators.py` | `SeededUUIDGenerator`, `SequentialUUIDGenerator`, etc. |
+| `types.py` | Protocol definitions for type checking |
