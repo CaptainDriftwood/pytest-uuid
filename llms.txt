@@ -1,0 +1,34 @@
+# pytest-uuid
+
+> A pytest plugin for mocking `uuid.uuid4()` calls with deterministic values. Works with both `import uuid` and `from uuid import uuid4` patterns using a permanent proxy system.
+
+pytest-uuid provides fixtures, decorators, and markers for controlling UUID generation in tests. Key features include static UUIDs, sequences, seeded generation, node-seeded reproducibility, spy mode for tracking without mocking, and module ignore lists.
+
+## Documentation
+
+- [README](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/README.md): Full documentation with examples for all APIs
+- [Quick Start](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/docs/getting-started/quickstart.md): Get running in minutes
+- [API Reference](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/docs/api-reference.md): Complete API documentation
+
+## Guides
+
+- [Fixture API](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/docs/guide/fixture-api.md): Using `mock_uuid` and `spy_uuid` fixtures
+- [Decorator API](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/docs/guide/decorator-api.md): Using `@freeze_uuid` decorator
+- [Marker API](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/docs/guide/marker-api.md): Using `@pytest.mark.freeze_uuid`
+- [Spy Mode](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/docs/guide/spy-mode.md): Track UUID calls without mocking
+- [Configuration](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/docs/guide/configuration.md): pyproject.toml and programmatic config
+- [How It Works](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/docs/guide/how-it-works.md): Technical explanation of the proxy system
+
+## Source Code
+
+- [plugin.py](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/src/pytest_uuid/plugin.py): Pytest hooks and fixtures
+- [api.py](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/src/pytest_uuid/api.py): `freeze_uuid` context manager/decorator
+- [_proxy.py](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/src/pytest_uuid/_proxy.py): UUID proxy and generator stack
+- [generators.py](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/src/pytest_uuid/generators.py): UUID generation strategies
+- [types.py](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/src/pytest_uuid/types.py): Type definitions and protocols
+
+## Optional
+
+- [Architecture](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/.notes/ARCHITECTURE.md): Internal architecture for contributors
+- [Contributing](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/docs/contributing.md): Development setup and guidelines
+- [Changelog](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/CHANGELOG.md): Version history
