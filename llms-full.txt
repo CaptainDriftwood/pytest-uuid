@@ -1,8 +1,8 @@
 # pytest-uuid
 
-> A pytest plugin for mocking `uuid.uuid4()` calls with deterministic values. Works with both `import uuid` and `from uuid import uuid4` patterns using a permanent proxy system.
+> A pytest plugin for mocking UUID generation in tests. Supports uuid1, uuid3, uuid4, uuid5, uuid6, uuid7, and uuid8. Works with both `import uuid` and `from uuid import uuid4` patterns using a permanent proxy system.
 
-pytest-uuid provides fixtures, decorators, and markers for controlling UUID generation in tests. Key features include static UUIDs, sequences, seeded generation, node-seeded reproducibility, spy mode for tracking without mocking, and module ignore lists.
+pytest-uuid provides fixtures, decorators, and markers for controlling UUID generation in tests. Key features include static UUIDs, sequences, seeded generation, node-seeded reproducibility, spy mode for tracking without mocking, module ignore lists, and support for all UUID versions including RFC 9562 (uuid6/uuid7/uuid8 via backport on Python < 3.14).
 
 ---
 
