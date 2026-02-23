@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Replaced import hook with permanent proxy approach for UUID mocking
+- Simplified architecture: proxy installs once at plugin load, no per-import patching
+- Improved thread safety with lock-protected generator stack
+
+### Fixed
+
+- Pydantic `default_factory=uuid4` now works correctly (proxy captured at class definition time)
+- Eliminated stale patched function issues with late imports
+- Resolved edge cases where modules imported during freeze context had non-deterministic UUIDs
+
+### Removed
+
+- `_import_hook.py` module (internal, replaced by `_proxy.py`)
+
 ## [0.6.0] - 2026-02-08
 
 ### Added
@@ -89,7 +105,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Module ignore configuration via `pyproject.toml` or `pytest.ini`
 - Python 3.9, 3.10, 3.11, 3.12, 3.13, and 3.14 support
 
-[Unreleased]: https://github.com/CaptainDriftwood/pytest-uuid/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/CaptainDriftwood/pytest-uuid/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/CaptainDriftwood/pytest-uuid/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/CaptainDriftwood/pytest-uuid/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/CaptainDriftwood/pytest-uuid/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/CaptainDriftwood/pytest-uuid/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/CaptainDriftwood/pytest-uuid/compare/v0.1.0...v0.2.0

@@ -62,16 +62,16 @@ nox version="":
     fi
 
 # Run linting
-lint:
-    uv run ruff check src tests noxfile.py
+lint *args:
+    uv run ruff check src tests noxfile.py {{ args }}
 
 # Run type checking
-type:
-    uv run ty check src/
+type *args:
+    uv run ty check src/ {{ args }}
 
 # Run formatter check
-format-check:
-    uv run ruff format --check src tests noxfile.py
+format-check *args:
+    uv run ruff format --check src tests noxfile.py {{ args }}
 
 # Format code and sort imports (isort convention)
 format:
@@ -136,9 +136,9 @@ publish-test: build
 # Serve documentation locally
 docs:
     uv sync --group docs
-    uv run mkdocs serve
+    NO_MKDOCS_2_WARNING=1 uv run mkdocs serve
 
 # Build documentation
 docs-build:
     uv sync --group docs
-    uv run mkdocs build --strict
+    NO_MKDOCS_2_WARNING=1 uv run mkdocs build --strict

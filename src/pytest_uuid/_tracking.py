@@ -13,7 +13,6 @@ import sys
 import uuid
 from types import FrameType, FunctionType
 
-from pytest_uuid._import_hook import is_patched_uuid4
 from pytest_uuid.types import UUIDCall
 
 
@@ -56,7 +55,7 @@ def _get_qualname(frame: FrameType) -> str | None:
     # TODO: When minimum Python version is 3.11+, simplify to just:
     #       return frame.f_code.co_qualname
     if sys.version_info >= (3, 11):
-        return frame.f_code.co_qualname  # type: ignore[attr-defined]
+        return frame.f_code.co_qualname
 
     func_name = frame.f_code.co_name
 
@@ -120,43 +119,6 @@ def _get_caller_info(
         return module_name, file_path, line_number, function_name, qualname
     finally:
         del frame
-
-
-def _find_uuid4_imports(original_uuid4: object) -> list[tuple[object, str]]:
-    """Find all modules that have imported uuid4 directly.
-
-    Returns a list of (module, attribute_name) tuples for modules that have
-    either:
-    1. The original uuid4 function (by identity)
-    2. A stale patched uuid4 from a previous freeze_uuid context (by marker)
-
-    This handles both standard imports (from uuid import uuid4) and aliased
-    imports (from uuid import uuid4 as my_uuid).
-
-    The stale patch detection (via marker) fixes Bug #31 where modules imported
-    DURING a freeze_uuid context get a patched uuid4 that isn't restored on
-    __exit__, causing subsequent contexts to miss these modules.
-    """
-    imports = []
-    for module in sys.modules.values():
-        if module is None:
-            continue
-        try:
-            module_dict = getattr(module, "__dict__", None)
-            if module_dict is None:
-                continue
-            # Scan all attributes to find any that reference uuid4.
-            # This handles aliased imports like: from uuid import uuid4 as my_uuid
-            for attr_name, attr_value in module_dict.items():
-                # Case 1: Original uuid4 function (normal case)
-                if attr_value is original_uuid4 or is_patched_uuid4(attr_value):
-                    imports.append((module, attr_name))
-        except (TypeError, AttributeError, RuntimeError):
-            # TypeError: unusual module types
-            # AttributeError: module attributes inaccessible during teardown
-            # RuntimeError: various edge cases with unusual modules
-            continue
-    return imports
 
 
 class CallTrackingMixin:

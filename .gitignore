@@ -153,4 +153,6 @@ Thumbs.db
 
 # Project specific
 CLAUDE.md
+.claude/
+.notes/
 

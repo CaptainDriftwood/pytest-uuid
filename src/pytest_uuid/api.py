@@ -43,10 +43,14 @@ import random
 import uuid
 from typing import TYPE_CHECKING, Literal, overload
 
-from pytest_uuid._import_hook import UUIDImportHook, mark_as_patched
+from pytest_uuid._proxy import (
+    GeneratorToken,
+    get_original_uuid4,
+    reset_generator,
+    set_generator,
+)
 from pytest_uuid._tracking import (
     CallTrackingMixin,
-    _find_uuid4_imports,
     _get_caller_info,
     _get_node_seed,
 )
@@ -164,9 +168,7 @@ class UUIDFreezer(CallTrackingMixin):
 
         # These are set during __enter__
         self._generator: UUIDGenerator | None = None
-        self._original_uuid4: Callable[[], uuid.UUID] | None = None
-        self._patched_locations: list[tuple[object, str, object]] = []
-        self._import_hook: UUIDImportHook | None = None
+        self._token: GeneratorToken | None = None
 
         # Call tracking
         self._call_count: int = 0
@@ -204,25 +206,25 @@ class UUIDFreezer(CallTrackingMixin):
             )
 
         # Default: random UUIDs (but we still need to patch for ignore list support)
-        return RandomUUIDGenerator(self._original_uuid4)
+        return RandomUUIDGenerator()
 
     def _create_patched_uuid4(self) -> Callable[[], uuid.UUID]:
         """Create the patched uuid4 function with ignore list and call tracking."""
         generator = self._generator
         ignore_list = self._ignore_list
-        original_uuid4 = self._original_uuid4
         freezer = self  # Capture self for tracking
 
         if not ignore_list:
 
             def patched_uuid4() -> uuid.UUID:
+                # skip_frames=3: _get_caller_info -> patched_uuid4 -> _proxy_uuid4 -> caller
                 (
                     caller_module,
                     caller_file,
                     caller_line,
                     caller_function,
                     caller_qualname,
-                ) = _get_caller_info(skip_frames=2)
+                ) = _get_caller_info(skip_frames=3)
                 result = generator()  # type: ignore[misc]
                 freezer._record_call(
                     result,
@@ -235,16 +237,17 @@ class UUIDFreezer(CallTrackingMixin):
                 )
                 return result
 
-            return mark_as_patched(patched_uuid4)
+            return patched_uuid4
 
         def patched_uuid4_with_ignore() -> uuid.UUID:
+            # skip_frames=3: _get_caller_info -> patched_uuid4_with_ignore -> _proxy_uuid4 -> caller
             (
                 caller_module,
                 caller_file,
                 caller_line,
                 caller_function,
                 caller_qualname,
-            ) = _get_caller_info(skip_frames=2)
+            ) = _get_caller_info(skip_frames=3)
 
             # Walk up the call stack to check for ignored modules
             frame = inspect.currentframe()
@@ -257,7 +260,7 @@ class UUIDFreezer(CallTrackingMixin):
                 # Check if any caller should be ignored
                 while frame is not None:
                     if _should_ignore_frame(frame, ignore_list):
-                        result = original_uuid4()  # type: ignore[misc]
+                        result = get_original_uuid4()()
                         freezer._record_call(
                             result,
                             was_mocked=False,
@@ -284,64 +287,34 @@ class UUIDFreezer(CallTrackingMixin):
             )
             return result
 
-        return mark_as_patched(patched_uuid4_with_ignore)
+        return patched_uuid4_with_ignore
 
     def __enter__(self) -> UUIDFreezer:
         """Start freezing uuid.uuid4().
 
         This method:
-        1. Creates the patched uuid4 function (marked with _pytest_uuid_patched)
-        2. Finds all modules with uuid4 references (including stale patches)
-        3. Patches all found locations
-        4. Installs an import hook to catch modules imported during the context
+        1. Creates the UUID generator based on configuration
+        2. Creates the patched uuid4 function with call tracking
+        3. Sets the generator in the proxy's context variable
+
+        The proxy approach means any code that captured uuid4 (including
+        Pydantic default_factory) will automatically use our generator.
         """
-        self._original_uuid4 = uuid.uuid4
         self._generator = self._create_generator()
         patched = self._create_patched_uuid4()
-
-        # Find all modules with uuid4 references, including stale patched ones
-        uuid4_imports = _find_uuid4_imports(self._original_uuid4)
-
-        patches_to_apply: list[tuple[object, str, object]] = []
-        patches_to_apply.append((uuid, "uuid4", self._original_uuid4))
-
-        for module, attr_name in uuid4_imports:
-            if module is not uuid:  # Skip uuid module, we already handle it
-                # Always restore to true original, not current value (which may be
-                # a stale patched function from a previous context)
-                patches_to_apply.append((module, attr_name, self._original_uuid4))
-
-        for module, attr_name, original in patches_to_apply:
-            self._patched_locations.append((module, attr_name, original))
-            setattr(module, attr_name, patched)
-
-        # Install import hook to catch modules imported during this context
-        # This ensures newly imported modules also get patched and tracked
-        self._import_hook = UUIDImportHook(
-            self._original_uuid4, patched, self._patched_locations
-        )
-        self._import_hook.install()
-
+        self._token = set_generator(patched)
         return self
 
     def __exit__(self, *args: object) -> None:
-        """Stop freezing and restore original uuid.uuid4().
+        """Stop freezing and restore previous uuid.uuid4() behavior.
 
-        This method:
-        1. Uninstalls the import hook
-        2. Restores all patched locations to their original values
+        This method resets the context variable to its previous state,
+        which may be None (no generator) or an outer context's generator.
         """
-        # Uninstall import hook first to stop intercepting new imports
-        if self._import_hook is not None:
-            self._import_hook.uninstall()
-            self._import_hook = None
-
-        # Restore all patched locations
-        for module, attr_name, original in self._patched_locations:
-            setattr(module, attr_name, original)
-        self._patched_locations.clear()
+        if self._token is not None:
+            reset_generator(self._token)
+            self._token = None
         self._generator = None
-        self._original_uuid4 = None
 
     def __call__(
         self, func_or_class: Callable[..., object] | type
