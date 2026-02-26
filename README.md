@@ -218,6 +218,41 @@ def test_create_admin():
     assert result.version == 4
 ```
 
+#### Function-Level Node Seeding (Autouse Fixture)
+
+For automatic node seeding on every test without markers:
+
+```python
+# conftest.py
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def auto_seed_uuids(mock_uuid):
+    """Automatically seed uuid4 from test node ID for all tests."""
+    mock_uuid.uuid4.set_seed_from_node()
+```
+
+Every test now gets reproducible UUIDs without any boilerplate:
+
+```python
+# test_example.py
+import uuid
+
+
+def test_user_creation():
+    # No fixture argument needed - autouse handles it
+    # UUIDs are deterministic based on this test's node ID
+    user_id = uuid.uuid4()
+    assert user_id.version == 4
+
+
+def test_order_creation():
+    # Different test = different seed = different UUIDs
+    order_id = uuid.uuid4()
+    assert order_id.version == 4
+```
+
 #### Session-Level Node Seeding
 
 ```python
