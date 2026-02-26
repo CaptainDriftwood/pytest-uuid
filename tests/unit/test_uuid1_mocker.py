@@ -96,7 +96,7 @@ class TestUUID1AndUUID4Together:
 
     def test_both_uuid1_and_uuid4_mocked(self, mock_uuid):
         """Test that uuid1 and uuid4 can be mocked independently."""
-        mock_uuid.set("44444444-4444-4444-8444-444444444444")
+        mock_uuid.uuid4.set("44444444-4444-4444-8444-444444444444")
         mock_uuid.uuid1.set("11111111-1111-1111-8111-111111111111")
 
         assert str(uuid.uuid4()) == "44444444-4444-4444-8444-444444444444"
@@ -104,7 +104,7 @@ class TestUUID1AndUUID4Together:
 
     def test_uuid4_mocked_uuid1_real(self, mock_uuid):
         """Test mocking uuid4 while uuid1 returns real values."""
-        mock_uuid.set("44444444-4444-4444-8444-444444444444")
+        mock_uuid.uuid4.set("44444444-4444-4444-8444-444444444444")
         _ = mock_uuid.uuid1  # Initialize but don't mock
 
         uuid4_result = uuid.uuid4()

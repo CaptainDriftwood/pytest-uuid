@@ -374,7 +374,7 @@ def test_marker_with_mock_uuid_fixture_override(pytester):
             assert first == "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
 
             # Fixture can override to a different UUID
-            mock_uuid.set("bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb")
+            mock_uuid.uuid4.set("bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb")
             second = str(uuid.uuid4())
             assert second == "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb"
         """
@@ -406,7 +406,7 @@ def test_marker_with_sequence_exhaustion_and_fixture(pytester):
             assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
 
             # But fixture can still override
-            mock_uuid.set("33333333-3333-4333-8333-333333333333")
+            mock_uuid.uuid4.set("33333333-3333-4333-8333-333333333333")
             assert str(uuid.uuid4()) == "33333333-3333-4333-8333-333333333333"
         """
     )

@@ -418,7 +418,7 @@ def test_direct_import_both_styles_in_same_module(pytester):
         from uuid import uuid4
 
         def test_both_import_styles(mock_uuid):
-            mock_uuid.set("12345678-1234-4678-8234-567812345678")
+            mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
 
             # Both should return the mocked UUID
             result1 = uuid.uuid4()
@@ -508,7 +508,7 @@ def test_direct_import_in_test_file_with_fixture(pytester):
         from uuid import uuid4
 
         def test_direct_import_in_test_file(mock_uuid):
-            mock_uuid.set("12345678-1234-4678-8234-567812345678")
+            mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
 
             # Direct import in THIS test file should be patched
             result = uuid4()
@@ -596,7 +596,7 @@ def test_aliased_import_is_patched(pytester):
         import mymodule
 
         def test_aliased_import(mock_uuid):
-            mock_uuid.set("12345678-1234-4678-8234-567812345678")
+            mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
             result = mymodule.create_entity()
             assert result == "12345678-1234-4678-8234-567812345678"
         """
@@ -640,7 +640,7 @@ def test_aliased_import_in_test_file(pytester):
         from uuid import uuid4 as my_uuid
 
         def test_aliased_import_in_test_file(mock_uuid):
-            mock_uuid.set("bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb")
+            mock_uuid.uuid4.set("bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb")
             result = my_uuid()
             assert str(result) == "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb"
         """
@@ -668,7 +668,7 @@ def test_multiple_aliases_same_module(pytester):
         import multi_alias
 
         def test_multiple_aliases(mock_uuid):
-            mock_uuid.set("cccccccc-cccc-4ccc-accc-cccccccccccc")
+            mock_uuid.uuid4.set("cccccccc-cccc-4ccc-accc-cccccccccccc")
             a, b, c = multi_alias.get_ids()
             assert a == "cccccccc-cccc-4ccc-accc-cccccccccccc"
             assert b == "cccccccc-cccc-4ccc-accc-cccccccccccc"
@@ -700,7 +700,7 @@ def test_module_alias_import_uuid_as_alias(pytester):
         import mymodule
 
         def test_module_alias(mock_uuid):
-            mock_uuid.set("12345678-1234-4678-8234-567812345678")
+            mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
             result = mymodule.create_id()
             assert result == "12345678-1234-4678-8234-567812345678"
         """
@@ -717,7 +717,7 @@ def test_module_alias_in_test_file(pytester):
         import uuid as u
 
         def test_module_alias_in_test(mock_uuid):
-            mock_uuid.set("dddddddd-dddd-4ddd-addd-dddddddddddd")
+            mock_uuid.uuid4.set("dddddddd-dddd-4ddd-addd-dddddddddddd")
             result = u.uuid4()
             assert str(result) == "dddddddd-dddd-4ddd-addd-dddddddddddd"
         """
@@ -731,19 +731,18 @@ def test_module_alias_in_test_file(pytester):
 
 
 def test_edge_case_mock_uuid_and_spy_uuid_mutual_exclusion(pytester):
-    """Test that using both mock_uuid and spy_uuid raises UsageError."""
+    """Test that accessing mock_uuid.uuid4 with spy_uuid active raises UsageError."""
     pytester.makepyfile(
         test_both_fixtures="""
         def test_both_fixtures(mock_uuid, spy_uuid):
-            pass  # Should never get here
+            # Accessing mock_uuid.uuid4 while spy_uuid is active should fail
+            mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
         """
     )
 
     result = pytester.runpytest("-v")
-    result.assert_outcomes(errors=1)
-    result.stdout.fnmatch_lines(
-        ["*Cannot use both 'mock_uuid' and 'spy_uuid' fixtures*"]
-    )
+    result.assert_outcomes(failed=1)
+    result.stdout.fnmatch_lines(["*Cannot use both 'mock_uuid.uuid4' and 'spy_uuid'*"])
 
 
 def test_edge_case_spy_uuid_and_mock_uuid_mutual_exclusion(pytester):
@@ -751,30 +750,54 @@ def test_edge_case_spy_uuid_and_mock_uuid_mutual_exclusion(pytester):
     pytester.makepyfile(
         test_both_fixtures_reversed="""
         def test_both_fixtures(spy_uuid, mock_uuid):
-            pass  # Should never get here
+            # Accessing mock_uuid.uuid4 while spy_uuid is active should fail
+            mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
         """
     )
 
     result = pytester.runpytest("-v")
-    result.assert_outcomes(errors=1)
-    result.stdout.fnmatch_lines(
-        ["*Cannot use both 'mock_uuid' and 'spy_uuid' fixtures*"]
+    result.assert_outcomes(failed=1)
+    result.stdout.fnmatch_lines(["*Cannot use both 'mock_uuid.uuid4' and 'spy_uuid'*"])
+
+
+def test_edge_case_mock_uuid_and_spy_uuid_coexist_for_different_versions(pytester):
+    """Test that mock_uuid and spy_uuid can coexist for different UUID versions."""
+    pytester.makepyfile(
+        test_coexist="""
+        import uuid
+
+        def test_different_uuid_versions(mock_uuid, spy_uuid):
+            # spy_uuid tracks uuid4
+            # mock_uuid.uuid1 mocks uuid1 - no conflict!
+            mock_uuid.uuid1.set("12345678-1234-1234-8234-567812345678")
+
+            # uuid4 goes through spy
+            result4 = uuid.uuid4()
+            assert spy_uuid.call_count == 1
+
+            # uuid1 goes through mock
+            result1 = uuid.uuid1()
+            assert str(result1) == "12345678-1234-1234-8234-567812345678"
+        """
     )
+
+    result = pytester.runpytest("-v")
+    result.assert_outcomes(passed=1)
 
 
 def test_edge_case_mock_uuid_spy_method_works(pytester):
-    """Test that mock_uuid.spy() is the correct alternative."""
+    """Test that mock_uuid.uuid4.spy() is the correct alternative."""
     pytester.makepyfile(
         test_spy_method="""
         import uuid
 
         def test_mock_uuid_spy_mode(mock_uuid):
-            mock_uuid.spy()  # Switch to spy mode
+            mock_uuid.uuid4.spy()  # Switch to spy mode
 
             result = uuid.uuid4()
 
-            assert mock_uuid.call_count == 1
-            assert mock_uuid.last_uuid == result
+            assert mock_uuid.uuid4.call_count == 1
+            assert mock_uuid.uuid4.last_uuid == result
             # Real UUID, so version should be 4
             assert result.version == 4
         """
@@ -797,7 +820,7 @@ def test_edge_case_marker_and_fixture_together(pytester):
             assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
 
             # Fixture can override
-            mock_uuid.set("22222222-2222-4222-8222-222222222222")
+            mock_uuid.uuid4.set("22222222-2222-4222-8222-222222222222")
             assert str(uuid.uuid4()) == "22222222-2222-4222-8222-222222222222"
         """
     )
@@ -1160,7 +1183,7 @@ def test_exception_fixture_cleanup_on_test_failure(pytester):
         import pytest
 
         def test_failing_test(mock_uuid):
-            mock_uuid.set("12345678-1234-4678-8234-567812345678")
+            mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
             assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
             pytest.fail("Intentional failure")
 
@@ -1257,7 +1280,7 @@ def test_exception_catch_exhausted_set_new_uuid(pytester):
                 uuid.uuid4()
 
             # But fixture can set a new UUID to recover
-            mock_uuid.set("22222222-2222-4222-8222-222222222222")
+            mock_uuid.uuid4.set("22222222-2222-4222-8222-222222222222")
             recovered = uuid.uuid4()
             assert str(recovered) == "22222222-2222-4222-8222-222222222222"
         """

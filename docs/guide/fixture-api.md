@@ -12,7 +12,7 @@ The main fixture for controlling `uuid.uuid4()` calls.
 import uuid
 
 def test_basic(mock_uuid):
-    mock_uuid.set("12345678-1234-4678-8234-567812345678")
+    mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
     assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
 ```
 
@@ -22,7 +22,7 @@ Return the same UUID every time:
 
 ```python
 def test_static(mock_uuid):
-    mock_uuid.set("12345678-1234-4678-8234-567812345678")
+    mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
     assert uuid.uuid4() == uuid.uuid4()  # Same UUID
 ```
 
@@ -32,7 +32,7 @@ Return UUIDs from a list:
 
 ```python
 def test_sequence(mock_uuid):
-    mock_uuid.set(
+    mock_uuid.uuid4.set(
         "11111111-1111-4111-8111-111111111111",
         "22222222-2222-4222-8222-222222222222",
     )
@@ -48,10 +48,10 @@ Generate reproducible UUIDs from a seed:
 
 ```python
 def test_seeded(mock_uuid):
-    mock_uuid.set_seed(42)
+    mock_uuid.uuid4.set_seed(42)
     first = uuid.uuid4()
 
-    mock_uuid.set_seed(42)  # Reset to same seed
+    mock_uuid.uuid4.set_seed(42)  # Reset to same seed
     assert uuid.uuid4() == first  # Same UUID
 ```
 
@@ -61,7 +61,7 @@ Derive the seed from the test's node ID:
 
 ```python
 def test_node_seeded(mock_uuid):
-    mock_uuid.set_seed_from_node()
+    mock_uuid.uuid4.set_seed_from_node()
     # Same test always produces the same sequence
 ```
 
@@ -71,13 +71,13 @@ Use the `seed` property to see the actual seed being used:
 
 ```python
 def test_inspect_seed(mock_uuid):
-    mock_uuid.set_seed(42)
-    assert mock_uuid.seed == 42
+    mock_uuid.uuid4.set_seed(42)
+    assert mock_uuid.uuid4.seed == 42
 
 def test_inspect_node_seed(mock_uuid):
-    mock_uuid.set_seed_from_node()
+    mock_uuid.uuid4.set_seed_from_node()
     # See the computed seed derived from the test's node ID
-    print(f"Using seed: {mock_uuid.seed}")  # e.g., 8427193654
+    print(f"Using seed: {mock_uuid.uuid4.seed}")  # e.g., 8427193654
 ```
 
 !!! tip "Debugging reproducibility"
@@ -94,8 +94,8 @@ import pytest
 from pytest_uuid import UUIDsExhaustedError
 
 def test_exhaustion_raise(mock_uuid):
-    mock_uuid.set_exhaustion_behavior("raise")
-    mock_uuid.set("11111111-1111-4111-8111-111111111111")
+    mock_uuid.uuid4.set_exhaustion_behavior("raise")
+    mock_uuid.uuid4.set("11111111-1111-4111-8111-111111111111")
 
     uuid.uuid4()  # Returns the UUID
 
@@ -115,8 +115,8 @@ Exclude specific packages from UUID mocking:
 
 ```python
 def test_with_ignored_modules(mock_uuid):
-    mock_uuid.set("12345678-1234-4678-8234-567812345678")
-    mock_uuid.set_ignore("sqlalchemy", "celery")
+    mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
+    mock_uuid.uuid4.set_ignore("sqlalchemy", "celery")
 
     # Direct calls are mocked
     assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
@@ -133,10 +133,10 @@ Reset the fixture to its initial state:
 
 ```python
 def test_reset(mock_uuid):
-    mock_uuid.set("12345678-1234-4678-8234-567812345678")
+    mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
     uuid.uuid4()
 
-    mock_uuid.reset()
+    mock_uuid.uuid4.reset()
     # Back to initial state - no UUIDs configured
 ```
 
@@ -217,14 +217,14 @@ Each UUID version is tracked independently:
 
 ```python
 def test_all_versions_independent(mock_uuid):
-    mock_uuid.set("44444444-4444-4444-8444-444444444444")  # uuid4
+    mock_uuid.uuid4.set("44444444-4444-4444-8444-444444444444")  # uuid4
     mock_uuid.uuid1.set("11111111-1111-1111-8111-111111111111")
 
     uuid.uuid4()
     uuid.uuid4()
     uuid.uuid1()
 
-    assert mock_uuid.call_count == 2      # uuid4 only
+    assert mock_uuid.uuid4.call_count == 2      # uuid4 only
     assert mock_uuid.uuid1.call_count == 1
 ```
 
@@ -244,7 +244,7 @@ def create_user():
 # tests/test_models.py
 def test_create_user(mock_uuid_factory):
     with mock_uuid_factory("myapp.models") as mocker:
-        mocker.set("12345678-1234-4678-8234-567812345678")
+        mocker.uuid4.set("12345678-1234-4678-8234-567812345678")
         user = create_user()
         assert user["id"] == "12345678-1234-4678-8234-567812345678"
 ```
@@ -256,11 +256,26 @@ By default, packages like `botocore` are ignored. Use `ignore_defaults=False` to
 ```python
 def test_mock_botocore(mock_uuid_factory):
     with mock_uuid_factory("botocore.handlers", ignore_defaults=False) as mocker:
-        mocker.set("12345678-1234-4678-8234-567812345678")
+        mocker.uuid4.set("12345678-1234-4678-8234-567812345678")
         # botocore will now receive mocked UUIDs
 ```
 
 ## Methods Reference
+
+### UUIDMocker (container)
+
+| Property/Method | Description |
+|-----------------|-------------|
+| `uuid4` | Access UUID4Mocker for `uuid.uuid4()` |
+| `uuid1` | Access UUID1Mocker for `uuid.uuid1()` |
+| `uuid3` | Access NamespaceUUIDSpy for `uuid.uuid3()` |
+| `uuid5` | Access NamespaceUUIDSpy for `uuid.uuid5()` |
+| `uuid6` | Access UUID6Mocker for `uuid.uuid6()` |
+| `uuid7` | Access UUID7Mocker for `uuid.uuid7()` |
+| `uuid8` | Access UUID8Mocker for `uuid.uuid8()` |
+| `reset()` | Reset all initialized sub-mockers |
+
+### UUID4Mocker (accessed via `mock_uuid.uuid4`)
 
 | Method | Description |
 |--------|-------------|

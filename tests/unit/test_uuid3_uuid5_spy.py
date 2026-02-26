@@ -146,7 +146,7 @@ class TestUUID3AndUUID5Together:
 
     def test_all_uuid_functions_together(self, mock_uuid):
         """Test using uuid1, uuid3, uuid4, and uuid5 together."""
-        mock_uuid.set("44444444-4444-4444-8444-444444444444")
+        mock_uuid.uuid4.set("44444444-4444-4444-8444-444444444444")
         mock_uuid.uuid1.set("11111111-1111-1111-8111-111111111111")
         _ = mock_uuid.uuid3
         _ = mock_uuid.uuid5
@@ -164,7 +164,7 @@ class TestUUID3AndUUID5Together:
         assert result5.version == 5
 
         # Verify call counts
-        assert mock_uuid.call_count == 1  # uuid4
+        assert mock_uuid.uuid4.call_count == 1  # uuid4
         assert mock_uuid.uuid1.call_count == 1
         assert mock_uuid.uuid3.call_count == 1
         assert mock_uuid.uuid5.call_count == 1

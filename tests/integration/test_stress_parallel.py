@@ -139,7 +139,7 @@ def test_service_class_unmocked(_iteration):
 @pytest.mark.parametrize("expected_uuid", MOCK_UUIDS[:15])
 def test_fixture_with_external_module(mock_uuid, expected_uuid):
     """Test mock_uuid fixture works with external module."""
-    mock_uuid.set(expected_uuid)
+    mock_uuid.uuid4.set(expected_uuid)
     result = generate_id()
     assert str(result) == expected_uuid
 

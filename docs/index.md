@@ -31,11 +31,11 @@ A pytest plugin for mocking UUID generation in your tests. Supports uuid1, uuid3
 import uuid
 
 def test_single_uuid(mock_uuid):
-    mock_uuid.set("12345678-1234-4678-8234-567812345678")
+    mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
     assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
 
 def test_multiple_uuids(mock_uuid):
-    mock_uuid.set(
+    mock_uuid.uuid4.set(
         "11111111-1111-4111-8111-111111111111",
         "22222222-2222-4222-8222-222222222222",
     )

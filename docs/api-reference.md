@@ -6,7 +6,34 @@ Complete API documentation for pytest-uuid.
 
 ### mock_uuid
 
-Main fixture for controlling `uuid.uuid4()` calls.
+Container fixture providing access to mockers for all UUID versions.
+
+**Container Methods:**
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `reset` | `reset()` | Reset all initialized sub-mockers |
+
+**Sub-Mockers (accessed as properties):**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `uuid4` | `UUID4Mocker` | Control `uuid.uuid4()` - random UUID |
+| `uuid1` | `UUID1Mocker` | Control `uuid.uuid1()` - time-based with MAC |
+| `uuid3` | `NamespaceUUIDSpy` | Track `uuid.uuid3()` - MD5 namespace hash |
+| `uuid5` | `NamespaceUUIDSpy` | Track `uuid.uuid5()` - SHA-1 namespace hash |
+| `uuid6` | `UUID6Mocker` | Control `uuid.uuid6()` - reordered time-based |
+| `uuid7` | `UUID7Mocker` | Control `uuid.uuid7()` - Unix timestamp-based |
+| `uuid8` | `UUID8Mocker` | Control `uuid.uuid8()` - experimental format |
+
+!!! note "uuid6/uuid7/uuid8 availability"
+    These require Python 3.14+ or the [uuid6](https://pypi.org/project/uuid6/) package on earlier versions.
+
+---
+
+### UUID4Mocker
+
+Mocker for `uuid.uuid4()` calls, accessed via `mock_uuid.uuid4`.
 
 **Methods:**
 
@@ -47,20 +74,6 @@ Main fixture for controlling `uuid.uuid4()` calls.
 |--------|-----------|-------------|
 | `calls_from` | `calls_from(module_prefix: str) -> list[UUIDCall]` | Filter calls by module |
 
-**Sub-Mockers (accessed as properties):**
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `uuid1` | `UUID1Mocker` | Control `uuid.uuid1()` - time-based with MAC |
-| `uuid3` | `NamespaceUUIDSpy` | Track `uuid.uuid3()` - MD5 namespace hash |
-| `uuid5` | `NamespaceUUIDSpy` | Track `uuid.uuid5()` - SHA-1 namespace hash |
-| `uuid6` | `UUID6Mocker` | Control `uuid.uuid6()` - reordered time-based |
-| `uuid7` | `UUID7Mocker` | Control `uuid.uuid7()` - Unix timestamp-based |
-| `uuid8` | `UUID8Mocker` | Control `uuid.uuid8()` - experimental format |
-
-!!! note "uuid6/uuid7/uuid8 availability"
-    These require Python 3.14+ or the [uuid6](https://pypi.org/project/uuid6/) package on earlier versions.
-
 ---
 
 ### mock_uuid_factory
@@ -72,7 +85,7 @@ Factory for module-specific mocking.
 ```python
 def test_example(mock_uuid_factory):
     with mock_uuid_factory("myapp.models") as mocker:
-        mocker.set("12345678-1234-4678-8234-567812345678")
+        mocker.uuid4.set("12345678-1234-4678-8234-567812345678")
         # Only myapp.models.uuid4 is mocked
 ```
 
@@ -238,7 +251,7 @@ Mocker for `uuid.uuid1()` calls, accessed via `mock_uuid.uuid1`.
 | `spy` | `spy()` | Enable spy mode |
 | `reset` | `reset()` | Reset to initial state |
 
-**Properties:** Same as `mock_uuid` (`call_count`, `calls`, `last_uuid`, etc.)
+**Properties:** Same as `UUID4Mocker` (`call_count`, `calls`, `last_uuid`, etc.)
 
 ---
 
@@ -282,7 +295,7 @@ Mockers for the newer RFC 9562 UUID versions, accessed via `mock_uuid.uuid6`, `m
 | `spy()` | All | Enable spy mode |
 | `reset()` | All | Reset to initial state |
 
-**Properties:** Same as `mock_uuid` (`call_count`, `calls`, `last_uuid`, etc.)
+**Properties:** Same as `UUID4Mocker` (`call_count`, `calls`, `last_uuid`, etc.)
 
 ---
 

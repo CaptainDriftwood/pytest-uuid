@@ -208,7 +208,7 @@ class TestAllUUIDVersionsTogether:
 
     def test_all_versions_mocked_independently(self, mock_uuid):
         """Test that all UUID versions can be mocked independently."""
-        mock_uuid.set("44444444-4444-4444-8444-444444444444")
+        mock_uuid.uuid4.set("44444444-4444-4444-8444-444444444444")
         mock_uuid.uuid1.set("11111111-1111-1111-8111-111111111111")
         mock_uuid.uuid6.set("66666666-6666-6666-8666-666666666666")
         mock_uuid.uuid7.set("77777777-7777-7777-8777-777777777777")
@@ -222,7 +222,7 @@ class TestAllUUIDVersionsTogether:
 
     def test_call_counts_independent(self, mock_uuid):
         """Test that call counts are tracked independently per version."""
-        mock_uuid.set("44444444-4444-4444-8444-444444444444")
+        mock_uuid.uuid4.set("44444444-4444-4444-8444-444444444444")
         mock_uuid.uuid1.set("11111111-1111-1111-8111-111111111111")
         mock_uuid.uuid7.set("77777777-7777-7777-8777-777777777777")
 
@@ -234,6 +234,6 @@ class TestAllUUIDVersionsTogether:
         uuid7()
         uuid7()
 
-        assert mock_uuid.call_count == 2
+        assert mock_uuid.uuid4.call_count == 2
         assert mock_uuid.uuid1.call_count == 1
         assert mock_uuid.uuid7.call_count == 3

@@ -26,27 +26,27 @@ def test_user_generates_uuid(spy_uuid):
 
 ## Switching to Spy Mode
 
-Use `mock_uuid.spy()` to switch from mocked to real UUIDs mid-test:
+Use `mock_uuid.uuid4.spy()` to switch from mocked to real UUIDs mid-test:
 
 ```python
 import uuid
 
 def test_start_mocked_then_spy(mock_uuid):
     """Start with mocked UUIDs, then switch to real ones."""
-    mock_uuid.set("12345678-1234-4678-8234-567812345678")
+    mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
     first = uuid.uuid4()  # Mocked
 
-    mock_uuid.spy()  # Switch to spy mode
+    mock_uuid.uuid4.spy()  # Switch to spy mode
     second = uuid.uuid4()  # Real random UUID
 
     assert str(first) == "12345678-1234-4678-8234-567812345678"
     assert first != second  # second is random
-    assert mock_uuid.mocked_count == 1
-    assert mock_uuid.real_count == 1
+    assert mock_uuid.uuid4.mocked_count == 1
+    assert mock_uuid.uuid4.real_count == 1
 ```
 
 !!! tip "When to use which"
-    Use `spy_uuid` when you never need mocking in the test. Use `mock_uuid.spy()` when you need to switch between mocked and real UUIDs within the same test.
+    Use `spy_uuid` when you never need mocking in the test. Use `mock_uuid.uuid4.spy()` when you need to switch between mocked and real UUIDs within the same test.
 
 ## Call Tracking
 
@@ -123,24 +123,24 @@ import uuid
 
 def test_mixed_mocked_and_real(mock_uuid):
     """Track both mocked calls and real calls from ignored modules."""
-    mock_uuid.set("12345678-1234-4678-8234-567812345678")
-    mock_uuid.set_ignore("mylib")
+    mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
+    mock_uuid.uuid4.set_ignore("mylib")
 
     uuid.uuid4()              # Mocked (direct call)
     mylib.create_record()     # Real (from ignored module)
     uuid.uuid4()              # Mocked (direct call)
 
     # Count by type
-    assert mock_uuid.call_count == 3
-    assert mock_uuid.mocked_count == 2
-    assert mock_uuid.real_count == 1
+    assert mock_uuid.uuid4.call_count == 3
+    assert mock_uuid.uuid4.mocked_count == 2
+    assert mock_uuid.uuid4.real_count == 1
 
     # Access only real calls
-    for call in mock_uuid.real_calls:
+    for call in mock_uuid.uuid4.real_calls:
         print(f"Real UUID from {call.caller_module}: {call.uuid}")
 
     # Access only mocked calls
-    for call in mock_uuid.mocked_calls:
+    for call in mock_uuid.uuid4.mocked_calls:
         assert call.was_mocked is True
 ```
 

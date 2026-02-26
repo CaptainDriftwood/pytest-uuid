@@ -87,11 +87,11 @@ if TYPE_CHECKING:
     from contextlib import AbstractContextManager
 
 
-class UUIDMocker(CallTrackingMixin):
-    """A class to manage mocked UUID values.
+class UUID4Mocker(CallTrackingMixin):
+    """A class to manage mocked UUID4 values.
 
     This class provides imperative control over uuid.uuid4() during tests.
-    It backs the mock_uuid fixture and supports multiple mocking strategies:
+    It's accessed via mock_uuid.uuid4 and supports multiple mocking strategies:
     - Static UUIDs: set("uuid") returns the same UUID every time
     - Sequences: set("uuid1", "uuid2") cycles through UUIDs
     - Seeded: set_seed(42) produces reproducible UUIDs
@@ -112,14 +112,14 @@ class UUIDMocker(CallTrackingMixin):
     Example:
         def test_user_creation(mock_uuid):
             # Set up mocking
-            mock_uuid.set("12345678-1234-4678-8234-567812345678")
+            mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
 
             # Code under test
             user = create_user()
 
             # Verify
             assert user.id == "12345678-1234-4678-8234-567812345678"
-            assert mock_uuid.call_count == 1
+            assert mock_uuid.uuid4.call_count == 1
 
     See Also:
         - mock_uuid fixture: Creates and patches a UUIDMocker automatically
@@ -153,20 +153,6 @@ class UUIDMocker(CallTrackingMixin):
             self._ignore_list = config.get_ignore_list() + self._ignore_extra
         else:
             self._ignore_list = self._ignore_extra
-
-        # Sub-mockers for other UUID versions (lazily initialized)
-        self._uuid1_mocker: UUID1Mocker | None = None
-        self._uuid1_token: GeneratorToken | None = None
-        self._uuid3_spy: NamespaceUUIDSpy | None = None
-        self._uuid3_token: GeneratorToken | None = None
-        self._uuid5_spy: NamespaceUUIDSpy | None = None
-        self._uuid5_token: GeneratorToken | None = None
-        self._uuid6_mocker: UUID6Mocker | None = None
-        self._uuid6_token: GeneratorToken | None = None
-        self._uuid7_mocker: UUID7Mocker | None = None
-        self._uuid7_token: GeneratorToken | None = None
-        self._uuid8_mocker: UUID8Mocker | None = None
-        self._uuid8_token: GeneratorToken | None = None
 
     def set(self, *uuids: str | uuid.UUID) -> None:
         """Set the UUID(s) to return.
@@ -249,8 +235,8 @@ class UUIDMocker(CallTrackingMixin):
 
         Example:
             def test_something(mock_uuid):
-                mock_uuid.set("12345678-1234-4678-8234-567812345678")
-                mock_uuid.set_ignore("sqlalchemy", "celery")
+                mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
+                mock_uuid.uuid4.set_ignore("sqlalchemy", "celery")
                 # uuid4() calls from sqlalchemy or celery will be real
                 # Other calls will be mocked
         """
@@ -360,14 +346,104 @@ class UUIDMocker(CallTrackingMixin):
 
         Example:
             def test_something(mock_uuid):
-                mock_uuid.spy()  # Switch to spy mode
+                mock_uuid.uuid4.spy()  # Switch to spy mode
 
                 result = uuid.uuid4()  # Returns real random UUID
 
-                assert mock_uuid.call_count == 1
-                assert mock_uuid.last_uuid == result
+                assert mock_uuid.uuid4.call_count == 1
+                assert mock_uuid.uuid4.last_uuid == result
         """
         self._generator = None
+
+
+class UUIDMocker:
+    """Container for all UUID version mockers.
+
+    This class provides access to mockers for all UUID versions via properties.
+    It backs the mock_uuid fixture and provides a consistent API across all
+    UUID versions.
+
+    Example:
+        def test_user_creation(mock_uuid):
+            # Mock uuid4
+            mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
+
+            # Mock uuid1
+            mock_uuid.uuid1.set("12345678-1234-1234-8234-567812345678")
+
+            # Mock uuid7 (Python 3.14+ or uuid6 package)
+            mock_uuid.uuid7.set("12345678-1234-7234-8234-567812345678")
+
+            # Spy on uuid5 (deterministic, so spy-only)
+            result = uuid.uuid5(uuid.NAMESPACE_DNS, "example.com")
+            assert mock_uuid.uuid5.call_count == 1
+
+    See Also:
+        - mock_uuid fixture: Creates and patches a UUIDMocker automatically
+        - freeze_uuid: Decorator/context manager alternative for uuid4
+    """
+
+    def __init__(
+        self,
+        node_id: str | None = None,
+        ignore: list[str] | None = None,
+        ignore_defaults: bool = True,
+        delegate_to: Callable[[], uuid.UUID] | None = None,
+    ) -> None:
+        self._node_id = node_id
+        self._ignore = ignore
+        self._ignore_defaults = ignore_defaults
+        self._delegate_to = delegate_to
+
+        # Sub-mockers for all UUID versions (lazily initialized)
+        self._uuid1_mocker: UUID1Mocker | None = None
+        self._uuid1_token: GeneratorToken | None = None
+        self._uuid3_spy: NamespaceUUIDSpy | None = None
+        self._uuid3_token: GeneratorToken | None = None
+        self._uuid4_mocker: UUID4Mocker | None = None
+        self._uuid4_token: GeneratorToken | None = None
+        self._uuid5_spy: NamespaceUUIDSpy | None = None
+        self._uuid5_token: GeneratorToken | None = None
+        self._uuid6_mocker: UUID6Mocker | None = None
+        self._uuid6_token: GeneratorToken | None = None
+        self._uuid7_mocker: UUID7Mocker | None = None
+        self._uuid7_token: GeneratorToken | None = None
+        self._uuid8_mocker: UUID8Mocker | None = None
+        self._uuid8_token: GeneratorToken | None = None
+
+    @property
+    def uuid4(self) -> UUID4Mocker:
+        """Access UUID4 mocking API.
+
+        Returns a UUID4Mocker instance for controlling uuid.uuid4() calls.
+        The mocker is lazily initialized and registered with the proxy
+        on first access.
+
+        Example:
+            def test_uuid4(mock_uuid):
+                mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
+                result = uuid.uuid4()
+                assert str(result) == "12345678-1234-4678-8234-567812345678"
+
+        Raises:
+            pytest.UsageError: If spy_uuid fixture is active (conflict).
+        """
+        if self._uuid4_mocker is None:
+            # Check for conflict with spy_uuid fixture
+            current = get_current_generator(func_name="uuid4")
+            if current is not None and isinstance(current, UUIDSpy):
+                raise pytest.UsageError(
+                    "Cannot use both 'mock_uuid.uuid4' and 'spy_uuid' in the same test. "
+                    "Use mock_uuid.uuid4.spy() to switch to spy mode instead."
+                )
+            self._uuid4_mocker = UUID4Mocker(
+                node_id=self._node_id,
+                ignore=self._ignore,
+                ignore_defaults=self._ignore_defaults,
+                delegate_to=self._delegate_to,
+            )
+            self._uuid4_token = set_generator(self._uuid4_mocker, func_name="uuid4")
+        return self._uuid4_mocker
 
     @property
     def uuid1(self) -> UUID1Mocker:
@@ -386,7 +462,7 @@ class UUIDMocker(CallTrackingMixin):
         if self._uuid1_mocker is None:
             self._uuid1_mocker = UUID1Mocker(
                 node_id=self._node_id,
-                ignore=list(self._ignore_extra) if self._ignore_extra else None,
+                ignore=self._ignore,
                 ignore_defaults=self._ignore_defaults,
             )
             # Register with the proxy system
@@ -453,7 +529,7 @@ class UUIDMocker(CallTrackingMixin):
         if self._uuid6_mocker is None:
             self._uuid6_mocker = UUID6Mocker(
                 node_id=self._node_id,
-                ignore=list(self._ignore_extra) if self._ignore_extra else None,
+                ignore=self._ignore,
                 ignore_defaults=self._ignore_defaults,
             )
             self._uuid6_token = set_generator(self._uuid6_mocker, func_name="uuid6")
@@ -478,7 +554,7 @@ class UUIDMocker(CallTrackingMixin):
         if self._uuid7_mocker is None:
             self._uuid7_mocker = UUID7Mocker(
                 node_id=self._node_id,
-                ignore=list(self._ignore_extra) if self._ignore_extra else None,
+                ignore=self._ignore,
                 ignore_defaults=self._ignore_defaults,
             )
             self._uuid7_token = set_generator(self._uuid7_mocker, func_name="uuid7")
@@ -502,11 +578,32 @@ class UUIDMocker(CallTrackingMixin):
         if self._uuid8_mocker is None:
             self._uuid8_mocker = UUID8Mocker(
                 node_id=self._node_id,
-                ignore=list(self._ignore_extra) if self._ignore_extra else None,
+                ignore=self._ignore,
                 ignore_defaults=self._ignore_defaults,
             )
             self._uuid8_token = set_generator(self._uuid8_mocker, func_name="uuid8")
         return self._uuid8_mocker
+
+    def reset(self) -> None:
+        """Reset all initialized sub-mockers to their initial state.
+
+        This resets the state of all sub-mockers that have been accessed
+        (e.g., uuid4, uuid1, etc.) without de-registering them.
+        """
+        if self._uuid1_mocker is not None:
+            self._uuid1_mocker.reset()
+        if self._uuid3_spy is not None:
+            self._uuid3_spy.reset()
+        if self._uuid4_mocker is not None:
+            self._uuid4_mocker.reset()
+        if self._uuid5_spy is not None:
+            self._uuid5_spy.reset()
+        if self._uuid6_mocker is not None:
+            self._uuid6_mocker.reset()
+        if self._uuid7_mocker is not None:
+            self._uuid7_mocker.reset()
+        if self._uuid8_mocker is not None:
+            self._uuid8_mocker.reset()
 
     def _cleanup_sub_mockers(self) -> None:
         """Clean up any sub-mockers that were initialized."""
@@ -518,6 +615,10 @@ class UUIDMocker(CallTrackingMixin):
             reset_generator(self._uuid3_token)
             self._uuid3_token = None
             self._uuid3_spy = None
+        if self._uuid4_token is not None:
+            reset_generator(self._uuid4_token)
+            self._uuid4_token = None
+            self._uuid4_mocker = None
         if self._uuid5_token is not None:
             reset_generator(self._uuid5_token)
             self._uuid5_token = None
@@ -1466,19 +1567,19 @@ def pytest_runtest_teardown(item: pytest.Item) -> None:
 def mock_uuid(
     request: pytest.FixtureRequest,
 ) -> Iterator[UUIDMocker]:
-    """Fixture that provides a UUIDMocker for controlling uuid.uuid4() calls.
+    """Fixture that provides a UUIDMocker for controlling UUID generation.
 
-    This fixture uses the proxy system to intercept all uuid.uuid4() calls,
-    including those captured at import time (e.g., Pydantic default_factory).
+    This fixture uses the proxy system to intercept UUID calls for all versions.
+    Access sub-mockers via properties: uuid1, uuid3, uuid4, uuid5, uuid6, uuid7, uuid8.
 
     Example:
         def test_something(mock_uuid):
-            mock_uuid.set("12345678-1234-4678-8234-567812345678")
+            mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
             result = uuid.uuid4()
             assert str(result) == "12345678-1234-4678-8234-567812345678"
 
         def test_multiple_uuids(mock_uuid):
-            mock_uuid.set(
+            mock_uuid.uuid4.set(
                 "11111111-1111-4111-8111-111111111111",
                 "22222222-2222-4222-8222-222222222222",
             )
@@ -1488,61 +1589,57 @@ def mock_uuid(
             assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
 
         def test_seeded(mock_uuid):
-            mock_uuid.set_seed(42)
+            mock_uuid.uuid4.set_seed(42)
             # Always produces the same sequence of UUIDs
             first = uuid.uuid4()
-            mock_uuid.set_seed(42)  # Reset with same seed
+            mock_uuid.uuid4.set_seed(42)  # Reset with same seed
             assert uuid.uuid4() == first
 
         def test_node_seeded(mock_uuid):
-            mock_uuid.set_seed_from_node()
+            mock_uuid.uuid4.set_seed_from_node()
             # Same test always gets the same UUIDs
 
-    Returns:
-        UUIDMocker: An object to control the mocked UUIDs.
-    """
-    # Check for fixture conflict - if another fixture already set a generator
-    current = get_current_generator()
-    if current is not None and isinstance(current, UUIDSpy):
-        raise pytest.UsageError(
-            "Cannot use both 'mock_uuid' and 'spy_uuid' fixtures in the same test. "
-            "Use mock_uuid.spy() to switch to spy mode instead."
-        )
+        def test_uuid7(mock_uuid):
+            mock_uuid.uuid7.set("12345678-1234-7234-8234-567812345678")
+            result = uuid.uuid7()
+            assert str(result) == "12345678-1234-7234-8234-567812345678"
 
+    Returns:
+        UUIDMocker: A container to access version-specific UUID mockers.
+    """
     # Check if marker set a generator that we should delegate to
     marker_freezer = getattr(request.node, "_uuid_freezer", None)
+    current = get_current_generator()
     delegate_to = current if marker_freezer is not None else None
 
     mocker = UUIDMocker(node_id=request.node.nodeid, delegate_to=delegate_to)
-    token = set_generator(mocker)
     yield mocker
-    # Clean up sub-mockers first (they were registered after main mocker)
+    # Clean up all sub-mockers that were initialized
     mocker._cleanup_sub_mockers()
-    reset_generator(token)
 
 
 @pytest.fixture
 def mock_uuid_factory() -> Callable[..., AbstractContextManager[UUIDMocker]]:
     """Fixture factory for creating scoped UUIDMocker instances.
 
-    With the proxy-based architecture, all uuid.uuid4() calls go through
-    the global proxy. This factory creates a context manager that sets up
-    and tears down a UUIDMocker for the duration of the context.
+    With the proxy-based architecture, all UUID calls go through the global
+    proxy. This factory creates a context manager that sets up and tears
+    down a UUIDMocker for the duration of the context.
 
     Note: The module_path parameter is now optional and primarily used for
-    documentation/clarity. The proxy affects all uuid4 calls globally.
+    documentation/clarity. The proxy affects all UUID calls globally.
 
     Example:
         def test_with_scoped_mock(mock_uuid_factory):
             with mock_uuid_factory() as mocker:
-                mocker.set("12345678-1234-4678-8234-567812345678")
+                mocker.uuid4.set("12345678-1234-4678-8234-567812345678")
                 result = create_model()  # Calls uuid4() internally
                 assert result.id == "12345678-1234-4678-8234-567812345678"
 
         def test_mock_default_ignored_package(mock_uuid_factory):
             # Mock packages that are normally ignored (e.g., botocore)
             with mock_uuid_factory(ignore_defaults=False) as mocker:
-                mocker.set("12345678-1234-4678-8234-567812345678")
+                mocker.uuid4.set("12345678-1234-4678-8234-567812345678")
                 # botocore will now receive mocked UUIDs
 
     Args:
@@ -1564,11 +1661,10 @@ def mock_uuid_factory() -> Callable[..., AbstractContextManager[UUIDMocker]]:
         # with the proxy approach (all uuid4 calls go through the proxy)
         _ = module_path
         mocker = UUIDMocker(ignore_defaults=ignore_defaults)
-        token = set_generator(mocker)
         try:
             yield mocker
         finally:
-            reset_generator(token)
+            mocker._cleanup_sub_mockers()
 
     return factory
 

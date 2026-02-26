@@ -76,6 +76,7 @@ from pytest_uuid.generators import (
 from pytest_uuid.plugin import (
     NamespaceUUIDSpy,
     UUID1Mocker,
+    UUID4Mocker,
     UUID6Mocker,
     UUID7Mocker,
     UUID8Mocker,
@@ -130,6 +131,7 @@ __all__ = [
     "UUIDSpy",
     # Sub-mockers for specific UUID versions
     "UUID1Mocker",
+    "UUID4Mocker",
     "UUID6Mocker",
     "UUID7Mocker",
     "UUID8Mocker",

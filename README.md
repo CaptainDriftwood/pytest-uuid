@@ -58,11 +58,11 @@ uv add pytest-uuid
 import uuid
 
 def test_single_uuid(mock_uuid):
-    mock_uuid.set("12345678-1234-4678-8234-567812345678")
+    mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
     assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
 
 def test_multiple_uuids(mock_uuid):
-    mock_uuid.set(
+    mock_uuid.uuid4.set(
         "11111111-1111-4111-8111-111111111111",
         "22222222-2222-4222-8222-222222222222",
     )
@@ -114,7 +114,7 @@ Return the same UUID every time:
 
 ```python
 def test_static(mock_uuid):
-    mock_uuid.set("12345678-1234-4678-8234-567812345678")
+    mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
     assert uuid.uuid4() == uuid.uuid4()  # Same UUID
 
 # Or with decorator
@@ -129,7 +129,7 @@ Return UUIDs from a list:
 
 ```python
 def test_sequence(mock_uuid):
-    mock_uuid.set(
+    mock_uuid.uuid4.set(
         "11111111-1111-4111-8111-111111111111",
         "22222222-2222-4222-8222-222222222222",
     )
@@ -145,10 +145,10 @@ Generate reproducible UUIDs from a seed:
 
 ```python
 def test_seeded(mock_uuid):
-    mock_uuid.set_seed(42)
+    mock_uuid.uuid4.set_seed(42)
     first = uuid.uuid4()
 
-    mock_uuid.set_seed(42)  # Reset to same seed
+    mock_uuid.uuid4.set_seed(42)  # Reset to same seed
     assert uuid.uuid4() == first  # Same UUID
 
 # With decorator
@@ -164,7 +164,7 @@ Derive the seed from the test's node ID for automatic reproducibility:
 
 ```python
 def test_node_seeded(mock_uuid):
-    mock_uuid.set_seed_from_node()
+    mock_uuid.uuid4.set_seed_from_node()
     # Same test always produces the same sequence
 
 # With marker
@@ -255,8 +255,8 @@ Control what happens when a UUID sequence is exhausted:
 from pytest_uuid import ExhaustionBehavior, UUIDsExhaustedError
 
 def test_exhaustion_raise(mock_uuid):
-    mock_uuid.set_exhaustion_behavior("raise")
-    mock_uuid.set("11111111-1111-4111-8111-111111111111")
+    mock_uuid.uuid4.set_exhaustion_behavior("raise")
+    mock_uuid.uuid4.set("11111111-1111-4111-8111-111111111111")
 
     uuid.uuid4()  # Returns the UUID
 
@@ -303,26 +303,26 @@ def test_user_generates_uuid(spy_uuid):
     assert user.id == str(spy_uuid.last_uuid)
 ```
 
-#### Using `mock_uuid.spy()`
+#### Using `mock_uuid.uuid4.spy()`
 
 Switch from mocked to real UUIDs mid-test:
 
 ```python
 def test_start_mocked_then_spy(mock_uuid):
     """Start with mocked UUIDs, then switch to real ones."""
-    mock_uuid.set("12345678-1234-4678-8234-567812345678")
+    mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
     first = uuid.uuid4()  # Mocked
 
-    mock_uuid.spy()  # Switch to spy mode
+    mock_uuid.uuid4.spy()  # Switch to spy mode
     second = uuid.uuid4()  # Real random UUID
 
     assert str(first) == "12345678-1234-4678-8234-567812345678"
     assert first != second  # second is random
-    assert mock_uuid.mocked_count == 1
-    assert mock_uuid.real_count == 1
+    assert mock_uuid.uuid4.mocked_count == 1
+    assert mock_uuid.uuid4.real_count == 1
 ```
 
-> **When to use which:** Use `spy_uuid` when you never need mocking in the test. Use `mock_uuid.spy()` when you need to switch between mocked and real UUIDs within the same test.
+> **When to use which:** Use `spy_uuid` when you never need mocking in the test. Use `mock_uuid.uuid4.spy()` when you need to switch between mocked and real UUIDs within the same test.
 
 ### Additional UUID Versions
 
@@ -392,7 +392,7 @@ def test_uuid7_seeded(mock_uuid):
 
 def test_all_versions_independent(mock_uuid):
     """Each UUID version is mocked independently."""
-    mock_uuid.set("44444444-4444-4444-8444-444444444444")  # uuid4
+    mock_uuid.uuid4.set("44444444-4444-4444-8444-444444444444")  # uuid4
     mock_uuid.uuid1.set("11111111-1111-1111-8111-111111111111")
     mock_uuid.uuid7.set("77777777-7777-7777-8777-777777777777")
 
@@ -401,7 +401,7 @@ def test_all_versions_independent(mock_uuid):
     assert str(uuid7()) == "77777777-7777-7777-8777-777777777777"
 
     # Call counts are tracked independently
-    assert mock_uuid.call_count == 1      # uuid4
+    assert mock_uuid.uuid4.call_count == 1      # uuid4
     assert mock_uuid.uuid1.call_count == 1
     assert mock_uuid.uuid7.call_count == 1
 ```
@@ -416,8 +416,8 @@ Exclude specific packages from UUID mocking so they receive real UUIDs. This is 
 
 ```python
 def test_with_ignored_modules(mock_uuid):
-    mock_uuid.set("12345678-1234-4678-8234-567812345678")
-    mock_uuid.set_ignore("sqlalchemy", "celery")
+    mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
+    mock_uuid.uuid4.set_ignore("sqlalchemy", "celery")
 
     # Direct calls are mocked
     assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
@@ -444,14 +444,14 @@ def test_with_marker():
 
 ```python
 def test_tracking(mock_uuid):
-    mock_uuid.set("12345678-1234-4678-8234-567812345678")
-    mock_uuid.set_ignore("mylib")
+    mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
+    mock_uuid.uuid4.set_ignore("mylib")
 
     uuid.uuid4()           # mocked
     mylib.create_record()  # real (from ignored module)
 
-    assert mock_uuid.mocked_count == 1
-    assert mock_uuid.real_count == 1
+    assert mock_uuid.uuid4.mocked_count == 1
+    assert mock_uuid.uuid4.real_count == 1
 ```
 
 ### Global Configuration
@@ -495,7 +495,7 @@ def create_user():
 # tests/test_models.py
 def test_create_user(mock_uuid_factory):
     with mock_uuid_factory("myapp.models") as mocker:
-        mocker.set("12345678-1234-4678-8234-567812345678")
+        mocker.uuid4.set("12345678-1234-4678-8234-567812345678")
         user = create_user()
         assert user["id"] == "12345678-1234-4678-8234-567812345678"
 ```
@@ -612,9 +612,21 @@ def freeze_uuids_globally():
 
 #### `mock_uuid`
 
-Main fixture for controlling `uuid.uuid4()` calls.
+Container fixture providing access to mockers for all UUID versions.
 
-**Methods:**
+**Properties (version-specific mockers):**
+- `mock_uuid.uuid4` - UUID4Mocker for `uuid.uuid4()` (see methods below)
+- `mock_uuid.uuid1` - UUID1Mocker for `uuid.uuid1()` with `set()`, `set_seed()`, `set_node()`, `set_clock_seq()`
+- `mock_uuid.uuid3` - NamespaceUUIDSpy for `uuid.uuid3()` (spy-only, tracks namespace/name)
+- `mock_uuid.uuid5` - NamespaceUUIDSpy for `uuid.uuid5()` (spy-only, tracks namespace/name)
+- `mock_uuid.uuid6` - UUID6Mocker for `uuid.uuid6()` with `set()`, `set_seed()`, `set_node()` (requires uuid6 package)
+- `mock_uuid.uuid7` - UUID7Mocker for `uuid.uuid7()` with `set()`, `set_seed()` (requires uuid6 package)
+- `mock_uuid.uuid8` - UUID8Mocker for `uuid.uuid8()` with `set()`, `set_seed()` (requires uuid6 package)
+
+**Container Methods:**
+- `reset()` - Reset all initialized sub-mockers to initial state
+
+**UUID4Mocker Methods** (accessed via `mock_uuid.uuid4`):
 - `set(*uuids)` - Set one or more UUIDs to return (cycles by default)
 - `set_default(uuid)` - Set a default UUID for all calls
 - `set_seed(seed)` - Set a seed for reproducible generation
@@ -624,21 +636,13 @@ Main fixture for controlling `uuid.uuid4()` calls.
 - `reset()` - Reset to initial state
 - `set_ignore(*module_prefixes)` - Set modules to ignore (returns real UUIDs)
 
-**Sub-Mockers (accessed as properties):**
-- `mock_uuid.uuid1` - UUID1Mocker for `uuid.uuid1()` with `set()`, `set_seed()`, `set_node()`, `set_clock_seq()`
-- `mock_uuid.uuid3` - NamespaceUUIDSpy for `uuid.uuid3()` (spy-only, tracks namespace/name)
-- `mock_uuid.uuid5` - NamespaceUUIDSpy for `uuid.uuid5()` (spy-only, tracks namespace/name)
-- `mock_uuid.uuid6` - UUID6Mocker for `uuid.uuid6()` with `set()`, `set_seed()`, `set_node()` (requires uuid6 package)
-- `mock_uuid.uuid7` - UUID7Mocker for `uuid.uuid7()` with `set()`, `set_seed()` (requires uuid6 package)
-- `mock_uuid.uuid8` - UUID8Mocker for `uuid.uuid8()` with `set()`, `set_seed()` (requires uuid6 package)
-
 #### `mock_uuid_factory`
 
 Factory for module-specific mocking.
 
 ```python
 with mock_uuid_factory("module.path") as mocker:
-    mocker.set("...")
+    mocker.uuid4.set("...")
 ```
 
 #### `spy_uuid`
@@ -671,10 +675,10 @@ Both `mock_uuid` and `spy_uuid` fixtures provide detailed call tracking via the 
 from pytest_uuid.types import UUIDCall
 
 def test_call_tracking(mock_uuid):
-    mock_uuid.set("12345678-1234-4678-8234-567812345678")
+    mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
     uuid.uuid4()
 
-    call = mock_uuid.calls[0]
+    call = mock_uuid.uuid4.calls[0]
     assert call.uuid == uuid.UUID("12345678-1234-4678-8234-567812345678")
     assert call.was_mocked is True
     assert call.caller_module is not None
@@ -691,13 +695,13 @@ def test_call_tracking(mock_uuid):
 - `caller_function` - Function name where the call originated
 - `caller_qualname` - Qualified name (e.g., `MyClass.method` or `outer.<locals>.inner`)
 
-**Tracking Properties** (available on both `mock_uuid` and `spy_uuid`):
+**Tracking Properties** (available on `mock_uuid.uuid4` and `spy_uuid`):
 - `call_count` - Total number of uuid4 calls
 - `generated_uuids` - List of all UUIDs returned
 - `last_uuid` - Most recently returned UUID
 - `calls` - List of `UUIDCall` records with full metadata
 
-**Additional `mock_uuid` Properties:**
+**Additional `mock_uuid.uuid4` Properties:**
 - `mocked_calls` - Only calls that returned mocked UUIDs
 - `real_calls` - Only calls that returned real UUIDs (spy mode or ignored modules)
 - `mocked_count` - Number of mocked calls
@@ -708,7 +712,7 @@ def test_call_tracking(mock_uuid):
 ```python
 def test_interrogate_calls(mock_uuid):
     """Inspect detailed metadata for all uuid4 calls."""
-    mock_uuid.set(
+    mock_uuid.uuid4.set(
         "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
         "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
     )
@@ -717,15 +721,15 @@ def test_interrogate_calls(mock_uuid):
     second = uuid.uuid4()
 
     # Check all UUIDs generated
-    assert len(mock_uuid.generated_uuids) == 2
-    assert mock_uuid.generated_uuids[0] == first
-    assert mock_uuid.generated_uuids[1] == second
+    assert len(mock_uuid.uuid4.generated_uuids) == 2
+    assert mock_uuid.uuid4.generated_uuids[0] == first
+    assert mock_uuid.uuid4.generated_uuids[1] == second
 
     # Get the last UUID quickly
-    assert mock_uuid.last_uuid == second
+    assert mock_uuid.uuid4.last_uuid == second
 
     # Iterate through call details
-    for i, call in enumerate(mock_uuid.calls):
+    for i, call in enumerate(mock_uuid.uuid4.calls):
         print(f"Call {i}: {call.uuid}")
         print(f"  Module: {call.caller_module}")
         print(f"  File: {call.caller_file}")
@@ -737,24 +741,24 @@ def test_interrogate_calls(mock_uuid):
 ```python
 def test_mixed_mocked_and_real(mock_uuid):
     """Track both mocked calls and real calls from ignored modules."""
-    mock_uuid.set("12345678-1234-4678-8234-567812345678")
-    mock_uuid.set_ignore("mylib")
+    mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
+    mock_uuid.uuid4.set_ignore("mylib")
 
     uuid.uuid4()              # Mocked (direct call)
     mylib.create_record()     # Real (from ignored module)
     uuid.uuid4()              # Mocked (direct call)
 
     # Count by type
-    assert mock_uuid.call_count == 3
-    assert mock_uuid.mocked_count == 2
-    assert mock_uuid.real_count == 1
+    assert mock_uuid.uuid4.call_count == 3
+    assert mock_uuid.uuid4.mocked_count == 2
+    assert mock_uuid.uuid4.real_count == 1
 
     # Access only real calls
-    for call in mock_uuid.real_calls:
+    for call in mock_uuid.uuid4.real_calls:
         print(f"Real UUID from {call.caller_module}: {call.uuid}")
 
     # Access only mocked calls
-    for call in mock_uuid.mocked_calls:
+    for call in mock_uuid.uuid4.mocked_calls:
         assert call.was_mocked is True
 ```
 
@@ -762,14 +766,14 @@ def test_mixed_mocked_and_real(mock_uuid):
 
 ```python
 def test_filter_calls(mock_uuid):
-    mock_uuid.set("12345678-1234-4678-8234-567812345678")
+    mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
 
     uuid.uuid4()  # Call from test module
     mymodule.do_something()  # Calls uuid4 internally
 
     # Filter calls by module prefix
-    test_calls = mock_uuid.calls_from("tests")
-    module_calls = mock_uuid.calls_from("mymodule")
+    test_calls = mock_uuid.uuid4.calls_from("tests")
+    module_calls = mock_uuid.uuid4.calls_from("mymodule")
 
     # Useful for verifying specific modules made expected calls
     assert len(module_calls) == 1

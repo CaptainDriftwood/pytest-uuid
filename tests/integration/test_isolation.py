@@ -16,7 +16,7 @@ def test_fixture_isolation_between_tests(pytester):
         import uuid
 
         def test_first(mock_uuid):
-            mock_uuid.set("aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa")
+            mock_uuid.uuid4.set("aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa")
             assert str(uuid.uuid4()) == "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
 
         def test_second(mock_uuid):
