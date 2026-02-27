@@ -54,7 +54,15 @@ Example:
 
 from importlib.metadata import PackageNotFoundError, version
 
-from pytest_uuid.api import UUIDFreezer, freeze_uuid
+from pytest_uuid.api import (
+    UUIDFreezer,
+    freeze_uuid,
+    freeze_uuid1,
+    freeze_uuid4,
+    freeze_uuid6,
+    freeze_uuid7,
+    freeze_uuid8,
+)
 from pytest_uuid.config import (
     configure,
     get_config,
@@ -66,12 +74,18 @@ from pytest_uuid.generators import (
     RandomUUID1Generator,
     RandomUUID6Generator,
     RandomUUID7Generator,
+    RandomUUID8Generator,
     RandomUUIDGenerator,
+    SeededUUID1Generator,
+    SeededUUID6Generator,
+    SeededUUID7Generator,
+    SeededUUID8Generator,
     SeededUUIDGenerator,
     SequenceUUIDGenerator,
     StaticUUIDGenerator,
     UUIDGenerator,
     UUIDsExhaustedError,
+    get_seeded_generator,
 )
 from pytest_uuid.plugin import (
     NamespaceUUIDSpy,
@@ -98,8 +112,15 @@ try:
 except PackageNotFoundError:
     __version__ = "0.0.0+dev"
 __all__ = [
-    # Main API
+    # Main API - version-specific freeze functions
+    "freeze_uuid4",
+    "freeze_uuid1",
+    "freeze_uuid6",
+    "freeze_uuid7",
+    "freeze_uuid8",
+    # Backward compatibility alias
     "freeze_uuid",
+    # Freezer class
     "UUIDFreezer",
     # Configuration
     "configure",
@@ -111,10 +132,16 @@ __all__ = [
     "StaticUUIDGenerator",
     "SequenceUUIDGenerator",
     "SeededUUIDGenerator",
+    "SeededUUID1Generator",
+    "SeededUUID6Generator",
+    "SeededUUID7Generator",
+    "SeededUUID8Generator",
     "RandomUUIDGenerator",
     "RandomUUID1Generator",
     "RandomUUID6Generator",
     "RandomUUID7Generator",
+    "RandomUUID8Generator",
+    "get_seeded_generator",
     # Enums and Exceptions
     "ExhaustionBehavior",
     "UUIDsExhaustedError",

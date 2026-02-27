@@ -1514,9 +1514,10 @@ def pytest_configure(config: pytest.Config) -> None:
     # Load configuration from pyproject.toml (updates stash via configure())
     load_config_from_pyproject(Path(config.rootdir))  # type: ignore[unresolved-attribute]
 
+    # Register version-specific markers
     config.addinivalue_line(
         "markers",
-        "freeze_uuid(uuids=None, *, seed=None, on_exhausted=None, ignore=None, "
+        "freeze_uuid4(uuids=None, *, seed=None, on_exhausted=None, ignore=None, "
         "ignore_defaults=True): "
         "Freeze uuid.uuid4() for this test. "
         "uuids: static UUID(s) to return. "
@@ -1525,6 +1526,39 @@ def pytest_configure(config: pytest.Config) -> None:
         "ignore: module prefixes to exclude from patching. "
         "ignore_defaults: whether to include default ignore list (default True).",
     )
+    config.addinivalue_line(
+        "markers",
+        "freeze_uuid1(uuids=None, *, seed=None, node=None, clock_seq=None, "
+        "on_exhausted=None, ignore=None, ignore_defaults=True): "
+        "Freeze uuid.uuid1() for this test. "
+        "node: fixed 48-bit MAC address. "
+        "clock_seq: fixed 14-bit clock sequence.",
+    )
+    config.addinivalue_line(
+        "markers",
+        "freeze_uuid6(uuids=None, *, seed=None, node=None, clock_seq=None, "
+        "on_exhausted=None, ignore=None, ignore_defaults=True): "
+        "Freeze uuid.uuid6() for this test. Requires Python 3.14+ or uuid6 package.",
+    )
+    config.addinivalue_line(
+        "markers",
+        "freeze_uuid7(uuids=None, *, seed=None, on_exhausted=None, ignore=None, "
+        "ignore_defaults=True): "
+        "Freeze uuid.uuid7() for this test. Requires Python 3.14+ or uuid6 package.",
+    )
+    config.addinivalue_line(
+        "markers",
+        "freeze_uuid8(uuids=None, *, seed=None, on_exhausted=None, ignore=None, "
+        "ignore_defaults=True): "
+        "Freeze uuid.uuid8() for this test. Requires Python 3.14+ or uuid6 package.",
+    )
+    # Keep backward-compatible freeze_uuid marker (alias for freeze_uuid4)
+    config.addinivalue_line(
+        "markers",
+        "freeze_uuid(uuids=None, *, seed=None, on_exhausted=None, ignore=None, "
+        "ignore_defaults=True): "
+        "[DEPRECATED: use freeze_uuid4] Freeze uuid.uuid4() for this test.",
+    )
 
 
 def pytest_unconfigure(config: pytest.Config) -> None:  # noqa: ARG001
@@ -1532,13 +1566,25 @@ def pytest_unconfigure(config: pytest.Config) -> None:  # noqa: ARG001
     _clear_active_pytest_config()
 
 
-@pytest.hookimpl(tryfirst=True)
-def pytest_runtest_setup(item: pytest.Item) -> None:
-    """Handle freeze_uuid markers on tests."""
-    marker = item.get_closest_marker("freeze_uuid")
-    if marker is None:
-        return
+# All supported version-specific markers
+_FREEZE_MARKERS = ("freeze_uuid4", "freeze_uuid1", "freeze_uuid6", "freeze_uuid7", "freeze_uuid8")
 
+
+def _create_freezer_from_marker(
+    marker: pytest.Mark,
+    item: pytest.Item,
+    uuid_version: str,
+) -> UUIDFreezer:
+    """Create a UUIDFreezer from a marker's arguments.
+
+    Args:
+        marker: The pytest marker with arguments.
+        item: The test item (for node_id).
+        uuid_version: The UUID version string (e.g., "uuid4").
+
+    Returns:
+        A configured UUIDFreezer instance.
+    """
     args = marker.args
     kwargs = dict(marker.kwargs)
 
@@ -1548,18 +1594,50 @@ def pytest_runtest_setup(item: pytest.Item) -> None:
     if seed == "node":
         kwargs["node_id"] = item.nodeid
 
-    freezer = UUIDFreezer(uuids=uuids, **kwargs)
-    freezer.__enter__()
+    return UUIDFreezer(uuids=uuids, uuid_version=uuid_version, **kwargs)
 
-    item._uuid_freezer = freezer  # type: ignore[attr-defined]
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_runtest_setup(item: pytest.Item) -> None:
+    """Handle freeze_uuid* markers on tests."""
+    freezers: dict[str, UUIDFreezer] = {}
+
+    # Process all version-specific markers
+    for marker_name in _FREEZE_MARKERS:
+        marker = item.get_closest_marker(marker_name)
+        if marker is not None:
+            # Extract version from marker name (e.g., "freeze_uuid4" -> "uuid4")
+            uuid_version = marker_name.replace("freeze_", "")
+            freezer = _create_freezer_from_marker(marker, item, uuid_version)
+            freezer.__enter__()
+            freezers[uuid_version] = freezer
+
+    # Handle backward-compatible freeze_uuid marker (alias for uuid4)
+    marker = item.get_closest_marker("freeze_uuid")
+    if marker is not None and "uuid4" not in freezers:
+        freezer = _create_freezer_from_marker(marker, item, "uuid4")
+        freezer.__enter__()
+        freezers["uuid4"] = freezer
+
+    if freezers:
+        item._uuid_freezers = freezers  # type: ignore[attr-defined]
+        # Also set _uuid_freezer for backward compatibility with mock_uuid fixture
+        if "uuid4" in freezers:
+            item._uuid_freezer = freezers["uuid4"]  # type: ignore[attr-defined]
 
 
 @pytest.hookimpl(trylast=True)
 def pytest_runtest_teardown(item: pytest.Item) -> None:
-    """Clean up freeze_uuid markers."""
-    freezer = getattr(item, "_uuid_freezer", None)
-    if freezer is not None:
-        freezer.__exit__(None, None, None)
+    """Clean up freeze_uuid* markers."""
+    # Clean up all version-specific freezers
+    freezers = getattr(item, "_uuid_freezers", None)
+    if freezers is not None:
+        for freezer in freezers.values():
+            freezer.__exit__(None, None, None)
+        delattr(item, "_uuid_freezers")
+
+    # Clean up backward-compatible attribute
+    if hasattr(item, "_uuid_freezer"):
         delattr(item, "_uuid_freezer")
 
 

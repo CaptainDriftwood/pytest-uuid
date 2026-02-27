@@ -457,3 +457,157 @@ def test_marker_with_uuids_keyword_sequence(pytester):
 
     result = pytester.runpytest("-v")
     result.assert_outcomes(passed=1)
+
+
+# =============================================================================
+# Version-specific markers
+# =============================================================================
+
+
+def test_marker_freeze_uuid4_registered(pytester):
+    """Test that freeze_uuid4 marker is registered."""
+    result = pytester.runpytest("--markers")
+    result.stdout.fnmatch_lines(["*freeze_uuid4*"])
+
+
+def test_marker_freeze_uuid4_applies_freezer(pytester):
+    """Test that @pytest.mark.freeze_uuid4 applies the freezer."""
+    pytester.makepyfile(
+        test_marker_uuid4="""
+        import uuid
+        import pytest
+
+        @pytest.mark.freeze_uuid4("12345678-1234-4678-8234-567812345678")
+        def test_marker_uuid4_works():
+            result = uuid.uuid4()
+            assert str(result) == "12345678-1234-4678-8234-567812345678"
+        """
+    )
+
+    result = pytester.runpytest("-v")
+    result.assert_outcomes(passed=1)
+
+
+def test_marker_freeze_uuid1_applies_freezer(pytester):
+    """Test that @pytest.mark.freeze_uuid1 applies the freezer."""
+    pytester.makepyfile(
+        test_marker_uuid1="""
+        import uuid
+        import pytest
+
+        @pytest.mark.freeze_uuid1("12345678-1234-1678-8234-567812345678")
+        def test_marker_uuid1_works():
+            result = uuid.uuid1()
+            assert str(result) == "12345678-1234-1678-8234-567812345678"
+        """
+    )
+
+    result = pytester.runpytest("-v")
+    result.assert_outcomes(passed=1)
+
+
+def test_marker_freeze_uuid1_with_seed(pytester):
+    """Test that @pytest.mark.freeze_uuid1 with seed works."""
+    pytester.makepyfile(
+        test_marker_uuid1_seed="""
+        import uuid
+        import pytest
+
+        @pytest.mark.freeze_uuid1(seed=42)
+        def test_marker_uuid1_seeded():
+            result = uuid.uuid1()
+            assert isinstance(result, uuid.UUID)
+            assert result.version == 1
+        """
+    )
+
+    result = pytester.runpytest("-v")
+    result.assert_outcomes(passed=1)
+
+
+def test_marker_freeze_uuid7_with_seed(pytester):
+    """Test that @pytest.mark.freeze_uuid7 with seed works."""
+    pytester.makepyfile(
+        test_marker_uuid7_seed="""
+        import uuid
+        import pytest
+
+        try:
+            from uuid6 import uuid7 as _uuid7_test
+        except ImportError:
+            if not hasattr(uuid, 'uuid7'):
+                pytest.skip("uuid7 requires Python 3.14+ or uuid6 package")
+
+        from pytest_uuid._compat import uuid7
+
+        @pytest.mark.freeze_uuid7(seed=42)
+        def test_marker_uuid7_seeded():
+            result = uuid7()
+            assert isinstance(result, uuid.UUID)
+            assert result.version == 7
+        """
+    )
+
+    result = pytester.runpytest("-v")
+    # Test passes or is skipped (if uuid6 not available)
+    assert result.ret in (0, 5)  # 0 = passed, 5 = no tests collected (skip)
+
+
+def test_marker_stack_uuid4_and_uuid1(pytester):
+    """Test stacking freeze_uuid4 and freeze_uuid1 markers."""
+    pytester.makepyfile(
+        test_stack_markers="""
+        import uuid
+        import pytest
+
+        @pytest.mark.freeze_uuid4("44444444-4444-4444-8444-444444444444")
+        @pytest.mark.freeze_uuid1("11111111-1111-1111-8111-111111111111")
+        def test_stacked_markers():
+            # Both uuid4 and uuid1 should be frozen
+            assert str(uuid.uuid4()) == "44444444-4444-4444-8444-444444444444"
+            assert str(uuid.uuid1()) == "11111111-1111-1111-8111-111111111111"
+        """
+    )
+
+    result = pytester.runpytest("-v")
+    result.assert_outcomes(passed=1)
+
+
+def test_marker_freeze_uuid4_cleanup_on_teardown(pytester):
+    """Test that freeze_uuid4 marker properly cleans up after test."""
+    pytester.makepyfile(
+        test_cleanup_uuid4="""
+        import uuid
+        import pytest
+
+        @pytest.mark.freeze_uuid4("11111111-1111-4111-8111-111111111111")
+        def test_first():
+            assert str(uuid.uuid4()) == "11111111-1111-4111-8111-111111111111"
+
+        def test_second():
+            # Should not be affected by previous test's marker
+            result = uuid.uuid4()
+            assert str(result) != "11111111-1111-4111-8111-111111111111"
+        """
+    )
+
+    result = pytester.runpytest("-v")
+    result.assert_outcomes(passed=2)
+
+
+def test_marker_freeze_uuid_backward_compat(pytester):
+    """Test that old freeze_uuid marker still works (backward compatibility)."""
+    pytester.makepyfile(
+        test_backward_compat="""
+        import uuid
+        import pytest
+
+        @pytest.mark.freeze_uuid("12345678-1234-4678-8234-567812345678")
+        def test_backward_compat():
+            result = uuid.uuid4()
+            assert str(result) == "12345678-1234-4678-8234-567812345678"
+        """
+    )
+
+    result = pytester.runpytest("-v")
+    result.assert_outcomes(passed=1)

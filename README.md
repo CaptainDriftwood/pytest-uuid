@@ -79,18 +79,27 @@ def test_multiple_uuids(mock_uuid):
 
 ```python
 import uuid
-from pytest_uuid import freeze_uuid
+from pytest_uuid import freeze_uuid4, freeze_uuid1, freeze_uuid7
 
-@freeze_uuid("12345678-1234-4678-8234-567812345678")
+@freeze_uuid4("12345678-1234-4678-8234-567812345678")
 def test_with_decorator():
     assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
 
-@freeze_uuid(seed=42)
+@freeze_uuid4(seed=42)
 def test_seeded():
     # Reproducible UUIDs from seed
     result = uuid.uuid4()
     assert result.version == 4
+
+# Stack multiple versions
+@freeze_uuid4("44444444-4444-4444-8444-444444444444")
+@freeze_uuid1("11111111-1111-1111-8111-111111111111")
+def test_multiple_versions():
+    assert str(uuid.uuid4()) == "44444444-4444-4444-8444-444444444444"
+    assert str(uuid.uuid1()) == "11111111-1111-1111-8111-111111111111"
 ```
+
+> **Backward compatibility:** The generic `freeze_uuid` is still available as an alias for `freeze_uuid4`.
 
 ### Marker API
 
@@ -98,16 +107,25 @@ def test_seeded():
 import uuid
 import pytest
 
-@pytest.mark.freeze_uuid("12345678-1234-4678-8234-567812345678")
+@pytest.mark.freeze_uuid4("12345678-1234-4678-8234-567812345678")
 def test_with_marker():
     assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
 
-@pytest.mark.freeze_uuid(seed="node")
+@pytest.mark.freeze_uuid4(seed="node")
 def test_node_seeded():
     # Same test always gets the same UUIDs
     result = uuid.uuid4()
     assert result.version == 4
+
+# Stack multiple version markers
+@pytest.mark.freeze_uuid4("44444444-4444-4444-8444-444444444444")
+@pytest.mark.freeze_uuid1("11111111-1111-1111-8111-111111111111")
+def test_multiple_versions():
+    assert str(uuid.uuid4()) == "44444444-4444-4444-8444-444444444444"
+    assert str(uuid.uuid1()) == "11111111-1111-1111-8111-111111111111"
 ```
+
+> **Backward compatibility:** The generic `freeze_uuid` marker is still available as an alias for `freeze_uuid4`.
 
 ## Usage
 
@@ -263,7 +281,7 @@ def test_order_creation():
 import hashlib
 
 import pytest
-from pytest_uuid import freeze_uuid
+from pytest_uuid import freeze_uuid4
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -279,7 +297,7 @@ def freeze_uuids_globally(request):
     # 4. int(..., 16) converts hex string to integer
     node_bytes = request.node.nodeid.encode()
     seed = int(hashlib.sha256(node_bytes).hexdigest()[:16], 16)
-    with freeze_uuid(seed=seed):
+    with freeze_uuid4(seed=seed):
         yield
 ```
 
@@ -540,13 +558,13 @@ def test_create_user(mock_uuid_factory):
 
 ### Context Manager
 
-Use `freeze_uuid` as a context manager:
+Use freeze functions as context managers:
 
 ```python
-from pytest_uuid import freeze_uuid
+from pytest_uuid import freeze_uuid4
 
 def test_context_manager():
-    with freeze_uuid("12345678-1234-4678-8234-567812345678"):
+    with freeze_uuid4("12345678-1234-4678-8234-567812345678"):
         assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
 
     # Original uuid.uuid4 is restored
@@ -559,12 +577,12 @@ Pass a `random.Random` instance for full control:
 
 ```python
 import random
-from pytest_uuid import freeze_uuid
+from pytest_uuid import freeze_uuid4
 
 rng = random.Random(42)
 rng.random()  # Advance the state
 
-@freeze_uuid(seed=rng)
+@freeze_uuid4(seed=rng)
 def test_custom_rng():
     # Gets UUIDs from the pre-advanced random state
     result = uuid.uuid4()
@@ -635,12 +653,12 @@ For session-wide mocking, use a session-scoped autouse fixture in `conftest.py`:
 ```python
 # conftest.py
 import pytest
-from pytest_uuid import freeze_uuid
+from pytest_uuid import freeze_uuid4
 
 
 @pytest.fixture(scope="session", autouse=True)
 def freeze_uuids_globally():
-    with freeze_uuid(seed=12345):
+    with freeze_uuid4(seed=12345):
         yield
 ```
 
@@ -819,32 +837,46 @@ def test_filter_calls(mock_uuid):
 
 ### Decorator/Context Manager
 
-#### `freeze_uuid`
+#### Version-Specific Freeze Functions
+
+The recommended API uses version-specific functions for clarity:
 
 ```python
-from pytest_uuid import freeze_uuid
+from pytest_uuid import freeze_uuid4, freeze_uuid1, freeze_uuid6, freeze_uuid7, freeze_uuid8
 
-# Static UUID
-@freeze_uuid("12345678-1234-4678-8234-567812345678")
+# uuid4 (most common)
+@freeze_uuid4("12345678-1234-4678-8234-567812345678")
 def test_static(): ...
 
-# Sequence
-@freeze_uuid(["uuid1", "uuid2"], on_exhausted="raise")
-def test_sequence(): ...
-
-# Seeded
-@freeze_uuid(seed=42)
+@freeze_uuid4(seed=42)
 def test_seeded(): ...
 
-# Node-seeded (for use with marker)
-@pytest.mark.freeze_uuid(seed="node")
-def test_node_seeded(): ...
+# uuid1 with node/clock_seq
+@freeze_uuid1(seed=42, node=0x123456789ABC)
+def test_uuid1(): ...
+
+# uuid7 (requires uuid6 package or Python 3.14+)
+@freeze_uuid7(seed=42)
+def test_uuid7(): ...
 
 # Context manager
-with freeze_uuid("...") as freezer:
+with freeze_uuid4("...") as freezer:
     result = uuid.uuid4()
     freezer.reset()
+
+# Stack multiple versions
+with freeze_uuid4("..."), freeze_uuid7(seed=42):
+    uuid.uuid4()  # frozen
+    uuid7()       # frozen with seed
 ```
+
+**Available Functions:**
+- `freeze_uuid4` - Freeze `uuid.uuid4()` calls
+- `freeze_uuid1` - Freeze `uuid.uuid1()` calls (supports `node`, `clock_seq` parameters)
+- `freeze_uuid6` - Freeze `uuid.uuid6()` calls (requires uuid6 package, supports `node`, `clock_seq`)
+- `freeze_uuid7` - Freeze `uuid.uuid7()` calls (requires uuid6 package)
+- `freeze_uuid8` - Freeze `uuid.uuid8()` calls (requires uuid6 package)
+- `freeze_uuid` - Backward-compatible alias for `freeze_uuid4`
 
 **Parameters:**
 - `uuids` - UUID(s) to return (string, UUID, or sequence)
@@ -852,16 +884,35 @@ with freeze_uuid("...") as freezer:
 - `on_exhausted` - `"cycle"`, `"random"`, or `"raise"`
 - `ignore` - Module prefixes to exclude from patching
 - `ignore_defaults` - If `False`, don't include the default ignore list (default: `True`)
+- `node` - (uuid1/uuid6 only) Fixed 48-bit node (MAC address) for seeded generation
+- `clock_seq` - (uuid1/uuid6 only) Fixed 14-bit clock sequence for seeded generation
 
-### Marker
+### Markers
+
+Version-specific markers correspond to the freeze functions:
 
 ```python
+# uuid4 markers
+@pytest.mark.freeze_uuid4("uuid")
+@pytest.mark.freeze_uuid4(seed=42)
+@pytest.mark.freeze_uuid4(seed="node")
+
+# uuid1 markers
+@pytest.mark.freeze_uuid1("uuid")
+@pytest.mark.freeze_uuid1(seed=42, node=0x123456789ABC)
+
+# uuid7 markers
+@pytest.mark.freeze_uuid7(seed=42)
+
+# Stack multiple version markers
+@pytest.mark.freeze_uuid4("44444444-4444-4444-8444-444444444444")
+@pytest.mark.freeze_uuid1("11111111-1111-1111-8111-111111111111")
+def test_multiple():
+    uuid.uuid4()  # returns 44444444-...
+    uuid.uuid1()  # returns 11111111-...
+
+# Backward-compatible (alias for freeze_uuid4)
 @pytest.mark.freeze_uuid("uuid")
-@pytest.mark.freeze_uuid(["uuid1", "uuid2"])
-@pytest.mark.freeze_uuid(seed=42)
-@pytest.mark.freeze_uuid(seed="node")
-@pytest.mark.freeze_uuid("uuid", on_exhausted="raise")
-@pytest.mark.freeze_uuid("uuid", ignore_defaults=False)  # Mock everything, including defaults
 ```
 
 ### Configuration

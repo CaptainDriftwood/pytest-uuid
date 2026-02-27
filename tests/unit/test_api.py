@@ -8,7 +8,14 @@ import uuid
 
 import pytest
 
-from pytest_uuid.api import UUIDFreezer, freeze_uuid
+from pytest_uuid.api import (
+    UUIDFreezer,
+    freeze_uuid,
+    freeze_uuid1,
+    freeze_uuid4,
+    freeze_uuid7,
+    freeze_uuid8,
+)
 from pytest_uuid.generators import UUIDsExhaustedError
 
 # --- freeze_uuid as context manager ---
@@ -577,3 +584,191 @@ def test_ignored_calls_tracked_with_was_mocked_false():
         # The result should be a real v4 UUID (not from our seeded generator)
         assert result.version == 4
         assert freezer.generated_uuids[0] == result
+
+
+# =============================================================================
+# Version-specific freeze functions
+# =============================================================================
+
+
+class TestFreezeUUID4:
+    """Tests for freeze_uuid4 function."""
+
+    def test_static_uuid(self):
+        """Test freeze_uuid4 with a static UUID."""
+        with freeze_uuid4("12345678-1234-4678-8234-567812345678"):
+            result = uuid.uuid4()
+            assert str(result) == "12345678-1234-4678-8234-567812345678"
+
+    def test_seeded_generation(self):
+        """Test freeze_uuid4 with seeded generation."""
+        with freeze_uuid4(seed=42):
+            uuid1 = uuid.uuid4()
+
+        with freeze_uuid4(seed=42):
+            uuid2 = uuid.uuid4()
+
+        assert uuid1 == uuid2
+        assert uuid1.version == 4
+
+    def test_as_decorator(self):
+        """Test freeze_uuid4 as a decorator."""
+
+        @freeze_uuid4("aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa")
+        def get_uuid():
+            return uuid.uuid4()
+
+        result = get_uuid()
+        assert str(result) == "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
+
+    def test_uuid_version_property(self):
+        """Test that uuid_version property returns correct version."""
+        with freeze_uuid4(seed=42) as freezer:
+            assert freezer.uuid_version == "uuid4"
+
+
+class TestFreezeUUID1:
+    """Tests for freeze_uuid1 function."""
+
+    def test_static_uuid(self):
+        """Test freeze_uuid1 with a static UUID."""
+        with freeze_uuid1("12345678-1234-1678-8234-567812345678"):
+            result = uuid.uuid1()
+            assert str(result) == "12345678-1234-1678-8234-567812345678"
+
+    def test_seeded_generation(self):
+        """Test freeze_uuid1 with seeded generation."""
+        with freeze_uuid1(seed=42):
+            uuid1 = uuid.uuid1()
+
+        with freeze_uuid1(seed=42):
+            uuid2 = uuid.uuid1()
+
+        assert uuid1 == uuid2
+        assert uuid1.version == 1
+
+    def test_seeded_with_fixed_node(self):
+        """Test freeze_uuid1 with seeded generation and fixed node."""
+        fixed_node = 0x123456789ABC
+
+        with freeze_uuid1(seed=42, node=fixed_node):
+            result = uuid.uuid1()
+            assert result.node == fixed_node
+            assert result.version == 1
+
+    def test_uuid_version_property(self):
+        """Test that uuid_version property returns correct version."""
+        with freeze_uuid1(seed=42) as freezer:
+            assert freezer.uuid_version == "uuid1"
+
+
+class TestFreezeUUID7:
+    """Tests for freeze_uuid7 function."""
+
+    def test_static_uuid(self):
+        """Test freeze_uuid7 with a static UUID."""
+        # Use uuid7 (requires uuid6 package or Python 3.14+)
+        uuid6_mod = pytest.importorskip("uuid6")
+
+        # Import uuid7 from the patched uuid6 module (NOT from _compat)
+        with freeze_uuid7("01234567-89ab-7def-8123-456789abcdef"):
+            result = uuid6_mod.uuid7()
+            assert str(result) == "01234567-89ab-7def-8123-456789abcdef"
+
+    def test_seeded_generation(self):
+        """Test freeze_uuid7 with seeded generation."""
+        uuid6_mod = pytest.importorskip("uuid6")
+
+        with freeze_uuid7(seed=42):
+            uuid1 = uuid6_mod.uuid7()
+
+        with freeze_uuid7(seed=42):
+            uuid2 = uuid6_mod.uuid7()
+
+        assert uuid1 == uuid2
+        assert uuid1.version == 7
+
+
+class TestFreezeUUID8:
+    """Tests for freeze_uuid8 function."""
+
+    def test_seeded_generation(self):
+        """Test freeze_uuid8 with seeded generation."""
+        uuid6_mod = pytest.importorskip("uuid6")
+
+        with freeze_uuid8(seed=42):
+            uuid1 = uuid6_mod.uuid8()
+
+        with freeze_uuid8(seed=42):
+            uuid2 = uuid6_mod.uuid8()
+
+        assert uuid1 == uuid2
+        assert uuid1.version == 8
+
+
+class TestStackingMultipleVersionFreezers:
+    """Tests for stacking multiple version freezers."""
+
+    def test_stack_uuid4_and_uuid1(self):
+        """Test stacking freeze_uuid4 and freeze_uuid1."""
+        with (
+            freeze_uuid4("aaaa4444-aaaa-4aaa-aaaa-aaaaaaaaaaaa"),
+            freeze_uuid1("bbbb1111-bbbb-1bbb-bbbb-bbbbbbbbbbbb"),
+        ):
+            # uuid4 should return the frozen uuid4 value
+            result4 = uuid.uuid4()
+            assert str(result4) == "aaaa4444-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
+
+            # uuid1 should return the frozen uuid1 value
+            result1 = uuid.uuid1()
+            assert str(result1) == "bbbb1111-bbbb-1bbb-bbbb-bbbbbbbbbbbb"
+
+    def test_stack_seeded_generators(self):
+        """Test stacking multiple seeded generators."""
+        with (
+            freeze_uuid4(seed=42) as f4,
+            freeze_uuid1(seed=43) as f1,
+        ):
+            uuid4_result = uuid.uuid4()
+            uuid1_result = uuid.uuid1()
+
+            assert uuid4_result.version == 4
+            assert uuid1_result.version == 1
+            assert f4.call_count == 1
+            assert f1.call_count == 1
+
+    def test_stack_uuid7_and_uuid4(self):
+        """Test stacking freeze_uuid7 and freeze_uuid4."""
+        uuid6_mod = pytest.importorskip("uuid6")
+
+        with (
+            freeze_uuid4("44444444-4444-4444-8444-444444444444"),
+            freeze_uuid7(seed=42),
+        ):
+            result4 = uuid.uuid4()
+            result7 = uuid6_mod.uuid7()
+
+            assert result4.version == 4
+            assert result7.version == 7
+
+
+class TestBackwardCompatibility:
+    """Tests for backward compatibility of freeze_uuid alias."""
+
+    def test_freeze_uuid_is_alias_for_uuid4(self):
+        """Test that freeze_uuid still works and freezes uuid4."""
+        # freeze_uuid should be an alias for freeze_uuid4
+        with freeze_uuid("12345678-1234-4678-8234-567812345678") as freezer:
+            result = uuid.uuid4()
+            assert str(result) == "12345678-1234-4678-8234-567812345678"
+            assert freezer.uuid_version == "uuid4"
+
+    def test_freeze_uuid_seeded(self):
+        """Test freeze_uuid with seeded generation."""
+        with freeze_uuid(seed=42):
+            uuid1 = uuid.uuid4()
+
+        with freeze_uuid(seed=42):
+            uuid2 = uuid.uuid4()
+
+        assert uuid1 == uuid2

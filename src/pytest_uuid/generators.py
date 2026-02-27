@@ -368,6 +368,359 @@ class RandomUUID7Generator(UUIDGenerator):
         pass  # No state to reset
 
 
+class RandomUUID8Generator(UUIDGenerator):
+    """Generator that produces UUIDs by delegating to uuid.uuid8().
+
+    Used internally when no specific mocking is configured. Requires
+    Python 3.14+ or the uuid6 backport package.
+
+    uuid8() provides a format for experimental or vendor-specific UUIDs.
+    """
+
+    def __init__(self) -> None:
+        pass  # No configuration - uuid8 generates random custom UUIDs
+
+    def __call__(self) -> uuid.UUID:
+        from pytest_uuid._compat import require_uuid6_7_8
+        from pytest_uuid._proxy import get_original
+
+        require_uuid6_7_8("uuid8")
+        return get_original("uuid8")()
+
+    def reset(self) -> None:
+        pass  # No state to reset
+
+
+# =============================================================================
+# Version-specific seeded generators
+# =============================================================================
+
+
+def generate_uuid1_from_random(
+    rng: random.Random,
+    node: int | None = None,
+    clock_seq: int | None = None,
+) -> uuid.UUID:
+    """Generate a valid UUID v1 using a seeded Random instance.
+
+    The generated UUID has the correct version (1) and variant bits,
+    with time fields and node/clock_seq derived from the random source.
+
+    Args:
+        rng: A random.Random instance (can be seeded for reproducibility)
+        node: Optional 48-bit hardware address. If None, generated from rng.
+        clock_seq: Optional 14-bit clock sequence. If None, generated from rng.
+
+    Returns:
+        A valid UUID v1 object with deterministic content.
+    """
+    # Generate time: 60 bits for timestamp (100-nanosecond intervals since Oct 15, 1582)
+    # We use random bits since we want reproducibility, not actual time
+    time_low = rng.getrandbits(32)  # 32 bits
+    time_mid = rng.getrandbits(16)  # 16 bits
+    time_hi = rng.getrandbits(12)  # 12 bits (4 bits for version)
+
+    # Generate clock_seq: 14 bits (2 bits for variant)
+    clock_seq = rng.getrandbits(14) if clock_seq is None else clock_seq & 0x3FFF
+
+    # Generate node: 48 bits (MAC address)
+    node = rng.getrandbits(48) if node is None else node
+
+    # Construct UUID fields with version and variant
+    # time_hi_version: 4 bits version (0001 for v1) + 12 bits time_hi
+    time_hi_version = (1 << 12) | time_hi
+
+    # clock_seq_hi_variant: 2 bits variant (10 for RFC 4122) + 6 bits clock_seq_hi
+    clock_seq_hi = (clock_seq >> 8) & 0x3F
+    clock_seq_hi_variant = 0x80 | clock_seq_hi  # Set variant bits to 10
+    clock_seq_low = clock_seq & 0xFF
+
+    return uuid.UUID(
+        fields=(time_low, time_mid, time_hi_version, clock_seq_hi_variant, clock_seq_low, node)
+    )
+
+
+def generate_uuid6_from_random(
+    rng: random.Random,
+    node: int | None = None,
+    clock_seq: int | None = None,
+) -> uuid.UUID:
+    """Generate a valid UUID v6 using a seeded Random instance.
+
+    UUID v6 is a reordered version of UUID v1 for better database sorting.
+    The time fields are rearranged so the most significant bits come first.
+
+    Args:
+        rng: A random.Random instance (can be seeded for reproducibility)
+        node: Optional 48-bit hardware address. If None, generated from rng.
+        clock_seq: Optional 14-bit clock sequence. If None, generated from rng.
+
+    Returns:
+        A valid UUID v6 object with deterministic content.
+    """
+    # Generate 60 bits for timestamp (arranged differently than v1)
+    time_high = rng.getrandbits(32)  # 32 bits - most significant
+    time_mid = rng.getrandbits(16)  # 16 bits
+    time_low = rng.getrandbits(12)  # 12 bits (with 4 bits for version)
+
+    # Generate clock_seq: 14 bits
+    clock_seq = rng.getrandbits(14) if clock_seq is None else clock_seq & 0x3FFF
+
+    # Generate node: 48 bits
+    node = rng.getrandbits(48) if node is None else node
+
+    # Construct the 128-bit UUID
+    # Format: time_high (32) | time_mid (16) | version (4) | time_low (12) |
+    #         variant (2) | clock_seq (14) | node (48)
+    int_val = time_high << 96
+    int_val |= time_mid << 80
+    int_val |= 6 << 76  # Version 6
+    int_val |= time_low << 64
+    int_val |= 0x2 << 62  # Variant (10 binary)
+    int_val |= clock_seq << 48
+    int_val |= node
+
+    return uuid.UUID(int=int_val)
+
+
+def generate_uuid7_from_random(rng: random.Random) -> uuid.UUID:
+    """Generate a valid UUID v7 using a seeded Random instance.
+
+    UUID v7 uses Unix timestamp (milliseconds) + random data.
+    For reproducibility, we generate the timestamp portion from random too.
+
+    Args:
+        rng: A random.Random instance (can be seeded for reproducibility)
+
+    Returns:
+        A valid UUID v7 object with deterministic content.
+    """
+    # Generate 48 bits for Unix timestamp in milliseconds
+    unix_ts_ms = rng.getrandbits(48)
+
+    # Generate 12 bits for sub-millisecond precision / random
+    rand_a = rng.getrandbits(12)
+
+    # Generate 62 bits of random data
+    rand_b = rng.getrandbits(62)
+
+    # Construct the 128-bit UUID
+    # Format: unix_ts_ms (48) | version (4) | rand_a (12) | variant (2) | rand_b (62)
+    int_val = unix_ts_ms << 80
+    int_val |= 7 << 76  # Version 7
+    int_val |= rand_a << 64
+    int_val |= 0x2 << 62  # Variant (10 binary)
+    int_val |= rand_b
+
+    return uuid.UUID(int=int_val)
+
+
+def generate_uuid8_from_random(rng: random.Random) -> uuid.UUID:
+    """Generate a valid UUID v8 using a seeded Random instance.
+
+    UUID v8 is for custom/vendor-specific use. All bits except version
+    and variant are available for custom data (here we use random).
+
+    Args:
+        rng: A random.Random instance (can be seeded for reproducibility)
+
+    Returns:
+        A valid UUID v8 object with deterministic content.
+    """
+    # Generate all the custom bits
+    custom_a = rng.getrandbits(48)  # 48 bits
+    custom_b = rng.getrandbits(12)  # 12 bits
+    custom_c = rng.getrandbits(62)  # 62 bits
+
+    # Construct the 128-bit UUID
+    # Format: custom_a (48) | version (4) | custom_b (12) | variant (2) | custom_c (62)
+    int_val = custom_a << 80
+    int_val |= 8 << 76  # Version 8
+    int_val |= custom_b << 64
+    int_val |= 0x2 << 62  # Variant (10 binary)
+    int_val |= custom_c
+
+    return uuid.UUID(int=int_val)
+
+
+class SeededUUID1Generator(UUIDGenerator):
+    """Generator that produces reproducible UUID v1 values from a seed.
+
+    UUID v1 is time-based with MAC address. For reproducibility, this
+    generator uses seeded random for all fields including time.
+
+    Args:
+        seed: Either an integer seed or a random.Random instance.
+        node: Optional fixed 48-bit node (MAC address).
+        clock_seq: Optional fixed 14-bit clock sequence.
+    """
+
+    def __init__(
+        self,
+        seed: int | random.Random,
+        node: int | None = None,
+        clock_seq: int | None = None,
+    ) -> None:
+        if isinstance(seed, random.Random):
+            self._rng = seed
+            self._seed = None
+        else:
+            self._seed = seed
+            self._rng = random.Random(seed)
+        self._node = node
+        self._clock_seq = clock_seq
+
+    def __call__(self) -> uuid.UUID:
+        return generate_uuid1_from_random(self._rng, self._node, self._clock_seq)
+
+    def reset(self) -> None:
+        if self._seed is not None:
+            self._rng = random.Random(self._seed)
+
+    @property
+    def seed(self) -> int | None:
+        """The seed value, or None if initialized with a Random instance."""
+        return self._seed
+
+
+class SeededUUID6Generator(UUIDGenerator):
+    """Generator that produces reproducible UUID v6 values from a seed.
+
+    UUID v6 is a reordered version of UUID v1 optimized for database indexing.
+    For reproducibility, this generator uses seeded random for all fields.
+
+    Args:
+        seed: Either an integer seed or a random.Random instance.
+        node: Optional fixed 48-bit node (MAC address).
+        clock_seq: Optional fixed 14-bit clock sequence.
+    """
+
+    def __init__(
+        self,
+        seed: int | random.Random,
+        node: int | None = None,
+        clock_seq: int | None = None,
+    ) -> None:
+        if isinstance(seed, random.Random):
+            self._rng = seed
+            self._seed = None
+        else:
+            self._seed = seed
+            self._rng = random.Random(seed)
+        self._node = node
+        self._clock_seq = clock_seq
+
+    def __call__(self) -> uuid.UUID:
+        return generate_uuid6_from_random(self._rng, self._node, self._clock_seq)
+
+    def reset(self) -> None:
+        if self._seed is not None:
+            self._rng = random.Random(self._seed)
+
+    @property
+    def seed(self) -> int | None:
+        """The seed value, or None if initialized with a Random instance."""
+        return self._seed
+
+
+class SeededUUID7Generator(UUIDGenerator):
+    """Generator that produces reproducible UUID v7 values from a seed.
+
+    UUID v7 uses Unix timestamp (milliseconds) + random data. For
+    reproducibility, this generator uses seeded random for all fields.
+
+    Args:
+        seed: Either an integer seed or a random.Random instance.
+    """
+
+    def __init__(self, seed: int | random.Random) -> None:
+        if isinstance(seed, random.Random):
+            self._rng = seed
+            self._seed = None
+        else:
+            self._seed = seed
+            self._rng = random.Random(seed)
+
+    def __call__(self) -> uuid.UUID:
+        return generate_uuid7_from_random(self._rng)
+
+    def reset(self) -> None:
+        if self._seed is not None:
+            self._rng = random.Random(self._seed)
+
+    @property
+    def seed(self) -> int | None:
+        """The seed value, or None if initialized with a Random instance."""
+        return self._seed
+
+
+class SeededUUID8Generator(UUIDGenerator):
+    """Generator that produces reproducible UUID v8 values from a seed.
+
+    UUID v8 is for custom/vendor-specific use. This generator fills all
+    custom bits with seeded random data.
+
+    Args:
+        seed: Either an integer seed or a random.Random instance.
+    """
+
+    def __init__(self, seed: int | random.Random) -> None:
+        if isinstance(seed, random.Random):
+            self._rng = seed
+            self._seed = None
+        else:
+            self._seed = seed
+            self._rng = random.Random(seed)
+
+    def __call__(self) -> uuid.UUID:
+        return generate_uuid8_from_random(self._rng)
+
+    def reset(self) -> None:
+        if self._seed is not None:
+            self._rng = random.Random(self._seed)
+
+    @property
+    def seed(self) -> int | None:
+        """The seed value, or None if initialized with a Random instance."""
+        return self._seed
+
+
+def get_seeded_generator(
+    version: str,
+    seed: int | random.Random,
+    node: int | None = None,
+    clock_seq: int | None = None,
+) -> UUIDGenerator:
+    """Factory function to create a version-appropriate seeded generator.
+
+    Args:
+        version: UUID version string ("uuid1", "uuid4", "uuid6", "uuid7", "uuid8").
+        seed: Either an integer seed or a random.Random instance.
+        node: Optional 48-bit node for uuid1/uuid6 (ignored for other versions).
+        clock_seq: Optional 14-bit clock sequence for uuid1/uuid6.
+
+    Returns:
+        A seeded generator for the specified UUID version.
+
+    Raises:
+        ValueError: If the version is not supported for seeded generation.
+    """
+    if version == "uuid1":
+        return SeededUUID1Generator(seed, node=node, clock_seq=clock_seq)
+    if version == "uuid4":
+        return SeededUUIDGenerator(seed)
+    if version == "uuid6":
+        return SeededUUID6Generator(seed, node=node, clock_seq=clock_seq)
+    if version == "uuid7":
+        return SeededUUID7Generator(seed)
+    if version == "uuid8":
+        return SeededUUID8Generator(seed)
+    raise ValueError(
+        f"Seeded generation not supported for {version}. "
+        f"Supported versions: uuid1, uuid4, uuid6, uuid7, uuid8"
+    )
+
+
 def parse_uuid(value: str | uuid.UUID) -> uuid.UUID:
     """Parse a string or UUID into a UUID object."""
     if isinstance(value, uuid.UUID):
