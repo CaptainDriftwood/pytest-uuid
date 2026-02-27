@@ -5,10 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2026-02-27
+
+### Added
+
+- Multi-UUID version support: mock uuid1, uuid4, uuid6, uuid7, uuid8; spy-only tracking for uuid3 and uuid5
+- Version-specific freeze functions: `freeze_uuid4`, `freeze_uuid1`, `freeze_uuid6`, `freeze_uuid7`, `freeze_uuid8`
+- Version-specific pytest markers: `@pytest.mark.freeze_uuid4`, `@pytest.mark.freeze_uuid1`, etc.
+- `UUIDMocker` container class with sub-mockers for each UUID version (`mock_uuid.uuid4`, `mock_uuid.uuid1`, etc.)
+- `NamespaceUUIDSpy` for tracking uuid3/uuid5 calls without mocking (deterministic hash-based UUIDs)
+- `node` and `clock_seq` parameters for uuid1/uuid6 to control time-based UUID components
+- Thread-safe call tracking: `call_count`, `calls`, `generated_uuids`, and related properties now use per-instance locks for safe concurrent access from multiple threads
+- `NamespaceUUIDCall` dataclass for uuid3/uuid5 call tracking with `namespace` and `name` fields
+- `uuid_version` field on `UUIDCall` dataclass to identify which UUID version was called
 
 ### Changed
 
+- **BREAKING**: `mock_uuid` fixture now requires explicit version access via properties (e.g., `mock_uuid.uuid4.set(...)` instead of `mock_uuid.set(...)`)
+- **BREAKING**: `freeze_uuid()` is now a deprecated alias for `freeze_uuid4()`; use version-specific functions instead
 - Replaced import hook with permanent proxy approach for UUID mocking
 - Simplified architecture: proxy installs once at plugin load, no per-import patching
 - Improved thread safety with lock-protected generator stack
@@ -22,6 +36,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - `_import_hook.py` module (internal, replaced by `_proxy.py`)
+
+### Migration Guide
+
+**mock_uuid fixture changes:**
+```python
+# Before (0.6.x)
+mock_uuid.set("12345678-1234-4678-8234-567812345678")
+mock_uuid.call_count
+
+# After (1.0.0+)
+mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
+mock_uuid.uuid4.call_count
+```
+
+**freeze_uuid decorator changes:**
+```python
+# Before (0.6.x)
+@freeze_uuid("12345678-1234-4678-8234-567812345678")
+
+# After (1.0.0+) - use version-specific function
+@freeze_uuid4("12345678-1234-4678-8234-567812345678")
+```
 
 ## [0.6.0] - 2026-02-08
 
@@ -105,7 +141,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Module ignore configuration via `pyproject.toml` or `pytest.ini`
 - Python 3.9, 3.10, 3.11, 3.12, 3.13, and 3.14 support
 
-[Unreleased]: https://github.com/CaptainDriftwood/pytest-uuid/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/CaptainDriftwood/pytest-uuid/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/CaptainDriftwood/pytest-uuid/compare/v0.6.0...v1.0.0
 [0.6.0]: https://github.com/CaptainDriftwood/pytest-uuid/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/CaptainDriftwood/pytest-uuid/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/CaptainDriftwood/pytest-uuid/compare/v0.3.0...v0.4.0

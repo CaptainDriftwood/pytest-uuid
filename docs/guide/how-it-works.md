@@ -126,16 +126,25 @@ Return deterministic UUID
 
 ## Thread Safety
 
-The proxy uses a **thread-safe global stack** protected by a lock:
+Both UUID generation and call tracking are fully thread-safe:
 
+**UUID Generation:**
+
+- The proxy uses a thread-safe global stack protected by a lock
 - All threads see the same active generator
 - Lock protects stack operations (push/pop/read)
 - Generator is called outside the lock to avoid holding it during user code
 
+**Call Tracking:**
+
+- All tracking properties (`call_count`, `calls`, `generated_uuids`, etc.) use per-instance locks
+- Multiple threads can safely call UUID functions and have their calls tracked accurately
+- Lock hold time is minimized by creating `UUIDCall` dataclasses outside the critical section
+
 For parallel test execution with pytest-xdist, each worker is a separate process with its own proxy and stack, so there's no cross-worker interference.
 
-!!! warning "Concurrent UUID Generation"
-    If your test code itself spawns threads that call `uuid.uuid4()` concurrently, all threads will use the same generator. The UUID values will still be deterministic (from the generator), but the order in which threads receive UUIDs depends on thread scheduling.
+!!! note "Thread Ordering"
+    If your test code spawns threads that call `uuid.uuid4()` concurrently, all threads will use the same generator. The UUID values will still be deterministic (from the generator), but the order in which threads receive UUIDs depends on thread scheduling.
 
 ## Nested Contexts
 

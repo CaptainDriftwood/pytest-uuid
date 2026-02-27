@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "pytest-uuid"
-version = "0.7.0"
+version = "1.0.0"
 description = "A pytest plugin for mocking uuid.uuid4() calls"
 readme = "README.md"
 license = "MIT"
@@ -36,6 +36,7 @@ classifiers = [
 dependencies = [
     "pytest>=7.0.0",
     "tomli>=2.0.0; python_version < '3.11'",
+    "uuid6>=2024.7.10; python_version < '3.14'",
 ]
 
 [project.urls]

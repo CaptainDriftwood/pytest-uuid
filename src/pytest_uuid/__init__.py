@@ -37,24 +37,32 @@ Thread Safety:
 Example:
     # Fixture approach (most common)
     def test_user_creation(mock_uuid):
-        mock_uuid.set("12345678-1234-4678-8234-567812345678")
+        mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
         user = create_user()
         assert user.id == "12345678-1234-4678-8234-567812345678"
 
     # Decorator approach
-    @freeze_uuid("12345678-1234-4678-8234-567812345678")
+    @freeze_uuid4("12345678-1234-4678-8234-567812345678")
     def test_with_decorator():
         assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
 
     # Marker with node seeding (reproducible per-test)
-    @pytest.mark.freeze_uuid(seed="node")
+    @pytest.mark.freeze_uuid4(seed="node")
     def test_reproducible():
         result = uuid.uuid4()  # Same UUID every time this test runs
 """
 
 from importlib.metadata import PackageNotFoundError, version
 
-from pytest_uuid.api import UUIDFreezer, freeze_uuid
+from pytest_uuid.api import (
+    UUIDFreezer,
+    freeze_uuid,
+    freeze_uuid1,
+    freeze_uuid4,
+    freeze_uuid6,
+    freeze_uuid7,
+    freeze_uuid8,
+)
 from pytest_uuid.config import (
     configure,
     get_config,
@@ -63,29 +71,60 @@ from pytest_uuid.config import (
 )
 from pytest_uuid.generators import (
     ExhaustionBehavior,
+    RandomUUID1Generator,
+    RandomUUID6Generator,
+    RandomUUID7Generator,
+    RandomUUID8Generator,
     RandomUUIDGenerator,
+    SeededUUID1Generator,
+    SeededUUID6Generator,
+    SeededUUID7Generator,
+    SeededUUID8Generator,
     SeededUUIDGenerator,
     SequenceUUIDGenerator,
     StaticUUIDGenerator,
     UUIDGenerator,
     UUIDsExhaustedError,
+    get_seeded_generator,
 )
 from pytest_uuid.plugin import (
+    NamespaceUUIDSpy,
+    UUID1Mocker,
+    UUID4Mocker,
+    UUID6Mocker,
+    UUID7Mocker,
+    UUID8Mocker,
     UUIDMocker,
     UUIDSpy,
     mock_uuid,
     mock_uuid_factory,
     spy_uuid,
 )
-from pytest_uuid.types import UUIDMockerProtocol, UUIDSpyProtocol
+from pytest_uuid.types import (
+    NamespaceUUIDCall,
+    NamespaceUUIDSpyProtocol,
+    TimeBasedUUIDMockerProtocol,
+    UUID4MockerProtocol,
+    UUIDCall,
+    UUIDMockerProtocol,
+    UUIDSpyProtocol,
+    UUIDVersionMockerProtocol,
+)
 
 try:
     __version__ = version("pytest-uuid")
 except PackageNotFoundError:
     __version__ = "0.0.0+dev"
 __all__ = [
-    # Main API
+    # Main API - version-specific freeze functions
+    "freeze_uuid4",
+    "freeze_uuid1",
+    "freeze_uuid6",
+    "freeze_uuid7",
+    "freeze_uuid8",
+    # Backward compatibility alias
     "freeze_uuid",
+    # Freezer class
     "UUIDFreezer",
     # Configuration
     "configure",
@@ -97,17 +136,39 @@ __all__ = [
     "StaticUUIDGenerator",
     "SequenceUUIDGenerator",
     "SeededUUIDGenerator",
+    "SeededUUID1Generator",
+    "SeededUUID6Generator",
+    "SeededUUID7Generator",
+    "SeededUUID8Generator",
     "RandomUUIDGenerator",
+    "RandomUUID1Generator",
+    "RandomUUID6Generator",
+    "RandomUUID7Generator",
+    "RandomUUID8Generator",
+    "get_seeded_generator",
     # Enums and Exceptions
     "ExhaustionBehavior",
     "UUIDsExhaustedError",
-    # Type annotations
+    # Type annotations and call tracking
+    "UUIDCall",
+    "NamespaceUUIDCall",
     "UUIDMockerProtocol",
     "UUIDSpyProtocol",
+    "UUIDVersionMockerProtocol",
+    "UUID4MockerProtocol",
+    "TimeBasedUUIDMockerProtocol",
+    "NamespaceUUIDSpyProtocol",
     # Fixtures (for documentation - actual fixtures registered via plugin)
     "mock_uuid",
     "mock_uuid_factory",
     "spy_uuid",
     "UUIDMocker",
     "UUIDSpy",
+    # Sub-mockers for specific UUID versions
+    "UUID1Mocker",
+    "UUID4Mocker",
+    "UUID6Mocker",
+    "UUID7Mocker",
+    "UUID8Mocker",
+    "NamespaceUUIDSpy",
 ]

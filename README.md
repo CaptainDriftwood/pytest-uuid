@@ -4,7 +4,7 @@
 
 <h1 align="center">pytest-uuid</h1>
 
-A pytest plugin for mocking `uuid.uuid4()` calls in your tests.
+A pytest plugin for mocking UUID generation in your tests. Supports uuid1, uuid3, uuid4, uuid5, uuid6, uuid7, and uuid8.
 
 [![PyPI version](https://img.shields.io/pypi/v/pytest-uuid.svg)](https://pypi.org/project/pytest-uuid/)
 [![Docs](https://img.shields.io/badge/docs-latest-blue.svg)](https://captaindriftwood.github.io/pytest-uuid/)
@@ -29,7 +29,7 @@ A pytest plugin for mocking `uuid.uuid4()` calls in your tests.
 
 ## Features
 
-- Mock `uuid.uuid4()` with deterministic values in your tests
+- Mock all UUID versions: uuid1, uuid3, uuid4, uuid5, uuid6, uuid7, uuid8
 - Works with both `import uuid` and `from uuid import uuid4` patterns ([how?](https://captaindriftwood.github.io/pytest-uuid/guide/how-it-works/))
 - Multiple ways to mock: static, sequence, seeded, or node-seeded
 - Decorator, marker, and fixture APIs (inspired by freezegun)
@@ -39,14 +39,18 @@ A pytest plugin for mocking `uuid.uuid4()` calls in your tests.
 - Detailed call tracking with caller module/file info
 - Automatic cleanup after each test
 - Zero configuration required - just use the fixture
+- uuid6/uuid7/uuid8 support via [uuid6](https://pypi.org/project/uuid6/) backport (Python < 3.14)
 
 ## Installation
 
 ```bash
-pip install pytest-uuid
+uv add --group dev pytest-uuid
+```
 
-# or with uv
-uv add pytest-uuid
+Or with pip:
+
+```bash
+pip install pytest-uuid
 ```
 
 ## Quick Start
@@ -57,11 +61,11 @@ uv add pytest-uuid
 import uuid
 
 def test_single_uuid(mock_uuid):
-    mock_uuid.set("12345678-1234-4678-8234-567812345678")
+    mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
     assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
 
 def test_multiple_uuids(mock_uuid):
-    mock_uuid.set(
+    mock_uuid.uuid4.set(
         "11111111-1111-4111-8111-111111111111",
         "22222222-2222-4222-8222-222222222222",
     )
@@ -75,18 +79,27 @@ def test_multiple_uuids(mock_uuid):
 
 ```python
 import uuid
-from pytest_uuid import freeze_uuid
+from pytest_uuid import freeze_uuid4, freeze_uuid1, freeze_uuid7
 
-@freeze_uuid("12345678-1234-4678-8234-567812345678")
+@freeze_uuid4("12345678-1234-4678-8234-567812345678")
 def test_with_decorator():
     assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
 
-@freeze_uuid(seed=42)
+@freeze_uuid4(seed=42)
 def test_seeded():
     # Reproducible UUIDs from seed
     result = uuid.uuid4()
     assert result.version == 4
+
+# Stack multiple versions
+@freeze_uuid4("44444444-4444-4444-8444-444444444444")
+@freeze_uuid1("11111111-1111-1111-8111-111111111111")
+def test_multiple_versions():
+    assert str(uuid.uuid4()) == "44444444-4444-4444-8444-444444444444"
+    assert str(uuid.uuid1()) == "11111111-1111-1111-8111-111111111111"
 ```
+
+> **Backward compatibility:** The generic `freeze_uuid` is still available as an alias for `freeze_uuid4`.
 
 ### Marker API
 
@@ -94,16 +107,25 @@ def test_seeded():
 import uuid
 import pytest
 
-@pytest.mark.freeze_uuid("12345678-1234-4678-8234-567812345678")
+@pytest.mark.freeze_uuid4("12345678-1234-4678-8234-567812345678")
 def test_with_marker():
     assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
 
-@pytest.mark.freeze_uuid(seed="node")
+@pytest.mark.freeze_uuid4(seed="node")
 def test_node_seeded():
     # Same test always gets the same UUIDs
     result = uuid.uuid4()
     assert result.version == 4
+
+# Stack multiple version markers
+@pytest.mark.freeze_uuid4("44444444-4444-4444-8444-444444444444")
+@pytest.mark.freeze_uuid1("11111111-1111-1111-8111-111111111111")
+def test_multiple_versions():
+    assert str(uuid.uuid4()) == "44444444-4444-4444-8444-444444444444"
+    assert str(uuid.uuid1()) == "11111111-1111-1111-8111-111111111111"
 ```
+
+> **Backward compatibility:** The generic `freeze_uuid` marker is still available as an alias for `freeze_uuid4`.
 
 ## Usage
 
@@ -113,11 +135,11 @@ Return the same UUID every time:
 
 ```python
 def test_static(mock_uuid):
-    mock_uuid.set("12345678-1234-4678-8234-567812345678")
+    mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
     assert uuid.uuid4() == uuid.uuid4()  # Same UUID
 
 # Or with decorator
-@freeze_uuid("12345678-1234-4678-8234-567812345678")
+@freeze_uuid4("12345678-1234-4678-8234-567812345678")
 def test_static_decorator():
     assert uuid.uuid4() == uuid.uuid4()  # Same UUID
 ```
@@ -128,7 +150,7 @@ Return UUIDs from a list:
 
 ```python
 def test_sequence(mock_uuid):
-    mock_uuid.set(
+    mock_uuid.uuid4.set(
         "11111111-1111-4111-8111-111111111111",
         "22222222-2222-4222-8222-222222222222",
     )
@@ -144,14 +166,14 @@ Generate reproducible UUIDs from a seed:
 
 ```python
 def test_seeded(mock_uuid):
-    mock_uuid.set_seed(42)
+    mock_uuid.uuid4.set_seed(42)
     first = uuid.uuid4()
 
-    mock_uuid.set_seed(42)  # Reset to same seed
+    mock_uuid.uuid4.set_seed(42)  # Reset to same seed
     assert uuid.uuid4() == first  # Same UUID
 
 # With decorator
-@freeze_uuid(seed=42)
+@freeze_uuid4(seed=42)
 def test_seeded_decorator():
     result = uuid.uuid4()
     assert result.version == 4  # Valid UUID v4
@@ -163,11 +185,11 @@ Derive the seed from the test's node ID for automatic reproducibility:
 
 ```python
 def test_node_seeded(mock_uuid):
-    mock_uuid.set_seed_from_node()
+    mock_uuid.uuid4.set_seed_from_node()
     # Same test always produces the same sequence
 
 # With marker
-@pytest.mark.freeze_uuid(seed="node")
+@pytest.mark.freeze_uuid4(seed="node")
 def test_node_seeded_marker():
     # Same test always produces the same sequence
     pass
@@ -182,7 +204,7 @@ import uuid
 import pytest
 
 
-@pytest.mark.freeze_uuid(seed="node")
+@pytest.mark.freeze_uuid4(seed="node")
 class TestUserService:
     def test_create(self):
         # Seed derived from "test_module.py::TestUserService::test_create"
@@ -202,7 +224,7 @@ class TestUserService:
 import uuid
 import pytest
 
-pytestmark = pytest.mark.freeze_uuid(seed="node")
+pytestmark = pytest.mark.freeze_uuid4(seed="node")
 
 
 def test_create_user():
@@ -217,6 +239,41 @@ def test_create_admin():
     assert result.version == 4
 ```
 
+#### Function-Level Node Seeding (Autouse Fixture)
+
+For automatic node seeding on every test without markers:
+
+```python
+# conftest.py
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def auto_seed_uuids(mock_uuid):
+    """Automatically seed uuid4 from test node ID for all tests."""
+    mock_uuid.uuid4.set_seed_from_node()
+```
+
+Every test now gets reproducible UUIDs without any boilerplate:
+
+```python
+# test_example.py
+import uuid
+
+
+def test_user_creation():
+    # No fixture argument needed - autouse handles it
+    # UUIDs are deterministic based on this test's node ID
+    user_id = uuid.uuid4()
+    assert user_id.version == 4
+
+
+def test_order_creation():
+    # Different test = different seed = different UUIDs
+    order_id = uuid.uuid4()
+    assert order_id.version == 4
+```
+
 #### Session-Level Node Seeding
 
 ```python
@@ -224,7 +281,7 @@ def test_create_admin():
 import hashlib
 
 import pytest
-from pytest_uuid import freeze_uuid
+from pytest_uuid import freeze_uuid4
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -240,7 +297,7 @@ def freeze_uuids_globally(request):
     # 4. int(..., 16) converts hex string to integer
     node_bytes = request.node.nodeid.encode()
     seed = int(hashlib.sha256(node_bytes).hexdigest()[:16], 16)
-    with freeze_uuid(seed=seed):
+    with freeze_uuid4(seed=seed):
         yield
 ```
 
@@ -254,8 +311,8 @@ Control what happens when a UUID sequence is exhausted:
 from pytest_uuid import ExhaustionBehavior, UUIDsExhaustedError
 
 def test_exhaustion_raise(mock_uuid):
-    mock_uuid.set_exhaustion_behavior("raise")
-    mock_uuid.set("11111111-1111-4111-8111-111111111111")
+    mock_uuid.uuid4.set_exhaustion_behavior("raise")
+    mock_uuid.uuid4.set("11111111-1111-4111-8111-111111111111")
 
     uuid.uuid4()  # Returns the UUID
 
@@ -263,7 +320,7 @@ def test_exhaustion_raise(mock_uuid):
         uuid.uuid4()  # Raises - sequence exhausted
 
 # With decorator
-@freeze_uuid(
+@freeze_uuid4(
     ["11111111-1111-4111-8111-111111111111"],
     on_exhausted="raise",  # or "cycle" or "random"
 )
@@ -302,26 +359,110 @@ def test_user_generates_uuid(spy_uuid):
     assert user.id == str(spy_uuid.last_uuid)
 ```
 
-#### Using `mock_uuid.spy()`
+#### Using `mock_uuid.uuid4.spy()`
 
 Switch from mocked to real UUIDs mid-test:
 
 ```python
 def test_start_mocked_then_spy(mock_uuid):
     """Start with mocked UUIDs, then switch to real ones."""
-    mock_uuid.set("12345678-1234-4678-8234-567812345678")
+    mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
     first = uuid.uuid4()  # Mocked
 
-    mock_uuid.spy()  # Switch to spy mode
+    mock_uuid.uuid4.spy()  # Switch to spy mode
     second = uuid.uuid4()  # Real random UUID
 
     assert str(first) == "12345678-1234-4678-8234-567812345678"
     assert first != second  # second is random
-    assert mock_uuid.mocked_count == 1
-    assert mock_uuid.real_count == 1
+    assert mock_uuid.uuid4.mocked_count == 1
+    assert mock_uuid.uuid4.real_count == 1
 ```
 
-> **When to use which:** Use `spy_uuid` when you never need mocking in the test. Use `mock_uuid.spy()` when you need to switch between mocked and real UUIDs within the same test.
+> **When to use which:** Use `spy_uuid` when you never need mocking in the test. Use `mock_uuid.uuid4.spy()` when you need to switch between mocked and real UUIDs within the same test.
+
+### Additional UUID Versions
+
+In addition to uuid4, pytest-uuid supports mocking all UUID versions:
+
+#### UUID1 (Time-based with MAC)
+
+```python
+def test_uuid1(mock_uuid):
+    mock_uuid.uuid1.set("12345678-1234-1234-8234-567812345678")
+    assert str(uuid.uuid1()) == "12345678-1234-1234-8234-567812345678"
+
+def test_uuid1_seeded(mock_uuid):
+    mock_uuid.uuid1.set_seed(42)
+    first = uuid.uuid1()
+    mock_uuid.uuid1.reset()
+    mock_uuid.uuid1.set_seed(42)
+    assert uuid.uuid1() == first
+
+def test_uuid1_fixed_node(mock_uuid):
+    # Return real uuid1 values with a fixed node (MAC address)
+    mock_uuid.uuid1.set_node(0x123456789ABC)
+    result = uuid.uuid1()
+    assert result.node == 0x123456789ABC
+```
+
+#### UUID3 and UUID5 (Namespace-based)
+
+UUID3 (MD5) and UUID5 (SHA-1) are deterministic - the same namespace and name always produce the same UUID. These functions are tracked in spy mode only:
+
+```python
+def test_uuid3_tracking(mock_uuid):
+    _ = mock_uuid.uuid3  # Initialize spy
+    result = uuid.uuid3(uuid.NAMESPACE_DNS, "example.com")
+
+    assert mock_uuid.uuid3.call_count == 1
+    assert mock_uuid.uuid3.calls[0].namespace == uuid.NAMESPACE_DNS
+    assert mock_uuid.uuid3.calls[0].name == "example.com"
+
+def test_uuid5_filtering(mock_uuid):
+    _ = mock_uuid.uuid5
+    uuid.uuid5(uuid.NAMESPACE_DNS, "example.com")
+    uuid.uuid5(uuid.NAMESPACE_URL, "https://example.com")
+
+    dns_calls = mock_uuid.uuid5.calls_with_namespace(uuid.NAMESPACE_DNS)
+    assert len(dns_calls) == 1
+```
+
+#### UUID6, UUID7, UUID8 (RFC 9562)
+
+These newer UUID versions require Python 3.14+ or the [uuid6](https://pypi.org/project/uuid6/) backport package:
+
+```python
+from uuid6 import uuid6, uuid7, uuid8  # or from uuid import ... on Python 3.14+
+
+def test_uuid7(mock_uuid):
+    mock_uuid.uuid7.set("12345678-1234-7234-8234-567812345678")
+    result = uuid7()
+    assert str(result) == "12345678-1234-7234-8234-567812345678"
+
+def test_uuid7_seeded(mock_uuid):
+    mock_uuid.uuid7.set_seed(42)
+    first = uuid7()
+    mock_uuid.uuid7.reset()
+    mock_uuid.uuid7.set_seed(42)
+    assert uuid7() == first
+
+def test_all_versions_independent(mock_uuid):
+    """Each UUID version is mocked independently."""
+    mock_uuid.uuid4.set("44444444-4444-4444-8444-444444444444")  # uuid4
+    mock_uuid.uuid1.set("11111111-1111-1111-8111-111111111111")
+    mock_uuid.uuid7.set("77777777-7777-7777-8777-777777777777")
+
+    assert str(uuid.uuid4()) == "44444444-4444-4444-8444-444444444444"
+    assert str(uuid.uuid1()) == "11111111-1111-1111-8111-111111111111"
+    assert str(uuid7()) == "77777777-7777-7777-8777-777777777777"
+
+    # Call counts are tracked independently
+    assert mock_uuid.uuid4.call_count == 1      # uuid4
+    assert mock_uuid.uuid1.call_count == 1
+    assert mock_uuid.uuid7.call_count == 1
+```
+
+> **Note:** uuid6/uuid7/uuid8 require the `uuid6` package on Python < 3.14. Install with `pip install uuid6` or it will be installed automatically as a dependency.
 
 ### Ignoring Modules
 
@@ -331,8 +472,8 @@ Exclude specific packages from UUID mocking so they receive real UUIDs. This is 
 
 ```python
 def test_with_ignored_modules(mock_uuid):
-    mock_uuid.set("12345678-1234-4678-8234-567812345678")
-    mock_uuid.set_ignore("sqlalchemy", "celery")
+    mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
+    mock_uuid.uuid4.set_ignore("sqlalchemy", "celery")
 
     # Direct calls are mocked
     assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
@@ -344,11 +485,11 @@ def test_with_ignored_modules(mock_uuid):
 #### Decorator/Marker API
 
 ```python
-@freeze_uuid("12345678-1234-4678-8234-567812345678", ignore=["sqlalchemy"])
+@freeze_uuid4("12345678-1234-4678-8234-567812345678", ignore=["sqlalchemy"])
 def test_with_decorator():
     assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
 
-@pytest.mark.freeze_uuid("...", ignore=["celery"])
+@pytest.mark.freeze_uuid4("...", ignore=["celery"])
 def test_with_marker():
     pass
 ```
@@ -359,14 +500,14 @@ def test_with_marker():
 
 ```python
 def test_tracking(mock_uuid):
-    mock_uuid.set("12345678-1234-4678-8234-567812345678")
-    mock_uuid.set_ignore("mylib")
+    mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
+    mock_uuid.uuid4.set_ignore("mylib")
 
     uuid.uuid4()           # mocked
     mylib.create_record()  # real (from ignored module)
 
-    assert mock_uuid.mocked_count == 1
-    assert mock_uuid.real_count == 1
+    assert mock_uuid.uuid4.mocked_count == 1
+    assert mock_uuid.uuid4.real_count == 1
 ```
 
 ### Global Configuration
@@ -410,20 +551,20 @@ def create_user():
 # tests/test_models.py
 def test_create_user(mock_uuid_factory):
     with mock_uuid_factory("myapp.models") as mocker:
-        mocker.set("12345678-1234-4678-8234-567812345678")
+        mocker.uuid4.set("12345678-1234-4678-8234-567812345678")
         user = create_user()
         assert user["id"] == "12345678-1234-4678-8234-567812345678"
 ```
 
 ### Context Manager
 
-Use `freeze_uuid` as a context manager:
+Use freeze functions as context managers:
 
 ```python
-from pytest_uuid import freeze_uuid
+from pytest_uuid import freeze_uuid4
 
 def test_context_manager():
-    with freeze_uuid("12345678-1234-4678-8234-567812345678"):
+    with freeze_uuid4("12345678-1234-4678-8234-567812345678"):
         assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
 
     # Original uuid.uuid4 is restored
@@ -436,12 +577,12 @@ Pass a `random.Random` instance for full control:
 
 ```python
 import random
-from pytest_uuid import freeze_uuid
+from pytest_uuid import freeze_uuid4
 
 rng = random.Random(42)
 rng.random()  # Advance the state
 
-@freeze_uuid(seed=rng)
+@freeze_uuid4(seed=rng)
 def test_custom_rng():
     # Gets UUIDs from the pre-advanced random state
     result = uuid.uuid4()
@@ -458,7 +599,7 @@ Apply to all tests in a module using pytest's `pytestmark`:
 import uuid
 import pytest
 
-pytestmark = pytest.mark.freeze_uuid("12345678-1234-4678-8234-567812345678")
+pytestmark = pytest.mark.freeze_uuid4("12345678-1234-4678-8234-567812345678")
 
 
 def test_create_user():
@@ -475,10 +616,10 @@ Apply the decorator to a test class to freeze UUIDs for all test methods:
 
 ```python
 import uuid
-from pytest_uuid import freeze_uuid
+from pytest_uuid import freeze_uuid4
 
 
-@freeze_uuid("12345678-1234-4678-8234-567812345678")
+@freeze_uuid4("12345678-1234-4678-8234-567812345678")
 class TestUserService:
     def test_create(self):
         assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
@@ -494,7 +635,7 @@ import uuid
 import pytest
 
 
-@pytest.mark.freeze_uuid(seed=42)
+@pytest.mark.freeze_uuid4(seed=42)
 class TestSeededService:
     def test_one(self):
         result = uuid.uuid4()
@@ -512,12 +653,12 @@ For session-wide mocking, use a session-scoped autouse fixture in `conftest.py`:
 ```python
 # conftest.py
 import pytest
-from pytest_uuid import freeze_uuid
+from pytest_uuid import freeze_uuid4
 
 
 @pytest.fixture(scope="session", autouse=True)
 def freeze_uuids_globally():
-    with freeze_uuid(seed=12345):
+    with freeze_uuid4(seed=12345):
         yield
 ```
 
@@ -527,9 +668,21 @@ def freeze_uuids_globally():
 
 #### `mock_uuid`
 
-Main fixture for controlling `uuid.uuid4()` calls.
+Container fixture providing access to mockers for all UUID versions.
 
-**Methods:**
+**Properties (version-specific mockers):**
+- `mock_uuid.uuid4` - UUID4Mocker for `uuid.uuid4()` (see methods below)
+- `mock_uuid.uuid1` - UUID1Mocker for `uuid.uuid1()` with `set()`, `set_seed()`, `set_node()`, `set_clock_seq()`
+- `mock_uuid.uuid3` - NamespaceUUIDSpy for `uuid.uuid3()` (spy-only, tracks namespace/name)
+- `mock_uuid.uuid5` - NamespaceUUIDSpy for `uuid.uuid5()` (spy-only, tracks namespace/name)
+- `mock_uuid.uuid6` - UUID6Mocker for `uuid.uuid6()` with `set()`, `set_seed()`, `set_node()` (requires uuid6 package)
+- `mock_uuid.uuid7` - UUID7Mocker for `uuid.uuid7()` with `set()`, `set_seed()` (requires uuid6 package)
+- `mock_uuid.uuid8` - UUID8Mocker for `uuid.uuid8()` with `set()`, `set_seed()` (requires uuid6 package)
+
+**Container Methods:**
+- `reset()` - Reset all initialized sub-mockers to initial state
+
+**UUID4Mocker Methods** (accessed via `mock_uuid.uuid4`):
 - `set(*uuids)` - Set one or more UUIDs to return (cycles by default)
 - `set_default(uuid)` - Set a default UUID for all calls
 - `set_seed(seed)` - Set a seed for reproducible generation
@@ -545,7 +698,7 @@ Factory for module-specific mocking.
 
 ```python
 with mock_uuid_factory("module.path") as mocker:
-    mocker.set("...")
+    mocker.uuid4.set("...")
 ```
 
 #### `spy_uuid`
@@ -578,10 +731,10 @@ Both `mock_uuid` and `spy_uuid` fixtures provide detailed call tracking via the 
 from pytest_uuid.types import UUIDCall
 
 def test_call_tracking(mock_uuid):
-    mock_uuid.set("12345678-1234-4678-8234-567812345678")
+    mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
     uuid.uuid4()
 
-    call = mock_uuid.calls[0]
+    call = mock_uuid.uuid4.calls[0]
     assert call.uuid == uuid.UUID("12345678-1234-4678-8234-567812345678")
     assert call.was_mocked is True
     assert call.caller_module is not None
@@ -591,19 +744,20 @@ def test_call_tracking(mock_uuid):
 **`UUIDCall` Fields:**
 - `uuid` - The UUID that was returned
 - `was_mocked` - `True` if mocked, `False` if real (spy mode or ignored module)
+- `uuid_version` - The UUID version (1, 3, 4, 5, 6, 7, or 8)
 - `caller_module` - Name of the module that made the call
 - `caller_file` - File path where the call originated
 - `caller_line` - Line number of the call
 - `caller_function` - Function name where the call originated
 - `caller_qualname` - Qualified name (e.g., `MyClass.method` or `outer.<locals>.inner`)
 
-**Tracking Properties** (available on both `mock_uuid` and `spy_uuid`):
+**Tracking Properties** (available on `mock_uuid.uuid4` and `spy_uuid`):
 - `call_count` - Total number of uuid4 calls
 - `generated_uuids` - List of all UUIDs returned
 - `last_uuid` - Most recently returned UUID
 - `calls` - List of `UUIDCall` records with full metadata
 
-**Additional `mock_uuid` Properties:**
+**Additional `mock_uuid.uuid4` Properties:**
 - `mocked_calls` - Only calls that returned mocked UUIDs
 - `real_calls` - Only calls that returned real UUIDs (spy mode or ignored modules)
 - `mocked_count` - Number of mocked calls
@@ -614,7 +768,7 @@ def test_call_tracking(mock_uuid):
 ```python
 def test_interrogate_calls(mock_uuid):
     """Inspect detailed metadata for all uuid4 calls."""
-    mock_uuid.set(
+    mock_uuid.uuid4.set(
         "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
         "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
     )
@@ -623,15 +777,15 @@ def test_interrogate_calls(mock_uuid):
     second = uuid.uuid4()
 
     # Check all UUIDs generated
-    assert len(mock_uuid.generated_uuids) == 2
-    assert mock_uuid.generated_uuids[0] == first
-    assert mock_uuid.generated_uuids[1] == second
+    assert len(mock_uuid.uuid4.generated_uuids) == 2
+    assert mock_uuid.uuid4.generated_uuids[0] == first
+    assert mock_uuid.uuid4.generated_uuids[1] == second
 
     # Get the last UUID quickly
-    assert mock_uuid.last_uuid == second
+    assert mock_uuid.uuid4.last_uuid == second
 
     # Iterate through call details
-    for i, call in enumerate(mock_uuid.calls):
+    for i, call in enumerate(mock_uuid.uuid4.calls):
         print(f"Call {i}: {call.uuid}")
         print(f"  Module: {call.caller_module}")
         print(f"  File: {call.caller_file}")
@@ -643,24 +797,24 @@ def test_interrogate_calls(mock_uuid):
 ```python
 def test_mixed_mocked_and_real(mock_uuid):
     """Track both mocked calls and real calls from ignored modules."""
-    mock_uuid.set("12345678-1234-4678-8234-567812345678")
-    mock_uuid.set_ignore("mylib")
+    mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
+    mock_uuid.uuid4.set_ignore("mylib")
 
     uuid.uuid4()              # Mocked (direct call)
     mylib.create_record()     # Real (from ignored module)
     uuid.uuid4()              # Mocked (direct call)
 
     # Count by type
-    assert mock_uuid.call_count == 3
-    assert mock_uuid.mocked_count == 2
-    assert mock_uuid.real_count == 1
+    assert mock_uuid.uuid4.call_count == 3
+    assert mock_uuid.uuid4.mocked_count == 2
+    assert mock_uuid.uuid4.real_count == 1
 
     # Access only real calls
-    for call in mock_uuid.real_calls:
+    for call in mock_uuid.uuid4.real_calls:
         print(f"Real UUID from {call.caller_module}: {call.uuid}")
 
     # Access only mocked calls
-    for call in mock_uuid.mocked_calls:
+    for call in mock_uuid.uuid4.mocked_calls:
         assert call.was_mocked is True
 ```
 
@@ -668,14 +822,14 @@ def test_mixed_mocked_and_real(mock_uuid):
 
 ```python
 def test_filter_calls(mock_uuid):
-    mock_uuid.set("12345678-1234-4678-8234-567812345678")
+    mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
 
     uuid.uuid4()  # Call from test module
     mymodule.do_something()  # Calls uuid4 internally
 
     # Filter calls by module prefix
-    test_calls = mock_uuid.calls_from("tests")
-    module_calls = mock_uuid.calls_from("mymodule")
+    test_calls = mock_uuid.uuid4.calls_from("tests")
+    module_calls = mock_uuid.uuid4.calls_from("mymodule")
 
     # Useful for verifying specific modules made expected calls
     assert len(module_calls) == 1
@@ -683,32 +837,46 @@ def test_filter_calls(mock_uuid):
 
 ### Decorator/Context Manager
 
-#### `freeze_uuid`
+#### Version-Specific Freeze Functions
+
+The recommended API uses version-specific functions for clarity:
 
 ```python
-from pytest_uuid import freeze_uuid
+from pytest_uuid import freeze_uuid4, freeze_uuid1, freeze_uuid6, freeze_uuid7, freeze_uuid8
 
-# Static UUID
-@freeze_uuid("12345678-1234-4678-8234-567812345678")
+# uuid4 (most common)
+@freeze_uuid4("12345678-1234-4678-8234-567812345678")
 def test_static(): ...
 
-# Sequence
-@freeze_uuid(["uuid1", "uuid2"], on_exhausted="raise")
-def test_sequence(): ...
-
-# Seeded
-@freeze_uuid(seed=42)
+@freeze_uuid4(seed=42)
 def test_seeded(): ...
 
-# Node-seeded (for use with marker)
-@pytest.mark.freeze_uuid(seed="node")
-def test_node_seeded(): ...
+# uuid1 with node/clock_seq
+@freeze_uuid1(seed=42, node=0x123456789ABC)
+def test_uuid1(): ...
+
+# uuid7 (requires uuid6 package or Python 3.14+)
+@freeze_uuid7(seed=42)
+def test_uuid7(): ...
 
 # Context manager
-with freeze_uuid("...") as freezer:
+with freeze_uuid4("...") as freezer:
     result = uuid.uuid4()
     freezer.reset()
+
+# Stack multiple versions
+with freeze_uuid4("..."), freeze_uuid7(seed=42):
+    uuid.uuid4()  # frozen
+    uuid7()       # frozen with seed
 ```
+
+**Available Functions:**
+- `freeze_uuid4` - Freeze `uuid.uuid4()` calls
+- `freeze_uuid1` - Freeze `uuid.uuid1()` calls (supports `node`, `clock_seq` parameters)
+- `freeze_uuid6` - Freeze `uuid.uuid6()` calls (requires uuid6 package, supports `node`, `clock_seq`)
+- `freeze_uuid7` - Freeze `uuid.uuid7()` calls (requires uuid6 package)
+- `freeze_uuid8` - Freeze `uuid.uuid8()` calls (requires uuid6 package)
+- `freeze_uuid` - Backward-compatible alias for `freeze_uuid4`
 
 **Parameters:**
 - `uuids` - UUID(s) to return (string, UUID, or sequence)
@@ -716,16 +884,35 @@ with freeze_uuid("...") as freezer:
 - `on_exhausted` - `"cycle"`, `"random"`, or `"raise"`
 - `ignore` - Module prefixes to exclude from patching
 - `ignore_defaults` - If `False`, don't include the default ignore list (default: `True`)
+- `node` - (uuid1/uuid6 only) Fixed 48-bit node (MAC address) for seeded generation
+- `clock_seq` - (uuid1/uuid6 only) Fixed 14-bit clock sequence for seeded generation
 
-### Marker
+### Markers
+
+Version-specific markers correspond to the freeze functions:
 
 ```python
+# uuid4 markers
+@pytest.mark.freeze_uuid4("uuid")
+@pytest.mark.freeze_uuid4(seed=42)
+@pytest.mark.freeze_uuid4(seed="node")
+
+# uuid1 markers
+@pytest.mark.freeze_uuid1("uuid")
+@pytest.mark.freeze_uuid1(seed=42, node=0x123456789ABC)
+
+# uuid7 markers
+@pytest.mark.freeze_uuid7(seed=42)
+
+# Stack multiple version markers
+@pytest.mark.freeze_uuid4("44444444-4444-4444-8444-444444444444")
+@pytest.mark.freeze_uuid1("11111111-1111-1111-8111-111111111111")
+def test_multiple():
+    uuid.uuid4()  # returns 44444444-...
+    uuid.uuid1()  # returns 11111111-...
+
+# Backward-compatible (alias for freeze_uuid4)
 @pytest.mark.freeze_uuid("uuid")
-@pytest.mark.freeze_uuid(["uuid1", "uuid2"])
-@pytest.mark.freeze_uuid(seed=42)
-@pytest.mark.freeze_uuid(seed="node")
-@pytest.mark.freeze_uuid("uuid", on_exhausted="raise")
-@pytest.mark.freeze_uuid("uuid", ignore_defaults=False)  # Mock everything, including defaults
 ```
 
 ### Configuration

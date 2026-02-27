@@ -2,6 +2,51 @@
 
 The `@freeze_uuid` decorator provides a clean way to configure UUID mocking at the function or class level.
 
+## Version-Specific Decorators
+
+Use the version-specific decorators for clarity and to enable version-specific features:
+
+| Decorator | UUID Version | Extra Parameters |
+|-----------|--------------|------------------|
+| `@freeze_uuid4(...)` | uuid4 (recommended) | - |
+| `@freeze_uuid1(...)` | uuid1 | `node`, `clock_seq` |
+| `@freeze_uuid6(...)` | uuid6 | `node`, `clock_seq` |
+| `@freeze_uuid7(...)` | uuid7 | - |
+| `@freeze_uuid8(...)` | uuid8 | - |
+| `@freeze_uuid(...)` | uuid4 (backward compatibility) | - |
+
+```python
+import uuid
+from pytest_uuid import freeze_uuid4, freeze_uuid1, freeze_uuid7
+
+@freeze_uuid4("12345678-1234-4678-8234-567812345678")
+def test_uuid4():
+    assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
+
+@freeze_uuid1(seed=42, node=0x123456789abc)
+def test_uuid1_with_node():
+    result = uuid.uuid1()
+    assert result.node == 0x123456789abc
+
+@freeze_uuid7(seed=42)
+def test_uuid7():
+    result = uuid.uuid7()
+    assert result.version == 7
+```
+
+### Stacking Multiple Versions
+
+Mock multiple UUID versions in the same test:
+
+```python
+@freeze_uuid4("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+@freeze_uuid1(seed=42)
+def test_multiple_versions():
+    assert str(uuid.uuid4()) == "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    result1 = uuid.uuid1()
+    assert result1.version == 1
+```
+
 ## Basic Usage
 
 ```python
@@ -180,3 +225,5 @@ def test_inspect_seed():
 | `on_exhausted` | `str` | `"cycle"`, `"random"`, or `"raise"` |
 | `ignore` | `list[str]` | Module prefixes to exclude from mocking |
 | `ignore_defaults` | `bool` | Include default ignore list (default `True`) |
+| `node` | `int` | Fixed MAC address for uuid1/uuid6 |
+| `clock_seq` | `int` | Fixed clock sequence for uuid1/uuid6 |

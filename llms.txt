@@ -1,31 +1,36 @@
 # pytest-uuid
 
-> A pytest plugin for mocking `uuid.uuid4()` calls with deterministic values. Works with both `import uuid` and `from uuid import uuid4` patterns using a permanent proxy system.
+> A pytest plugin for mocking UUID generation in tests. Supports mocking uuid1, uuid4, uuid6, uuid7, and uuid8. Supports spy-only tracking for uuid3 and uuid5 (deterministic hash-based UUIDs). Works with both `import uuid` and `from uuid import uuid4` patterns using a permanent proxy system.
 
-pytest-uuid provides fixtures, decorators, and markers for controlling UUID generation in tests. Key features include static UUIDs, sequences, seeded generation, node-seeded reproducibility, spy mode for tracking without mocking, and module ignore lists.
+pytest-uuid provides fixtures, decorators, and markers for controlling UUID generation in tests. Key features include static UUIDs, sequences, seeded generation, node-seeded reproducibility, spy mode for tracking without mocking, module ignore lists, thread-safe call tracking, and support for all UUID versions including RFC 9562 (uuid6/uuid7/uuid8 via backport on Python < 3.14).
 
 ## Documentation
 
 - [README](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/README.md): Full documentation with examples for all APIs
 - [Quick Start](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/docs/getting-started/quickstart.md): Get running in minutes
+- [Installation](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/docs/getting-started/installation.md): Detailed installation instructions
 - [API Reference](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/docs/api-reference.md): Complete API documentation
 
 ## Guides
 
-- [Fixture API](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/docs/guide/fixture-api.md): Using `mock_uuid` and `spy_uuid` fixtures
-- [Decorator API](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/docs/guide/decorator-api.md): Using `@freeze_uuid` decorator
-- [Marker API](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/docs/guide/marker-api.md): Using `@pytest.mark.freeze_uuid`
-- [Spy Mode](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/docs/guide/spy-mode.md): Track UUID calls without mocking
+- [Fixture API](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/docs/guide/fixture-api.md): Using `mock_uuid` and `spy_uuid` fixtures with all UUID versions
+- [Decorator API](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/docs/guide/decorator-api.md): Using `@freeze_uuid4`, `@freeze_uuid1`, etc. decorators
+- [Marker API](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/docs/guide/marker-api.md): Using `@pytest.mark.freeze_uuid4`, etc. markers
+- [Spy Mode](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/docs/guide/spy-mode.md): Track UUID calls without mocking (thread-safe)
 - [Configuration](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/docs/guide/configuration.md): pyproject.toml and programmatic config
 - [How It Works](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/docs/guide/how-it-works.md): Technical explanation of the proxy system
 
 ## Source Code
 
-- [plugin.py](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/src/pytest_uuid/plugin.py): Pytest hooks and fixtures
-- [api.py](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/src/pytest_uuid/api.py): `freeze_uuid` context manager/decorator
-- [_proxy.py](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/src/pytest_uuid/_proxy.py): UUID proxy and generator stack
-- [generators.py](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/src/pytest_uuid/generators.py): UUID generation strategies
-- [types.py](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/src/pytest_uuid/types.py): Type definitions and protocols
+- [\_\_init\_\_.py](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/src/pytest_uuid/__init__.py): Main package entry point, exports all public API (`freeze_uuid4`, `freeze_uuid1`, etc., `configure`, fixtures, generators, type protocols)
+- [plugin.py](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/src/pytest_uuid/plugin.py): Pytest hooks, fixtures (`mock_uuid`, `spy_uuid`, `mock_uuid_factory`), and UUID mockers (`UUIDMocker`, `UUID4Mocker`, `UUID1Mocker`, `UUID6Mocker`, `UUID7Mocker`, `UUID8Mocker`, `NamespaceUUIDSpy` for uuid3/uuid5)
+- [api.py](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/src/pytest_uuid/api.py): Version-specific freeze functions (`freeze_uuid4`, `freeze_uuid1`, `freeze_uuid6`, `freeze_uuid7`, `freeze_uuid8`) and `UUIDFreezer` class
+- [_proxy.py](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/src/pytest_uuid/_proxy.py): UUID proxy and generator stack for all UUID versions
+- [_compat.py](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/src/pytest_uuid/_compat.py): Python version compatibility for uuid6/uuid7/uuid8
+- [_tracking.py](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/src/pytest_uuid/_tracking.py): Thread-safe call tracking and caller info extraction
+- [generators.py](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/src/pytest_uuid/generators.py): UUID generation strategies (seeded, sequential, static)
+- [config.py](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/src/pytest_uuid/config.py): Configuration loading and `configure()` API
+- [types.py](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/src/pytest_uuid/types.py): Type definitions and protocols (`UUIDMockerProtocol`, `UUIDCall`, `NamespaceUUIDCall`)
 
 ## Optional
 

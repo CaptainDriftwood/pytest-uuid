@@ -2,6 +2,51 @@
 
 The `@pytest.mark.freeze_uuid` marker integrates with pytest's marker system for declarative UUID mocking.
 
+## Version-Specific Markers
+
+Use version-specific markers for clarity and to enable version-specific features:
+
+| Marker | UUID Version | Extra Parameters |
+|--------|--------------|------------------|
+| `@pytest.mark.freeze_uuid4(...)` | uuid4 (recommended) | - |
+| `@pytest.mark.freeze_uuid1(...)` | uuid1 | `node`, `clock_seq` |
+| `@pytest.mark.freeze_uuid6(...)` | uuid6 | `node`, `clock_seq` |
+| `@pytest.mark.freeze_uuid7(...)` | uuid7 | - |
+| `@pytest.mark.freeze_uuid8(...)` | uuid8 | - |
+| `@pytest.mark.freeze_uuid(...)` | uuid4 (backward compatibility) | - |
+
+```python
+import uuid
+import pytest
+
+@pytest.mark.freeze_uuid4("12345678-1234-4678-8234-567812345678")
+def test_uuid4():
+    assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
+
+@pytest.mark.freeze_uuid1(seed=42, node=0x123456789abc)
+def test_uuid1_with_node():
+    result = uuid.uuid1()
+    assert result.node == 0x123456789abc
+
+@pytest.mark.freeze_uuid7(seed=42)
+def test_uuid7():
+    result = uuid.uuid7()
+    assert result.version == 7
+```
+
+### Stacking Multiple Version Markers
+
+Mock multiple UUID versions in the same test:
+
+```python
+@pytest.mark.freeze_uuid4("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+@pytest.mark.freeze_uuid1(seed=42)
+def test_multiple_versions():
+    assert str(uuid.uuid4()) == "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    result1 = uuid.uuid1()
+    assert result1.version == 1
+```
+
 ## Basic Usage
 
 ```python
@@ -165,7 +210,9 @@ def freeze_uuids_globally(request):
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `uuids` | `str`, `UUID`, or sequence | UUID(s) to return |
-| `seed` | `int` or `"node"` | Seed for reproducible generation |
+| `seed` | `int`, `Random`, or `"node"` | Seed for reproducible generation |
 | `on_exhausted` | `str` | `"cycle"`, `"random"`, or `"raise"` |
 | `ignore` | `list[str]` | Module prefixes to exclude from mocking |
 | `ignore_defaults` | `bool` | Include default ignore list (default `True`) |
+| `node` | `int` | Fixed MAC address for uuid1/uuid6 markers |
+| `clock_seq` | `int` | Fixed clock sequence for uuid1/uuid6 markers |

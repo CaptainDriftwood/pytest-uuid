@@ -16,9 +16,13 @@ How Patching Works:
     This ensures mocking works regardless of how the code under test imports uuid4.
 
 Thread Safety:
-    UUIDFreezer is NOT thread-safe. Each thread should use its own instance.
-    For multi-threaded tests, consider using separate freezers per thread or
-    synchronizing access to a shared freezer.
+    Both UUID generation and call tracking are thread-safe. Multiple threads can
+    safely call uuid.uuid4() etc. while freezers are active. Call tracking uses
+    per-instance locks to ensure consistent counting and metadata recording.
+
+    However, each UUIDFreezer instance should only be entered/exited from a single
+    thread (don't share a context manager across threads). For multi-threaded tests,
+    each thread should use its own freezer.
 
 Example:
     # As a decorator
@@ -40,12 +44,13 @@ from __future__ import annotations
 import functools
 import inspect
 import random
+import threading
 import uuid
 from typing import TYPE_CHECKING, Literal, overload
 
 from pytest_uuid._proxy import (
     GeneratorToken,
-    get_original_uuid4,
+    get_original,
     reset_generator,
     set_generator,
 )
@@ -57,11 +62,15 @@ from pytest_uuid._tracking import (
 from pytest_uuid.config import get_config
 from pytest_uuid.generators import (
     ExhaustionBehavior,
+    RandomUUID1Generator,
+    RandomUUID6Generator,
+    RandomUUID7Generator,
+    RandomUUID8Generator,
     RandomUUIDGenerator,
-    SeededUUIDGenerator,
     SequenceUUIDGenerator,
     StaticUUIDGenerator,
     UUIDGenerator,
+    get_seeded_generator,
     parse_uuid,
     parse_uuids,
 )
@@ -69,6 +78,16 @@ from pytest_uuid.types import UUIDCall
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
+
+__all__ = [
+    "UUIDFreezer",
+    "freeze_uuid",
+    "freeze_uuid1",
+    "freeze_uuid4",
+    "freeze_uuid6",
+    "freeze_uuid7",
+    "freeze_uuid8",
+]
 
 
 def _should_ignore_frame(frame: object, ignore_list: tuple[str, ...]) -> bool:
@@ -92,20 +111,21 @@ def _should_ignore_frame(frame: object, ignore_list: tuple[str, ...]) -> bool:
 
 
 class UUIDFreezer(CallTrackingMixin):
-    """Context manager and decorator for freezing uuid.uuid4() calls.
+    """Context manager and decorator for freezing UUID function calls.
 
     This class provides fine-grained control over UUID generation during tests.
     It can be used as a decorator or context manager. Most users should use
-    the freeze_uuid() factory function instead of instantiating this directly.
+    the freeze_uuid4(), freeze_uuid7(), etc. factory functions instead of
+    instantiating this directly.
 
     Usage Patterns:
-        - As decorator: @freeze_uuid("uuid") applies to entire function
-        - As context manager: with freeze_uuid("uuid") as f: ... for scoped control
-        - On classes: @freeze_uuid("uuid") wraps all test_* methods
+        - As decorator: @freeze_uuid4("uuid") applies to entire function
+        - As context manager: with freeze_uuid4("uuid") as f: ... for scoped control
+        - On classes: @freeze_uuid4("uuid") wraps all test_* methods
 
     Call Tracking:
-        While active, tracks all uuid4() calls via inherited properties:
-        - call_count: Total number of uuid4() calls
+        While active, tracks all calls to the target UUID function via inherited properties:
+        - call_count: Total number of calls
         - generated_uuids: List of all UUIDs returned
         - last_uuid: Most recent UUID returned
         - calls: List of UUIDCall records with metadata
@@ -113,7 +133,7 @@ class UUIDFreezer(CallTrackingMixin):
 
     Example:
         # Context manager with call inspection
-        with freeze_uuid(seed=42) as freezer:
+        with freeze_uuid4(seed=42) as freezer:
             first = uuid.uuid4()
             second = uuid.uuid4()
 
@@ -127,16 +147,21 @@ class UUIDFreezer(CallTrackingMixin):
         self,
         uuids: str | uuid.UUID | Sequence[str | uuid.UUID] | None = None,
         *,
+        uuid_version: str = "uuid4",
         seed: int | random.Random | Literal["node"] | None = None,
         on_exhausted: ExhaustionBehavior | str | None = None,
         ignore: Sequence[str] | None = None,
         ignore_defaults: bool = True,
         node_id: str | None = None,
+        node: int | None = None,
+        clock_seq: int | None = None,
     ) -> None:
         """Initialize the UUID freezer.
 
         Args:
             uuids: Static UUID(s) to return. Can be a single UUID or a sequence.
+            uuid_version: The UUID function to freeze ("uuid1", "uuid4", "uuid6",
+                "uuid7", "uuid8"). Default is "uuid4".
             seed: Seed for reproducible UUID generation. Can be:
                 - int: Create a fresh Random instance with this seed
                 - random.Random: Use this Random instance directly
@@ -146,10 +171,15 @@ class UUIDFreezer(CallTrackingMixin):
             ignore_defaults: Whether to include default ignore list (e.g., botocore).
                 Set to False to mock all modules including those in DEFAULT_IGNORE_PACKAGES.
             node_id: The pytest node ID (required when seed="node").
+            node: Fixed 48-bit node (MAC address) for uuid1/uuid6 seeded generation.
+            clock_seq: Fixed 14-bit clock sequence for uuid1/uuid6 seeded generation.
         """
         self._uuids = uuids
+        self._uuid_version = uuid_version
         self._seed = seed
         self._node_id = node_id
+        self._node = node
+        self._clock_seq = clock_seq
         self._ignore_extra = tuple(ignore) if ignore else ()
 
         config = get_config()
@@ -174,6 +204,7 @@ class UUIDFreezer(CallTrackingMixin):
         self._call_count: int = 0
         self._generated_uuids: list[uuid.UUID] = []
         self._calls: list[UUIDCall] = []
+        self._tracking_lock = threading.Lock()
 
     def _create_generator(self) -> UUIDGenerator:
         """Create the appropriate UUID generator based on configuration."""
@@ -181,15 +212,23 @@ class UUIDFreezer(CallTrackingMixin):
         if self._seed is not None:
             if self._seed == "node":
                 if self._node_id is None:
+                    marker_name = f"freeze_{self._uuid_version}"
                     raise ValueError(
-                        "seed='node' requires node_id to be provided. "
-                        "Use @pytest.mark.freeze_uuid(seed='node') or pass node_id explicitly."
+                        f"seed='node' requires node_id to be provided. "
+                        f"Use @pytest.mark.{marker_name}(seed='node') or pass node_id explicitly."
                     )
-                actual_seed = _get_node_seed(self._node_id)
-                return SeededUUIDGenerator(actual_seed)
-            if isinstance(self._seed, random.Random):
-                return SeededUUIDGenerator(self._seed)
-            return SeededUUIDGenerator(self._seed)
+                actual_seed: int | random.Random = _get_node_seed(self._node_id)
+            else:
+                # seed is either an int or random.Random instance
+                actual_seed = self._seed
+
+            # Use version-appropriate seeded generator
+            return get_seeded_generator(
+                self._uuid_version,
+                actual_seed,
+                node=self._node,
+                clock_seq=self._clock_seq,
+            )
 
         if self._uuids is not None:
             if isinstance(self._uuids, (str, uuid.UUID)):
@@ -205,19 +244,37 @@ class UUIDFreezer(CallTrackingMixin):
                 on_exhausted=self._on_exhausted,
             )
 
-        # Default: random UUIDs (but we still need to patch for ignore list support)
-        return RandomUUIDGenerator()
+        # Default: random UUIDs - use version-appropriate random generator
+        return self._create_random_generator()
 
-    def _create_patched_uuid4(self) -> Callable[[], uuid.UUID]:
-        """Create the patched uuid4 function with ignore list and call tracking."""
+    def _create_random_generator(self) -> UUIDGenerator:
+        """Create the appropriate random generator for the UUID version."""
+        if self._uuid_version == "uuid1":
+            return RandomUUID1Generator(node=self._node, clock_seq=self._clock_seq)
+        if self._uuid_version == "uuid4":
+            return RandomUUIDGenerator()
+        if self._uuid_version == "uuid6":
+            return RandomUUID6Generator(node=self._node, clock_seq=self._clock_seq)
+        if self._uuid_version == "uuid7":
+            return RandomUUID7Generator()
+        if self._uuid_version == "uuid8":
+            return RandomUUID8Generator()
+        raise ValueError(f"Unknown UUID version: {self._uuid_version}")
+
+    def _create_patched_function(self) -> Callable[..., uuid.UUID]:
+        """Create the patched UUID function with ignore list and call tracking."""
         generator = self._generator
         ignore_list = self._ignore_list
         freezer = self  # Capture self for tracking
+        uuid_version = self._uuid_version
 
         if not ignore_list:
-
-            def patched_uuid4() -> uuid.UUID:
-                # skip_frames=3: _get_caller_info -> patched_uuid4 -> _proxy_uuid4 -> caller
+            # Accept *args, **kwargs for compatibility with uuid1/uuid6 signatures
+            def patched_uuid_func(
+                *args: object,  # noqa: ARG001
+                **kwargs: object,  # noqa: ARG001
+            ) -> uuid.UUID:
+                # skip_frames=3: _get_caller_info -> patched_uuid_func -> _proxy_uuidX -> caller
                 (
                     caller_module,
                     caller_file,
@@ -237,10 +294,10 @@ class UUIDFreezer(CallTrackingMixin):
                 )
                 return result
 
-            return patched_uuid4
+            return patched_uuid_func
 
-        def patched_uuid4_with_ignore() -> uuid.UUID:
-            # skip_frames=3: _get_caller_info -> patched_uuid4_with_ignore -> _proxy_uuid4 -> caller
+        def patched_uuid_func_with_ignore(*args: object, **kwargs: object) -> uuid.UUID:
+            # skip_frames=3: _get_caller_info -> patched_uuid_func_with_ignore -> _proxy_uuidX -> caller
             (
                 caller_module,
                 caller_file,
@@ -252,7 +309,7 @@ class UUIDFreezer(CallTrackingMixin):
             # Walk up the call stack to check for ignored modules
             frame = inspect.currentframe()
             try:
-                # Skip only this frame (patched_uuid4_with_ignore)
+                # Skip only this frame (patched_uuid_func_with_ignore)
                 # We want to check the caller's frame and all frames above it
                 if frame is not None:
                     frame = frame.f_back
@@ -260,7 +317,7 @@ class UUIDFreezer(CallTrackingMixin):
                 # Check if any caller should be ignored
                 while frame is not None:
                     if _should_ignore_frame(frame, ignore_list):
-                        result = get_original_uuid4()()
+                        result = get_original(uuid_version)(*args, **kwargs)
                         freezer._record_call(
                             result,
                             was_mocked=False,
@@ -287,22 +344,22 @@ class UUIDFreezer(CallTrackingMixin):
             )
             return result
 
-        return patched_uuid4_with_ignore
+        return patched_uuid_func_with_ignore
 
     def __enter__(self) -> UUIDFreezer:
-        """Start freezing uuid.uuid4().
+        """Start freezing the target UUID function.
 
         This method:
         1. Creates the UUID generator based on configuration
-        2. Creates the patched uuid4 function with call tracking
+        2. Creates the patched UUID function with call tracking
         3. Sets the generator in the proxy's context variable
 
-        The proxy approach means any code that captured uuid4 (including
-        Pydantic default_factory) will automatically use our generator.
+        The proxy approach means any code that captured the UUID function
+        (including Pydantic default_factory) will automatically use our generator.
         """
         self._generator = self._create_generator()
-        patched = self._create_patched_uuid4()
-        self._token = set_generator(patched)
+        patched = self._create_patched_function()
+        self._token = set_generator(patched, func_name=self._uuid_version)
         return self
 
     def __exit__(self, *args: object) -> None:
@@ -351,22 +408,28 @@ class UUIDFreezer(CallTrackingMixin):
         """Wrap a single method with a fresh freeze context."""
         # Capture the freezer config to create fresh instances per call
         uuids = self._uuids
+        uuid_version = self._uuid_version
         seed = self._seed
         on_exhausted = self._on_exhausted
         ignore_extra = self._ignore_extra
         ignore_defaults = self._ignore_defaults
         node_id = self._node_id
+        node = self._node
+        clock_seq = self._clock_seq
 
         @functools.wraps(method)
         def wrapper(*args: object, **kwargs: object) -> object:
             # Create a fresh freezer for each method call
             freezer = UUIDFreezer(
                 uuids=uuids,
+                uuid_version=uuid_version,
                 seed=seed,
                 on_exhausted=on_exhausted,
                 ignore=ignore_extra if ignore_extra else None,
                 ignore_defaults=ignore_defaults,
                 node_id=node_id,
+                node=node,
+                clock_seq=clock_seq,
             )
             with freezer:
                 return method(*args, **kwargs)
@@ -377,6 +440,11 @@ class UUIDFreezer(CallTrackingMixin):
     def generator(self) -> UUIDGenerator | None:
         """Get the current generator (only available while frozen)."""
         return self._generator
+
+    @property
+    def uuid_version(self) -> str:
+        """The UUID version being frozen (e.g., "uuid4", "uuid7")."""
+        return self._uuid_version
 
     @property
     def seed(self) -> int | None:
@@ -390,8 +458,9 @@ class UUIDFreezer(CallTrackingMixin):
         - A random.Random instance was passed directly (BYOP mode)
         - The freezer is not currently active
         """
-        if isinstance(self._generator, SeededUUIDGenerator):
-            return self._generator.seed
+        # Check if the generator has a seed property (all seeded generators do)
+        if self._generator is not None and hasattr(self._generator, "seed"):
+            return self._generator.seed  # type: ignore[union-attr]
         return None
 
     def reset(self) -> None:
@@ -401,7 +470,450 @@ class UUIDFreezer(CallTrackingMixin):
         self._reset_tracking()
 
 
-# Convenience function for creating freezers
+# =============================================================================
+# Version-specific freeze functions
+# =============================================================================
+
+
+# freeze_uuid4 - for uuid.uuid4()
+@overload
+def freeze_uuid4(
+    uuids: str | uuid.UUID | Sequence[str | uuid.UUID],
+    *,
+    on_exhausted: ExhaustionBehavior | str | None = None,
+    ignore: Sequence[str] | None = None,
+    ignore_defaults: bool = True,
+) -> UUIDFreezer: ...
+
+
+@overload
+def freeze_uuid4(
+    uuids: None = None,
+    *,
+    seed: int | random.Random | Literal["node"],
+    ignore: Sequence[str] | None = None,
+    ignore_defaults: bool = True,
+    node_id: str | None = None,
+) -> UUIDFreezer: ...
+
+
+@overload
+def freeze_uuid4(
+    uuids: None = None,
+    *,
+    seed: None = None,
+    on_exhausted: ExhaustionBehavior | str | None = None,
+    ignore: Sequence[str] | None = None,
+    ignore_defaults: bool = True,
+) -> UUIDFreezer: ...
+
+
+def freeze_uuid4(
+    uuids: str | uuid.UUID | Sequence[str | uuid.UUID] | None = None,
+    *,
+    seed: int | random.Random | Literal["node"] | None = None,
+    on_exhausted: ExhaustionBehavior | str | None = None,
+    ignore: Sequence[str] | None = None,
+    ignore_defaults: bool = True,
+    node_id: str | None = None,
+) -> UUIDFreezer:
+    """Create a freezer for uuid.uuid4() calls.
+
+    This function returns a UUIDFreezer that can be used as a decorator
+    or context manager to control uuid.uuid4() calls within its scope.
+
+    Args:
+        uuids: Static UUID(s) to return. Can be:
+            - A single UUID string or object (always returns this UUID)
+            - A sequence of UUIDs (cycles through or raises when exhausted)
+        seed: Seed for reproducible UUID generation. Can be:
+            - int: Create a fresh Random instance with this seed
+            - random.Random: Use this Random instance directly (BYOP)
+            - "node": Derive seed from pytest node ID (use with marker)
+        on_exhausted: Behavior when a UUID sequence is exhausted:
+            - "cycle": Loop back to the start (default)
+            - "random": Fall back to random UUIDs
+            - "raise": Raise UUIDsExhaustedError
+        ignore: Module prefixes that should continue using real uuid4().
+        ignore_defaults: Whether to include default ignore list (e.g., botocore).
+        node_id: The pytest node ID (required when seed="node").
+
+    Returns:
+        A UUIDFreezer that can be used as a decorator or context manager.
+
+    Examples:
+        # As a decorator with a static UUID
+        @freeze_uuid4("12345678-1234-4678-8234-567812345678")
+        def test_static():
+            assert uuid.uuid4() == UUID("12345678-...")
+
+        # As a decorator with a seed
+        @freeze_uuid4(seed=42)
+        def test_seeded():
+            ...
+
+        # As a context manager
+        with freeze_uuid4("...") as freezer:
+            result = uuid.uuid4()
+            assert freezer.call_count == 1
+    """
+    return UUIDFreezer(
+        uuids=uuids,
+        uuid_version="uuid4",
+        seed=seed,
+        on_exhausted=on_exhausted,
+        ignore=ignore,
+        ignore_defaults=ignore_defaults,
+        node_id=node_id,
+    )
+
+
+# freeze_uuid1 - for uuid.uuid1()
+@overload
+def freeze_uuid1(
+    uuids: str | uuid.UUID | Sequence[str | uuid.UUID],
+    *,
+    on_exhausted: ExhaustionBehavior | str | None = None,
+    ignore: Sequence[str] | None = None,
+    ignore_defaults: bool = True,
+) -> UUIDFreezer: ...
+
+
+@overload
+def freeze_uuid1(
+    uuids: None = None,
+    *,
+    seed: int | random.Random | Literal["node"],
+    node: int | None = None,
+    clock_seq: int | None = None,
+    ignore: Sequence[str] | None = None,
+    ignore_defaults: bool = True,
+    node_id: str | None = None,
+) -> UUIDFreezer: ...
+
+
+@overload
+def freeze_uuid1(
+    uuids: None = None,
+    *,
+    seed: None = None,
+    on_exhausted: ExhaustionBehavior | str | None = None,
+    ignore: Sequence[str] | None = None,
+    ignore_defaults: bool = True,
+) -> UUIDFreezer: ...
+
+
+def freeze_uuid1(
+    uuids: str | uuid.UUID | Sequence[str | uuid.UUID] | None = None,
+    *,
+    seed: int | random.Random | Literal["node"] | None = None,
+    node: int | None = None,
+    clock_seq: int | None = None,
+    on_exhausted: ExhaustionBehavior | str | None = None,
+    ignore: Sequence[str] | None = None,
+    ignore_defaults: bool = True,
+    node_id: str | None = None,
+) -> UUIDFreezer:
+    """Create a freezer for uuid.uuid1() calls.
+
+    This function returns a UUIDFreezer that can be used as a decorator
+    or context manager to control uuid.uuid1() calls within its scope.
+
+    UUID v1 is time-based with MAC address. For seeded generation, the
+    time fields are generated from the random source for reproducibility.
+
+    Args:
+        uuids: Static UUID(s) to return.
+        seed: Seed for reproducible UUID generation.
+        node: Fixed 48-bit node (MAC address) for seeded generation.
+        clock_seq: Fixed 14-bit clock sequence for seeded generation.
+        on_exhausted: Behavior when a UUID sequence is exhausted.
+        ignore: Module prefixes that should continue using real uuid1().
+        ignore_defaults: Whether to include default ignore list.
+        node_id: The pytest node ID (required when seed="node").
+
+    Returns:
+        A UUIDFreezer that can be used as a decorator or context manager.
+
+    Examples:
+        @freeze_uuid1("12345678-1234-1234-8234-567812345678")
+        def test_static():
+            assert uuid.uuid1() == UUID("12345678-...")
+
+        @freeze_uuid1(seed=42, node=0x123456789abc)
+        def test_seeded_with_fixed_node():
+            ...
+    """
+    return UUIDFreezer(
+        uuids=uuids,
+        uuid_version="uuid1",
+        seed=seed,
+        on_exhausted=on_exhausted,
+        ignore=ignore,
+        ignore_defaults=ignore_defaults,
+        node_id=node_id,
+        node=node,
+        clock_seq=clock_seq,
+    )
+
+
+# freeze_uuid6 - for uuid.uuid6()
+@overload
+def freeze_uuid6(
+    uuids: str | uuid.UUID | Sequence[str | uuid.UUID],
+    *,
+    on_exhausted: ExhaustionBehavior | str | None = None,
+    ignore: Sequence[str] | None = None,
+    ignore_defaults: bool = True,
+) -> UUIDFreezer: ...
+
+
+@overload
+def freeze_uuid6(
+    uuids: None = None,
+    *,
+    seed: int | random.Random | Literal["node"],
+    node: int | None = None,
+    clock_seq: int | None = None,
+    ignore: Sequence[str] | None = None,
+    ignore_defaults: bool = True,
+    node_id: str | None = None,
+) -> UUIDFreezer: ...
+
+
+@overload
+def freeze_uuid6(
+    uuids: None = None,
+    *,
+    seed: None = None,
+    on_exhausted: ExhaustionBehavior | str | None = None,
+    ignore: Sequence[str] | None = None,
+    ignore_defaults: bool = True,
+) -> UUIDFreezer: ...
+
+
+def freeze_uuid6(
+    uuids: str | uuid.UUID | Sequence[str | uuid.UUID] | None = None,
+    *,
+    seed: int | random.Random | Literal["node"] | None = None,
+    node: int | None = None,
+    clock_seq: int | None = None,
+    on_exhausted: ExhaustionBehavior | str | None = None,
+    ignore: Sequence[str] | None = None,
+    ignore_defaults: bool = True,
+    node_id: str | None = None,
+) -> UUIDFreezer:
+    """Create a freezer for uuid.uuid6() calls.
+
+    This function returns a UUIDFreezer that can be used as a decorator
+    or context manager to control uuid.uuid6() calls within its scope.
+
+    UUID v6 is a reordered version of UUID v1 optimized for database indexing.
+    Requires Python 3.14+ or the uuid6 backport package.
+
+    Args:
+        uuids: Static UUID(s) to return.
+        seed: Seed for reproducible UUID generation.
+        node: Fixed 48-bit node (MAC address) for seeded generation.
+        clock_seq: Fixed 14-bit clock sequence for seeded generation.
+        on_exhausted: Behavior when a UUID sequence is exhausted.
+        ignore: Module prefixes that should continue using real uuid6().
+        ignore_defaults: Whether to include default ignore list.
+        node_id: The pytest node ID (required when seed="node").
+
+    Returns:
+        A UUIDFreezer that can be used as a decorator or context manager.
+
+    Examples:
+        @freeze_uuid6("12345678-1234-6234-8234-567812345678")
+        def test_static():
+            assert uuid.uuid6() == UUID("12345678-...")
+
+        @freeze_uuid6(seed=42)
+        def test_seeded():
+            ...
+    """
+    return UUIDFreezer(
+        uuids=uuids,
+        uuid_version="uuid6",
+        seed=seed,
+        on_exhausted=on_exhausted,
+        ignore=ignore,
+        ignore_defaults=ignore_defaults,
+        node_id=node_id,
+        node=node,
+        clock_seq=clock_seq,
+    )
+
+
+# freeze_uuid7 - for uuid.uuid7()
+@overload
+def freeze_uuid7(
+    uuids: str | uuid.UUID | Sequence[str | uuid.UUID],
+    *,
+    on_exhausted: ExhaustionBehavior | str | None = None,
+    ignore: Sequence[str] | None = None,
+    ignore_defaults: bool = True,
+) -> UUIDFreezer: ...
+
+
+@overload
+def freeze_uuid7(
+    uuids: None = None,
+    *,
+    seed: int | random.Random | Literal["node"],
+    ignore: Sequence[str] | None = None,
+    ignore_defaults: bool = True,
+    node_id: str | None = None,
+) -> UUIDFreezer: ...
+
+
+@overload
+def freeze_uuid7(
+    uuids: None = None,
+    *,
+    seed: None = None,
+    on_exhausted: ExhaustionBehavior | str | None = None,
+    ignore: Sequence[str] | None = None,
+    ignore_defaults: bool = True,
+) -> UUIDFreezer: ...
+
+
+def freeze_uuid7(
+    uuids: str | uuid.UUID | Sequence[str | uuid.UUID] | None = None,
+    *,
+    seed: int | random.Random | Literal["node"] | None = None,
+    on_exhausted: ExhaustionBehavior | str | None = None,
+    ignore: Sequence[str] | None = None,
+    ignore_defaults: bool = True,
+    node_id: str | None = None,
+) -> UUIDFreezer:
+    """Create a freezer for uuid.uuid7() calls.
+
+    This function returns a UUIDFreezer that can be used as a decorator
+    or context manager to control uuid.uuid7() calls within its scope.
+
+    UUID v7 uses Unix timestamp (milliseconds) with random data.
+    Requires Python 3.14+ or the uuid6 backport package.
+
+    Args:
+        uuids: Static UUID(s) to return.
+        seed: Seed for reproducible UUID generation.
+        on_exhausted: Behavior when a UUID sequence is exhausted.
+        ignore: Module prefixes that should continue using real uuid7().
+        ignore_defaults: Whether to include default ignore list.
+        node_id: The pytest node ID (required when seed="node").
+
+    Returns:
+        A UUIDFreezer that can be used as a decorator or context manager.
+
+    Examples:
+        @freeze_uuid7("01234567-89ab-7def-8123-456789abcdef")
+        def test_static():
+            assert uuid.uuid7() == UUID("01234567-...")
+
+        @freeze_uuid7(seed=42)
+        def test_seeded():
+            ...
+    """
+    return UUIDFreezer(
+        uuids=uuids,
+        uuid_version="uuid7",
+        seed=seed,
+        on_exhausted=on_exhausted,
+        ignore=ignore,
+        ignore_defaults=ignore_defaults,
+        node_id=node_id,
+    )
+
+
+# freeze_uuid8 - for uuid.uuid8()
+@overload
+def freeze_uuid8(
+    uuids: str | uuid.UUID | Sequence[str | uuid.UUID],
+    *,
+    on_exhausted: ExhaustionBehavior | str | None = None,
+    ignore: Sequence[str] | None = None,
+    ignore_defaults: bool = True,
+) -> UUIDFreezer: ...
+
+
+@overload
+def freeze_uuid8(
+    uuids: None = None,
+    *,
+    seed: int | random.Random | Literal["node"],
+    ignore: Sequence[str] | None = None,
+    ignore_defaults: bool = True,
+    node_id: str | None = None,
+) -> UUIDFreezer: ...
+
+
+@overload
+def freeze_uuid8(
+    uuids: None = None,
+    *,
+    seed: None = None,
+    on_exhausted: ExhaustionBehavior | str | None = None,
+    ignore: Sequence[str] | None = None,
+    ignore_defaults: bool = True,
+) -> UUIDFreezer: ...
+
+
+def freeze_uuid8(
+    uuids: str | uuid.UUID | Sequence[str | uuid.UUID] | None = None,
+    *,
+    seed: int | random.Random | Literal["node"] | None = None,
+    on_exhausted: ExhaustionBehavior | str | None = None,
+    ignore: Sequence[str] | None = None,
+    ignore_defaults: bool = True,
+    node_id: str | None = None,
+) -> UUIDFreezer:
+    """Create a freezer for uuid.uuid8() calls.
+
+    This function returns a UUIDFreezer that can be used as a decorator
+    or context manager to control uuid.uuid8() calls within its scope.
+
+    UUID v8 provides a format for experimental or vendor-specific UUIDs.
+    Requires Python 3.14+ or the uuid6 backport package.
+
+    Args:
+        uuids: Static UUID(s) to return.
+        seed: Seed for reproducible UUID generation.
+        on_exhausted: Behavior when a UUID sequence is exhausted.
+        ignore: Module prefixes that should continue using real uuid8().
+        ignore_defaults: Whether to include default ignore list.
+        node_id: The pytest node ID (required when seed="node").
+
+    Returns:
+        A UUIDFreezer that can be used as a decorator or context manager.
+
+    Examples:
+        @freeze_uuid8("12345678-1234-8234-8234-567812345678")
+        def test_static():
+            assert uuid.uuid8() == UUID("12345678-...")
+
+        @freeze_uuid8(seed=42)
+        def test_seeded():
+            ...
+    """
+    return UUIDFreezer(
+        uuids=uuids,
+        uuid_version="uuid8",
+        seed=seed,
+        on_exhausted=on_exhausted,
+        ignore=ignore,
+        ignore_defaults=ignore_defaults,
+        node_id=node_id,
+    )
+
+
+# =============================================================================
+# Backward compatibility alias
+# =============================================================================
+
+
+# Convenience function for creating freezers (backward compatible alias)
 @overload
 def freeze_uuid(
     uuids: str | uuid.UUID | Sequence[str | uuid.UUID],
@@ -443,7 +955,11 @@ def freeze_uuid(
     ignore_defaults: bool = True,
     node_id: str | None = None,
 ) -> UUIDFreezer:
-    """Create a UUID freezer for use as a decorator or context manager.
+    """Create a UUID freezer for uuid.uuid4() calls.
+
+    .. deprecated::
+        Use freeze_uuid4() instead. This function is provided for backward
+        compatibility and is an alias to freeze_uuid4().
 
     This function returns a UUIDFreezer that can be used to control
     uuid.uuid4() calls within its scope.
@@ -496,6 +1012,7 @@ def freeze_uuid(
     """
     return UUIDFreezer(
         uuids=uuids,
+        uuid_version="uuid4",
         seed=seed,
         on_exhausted=on_exhausted,
         ignore=ignore,

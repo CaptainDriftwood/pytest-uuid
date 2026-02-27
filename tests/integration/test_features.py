@@ -92,13 +92,13 @@ def test_mock_uuid_spy_method(pytester):
 
         def test_spy_method(mock_uuid):
             # Set up some mocking first
-            mock_uuid.set("12345678-1234-4678-8234-567812345678")
+            mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
             mocked = uuid.uuid4()
             assert str(mocked) == "12345678-1234-4678-8234-567812345678"
-            assert mock_uuid.call_count == 1
+            assert mock_uuid.uuid4.call_count == 1
 
             # Switch to spy mode
-            mock_uuid.spy()
+            mock_uuid.uuid4.spy()
 
             # Now should return real UUIDs but still track
             # Note: call_count continues from before (accumulates)
@@ -107,7 +107,7 @@ def test_mock_uuid_spy_method(pytester):
 
             assert str(real1) != "12345678-1234-4678-8234-567812345678"
             assert real1 != real2
-            assert mock_uuid.call_count == 3  # 1 mocked + 2 spy calls
+            assert mock_uuid.uuid4.call_count == 3  # 1 mocked + 2 spy calls
         """
     )
 
@@ -159,7 +159,7 @@ def test_mock_uuid_tracks_caller_module(pytester):
         import helper_module
 
         def test_caller_module_tracked(mock_uuid):
-            mock_uuid.set("12345678-1234-4678-8234-567812345678")
+            mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
 
             # Call from this test module
             uuid.uuid4()
@@ -167,16 +167,16 @@ def test_mock_uuid_tracks_caller_module(pytester):
             # Call from helper module
             helper_module.generate_uuid()
 
-            assert mock_uuid.call_count == 2
-            assert len(mock_uuid.calls) == 2
+            assert mock_uuid.uuid4.call_count == 2
+            assert len(mock_uuid.uuid4.calls) == 2
 
             # Check first call came from this test
-            call1 = mock_uuid.calls[0]
+            call1 = mock_uuid.uuid4.calls[0]
             assert "test_caller_tracking" in call1.caller_module
             assert call1.was_mocked is True
 
             # Check second call came from helper
-            call2 = mock_uuid.calls[1]
+            call2 = mock_uuid.uuid4.calls[1]
             assert "helper_module" in call2.caller_module
             assert call2.was_mocked is True
         """
@@ -213,7 +213,7 @@ def test_mock_uuid_calls_from_filter(pytester):
         import myapp_utils
 
         def test_calls_from_filter(mock_uuid):
-            mock_uuid.set("12345678-1234-4678-8234-567812345678")
+            mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
 
             # Make calls from different modules
             uuid.uuid4()  # From test module
@@ -221,18 +221,18 @@ def test_mock_uuid_calls_from_filter(pytester):
             myapp_utils.generate_id()  # From myapp_utils
 
             # Filter by prefix
-            model_calls = mock_uuid.calls_from("myapp_models")
+            model_calls = mock_uuid.uuid4.calls_from("myapp_models")
             assert len(model_calls) == 1
 
-            util_calls = mock_uuid.calls_from("myapp_utils")
+            util_calls = mock_uuid.uuid4.calls_from("myapp_utils")
             assert len(util_calls) == 1
 
             # Filter by broader prefix
-            all_myapp = mock_uuid.calls_from("myapp")
+            all_myapp = mock_uuid.uuid4.calls_from("myapp")
             assert len(all_myapp) == 2
 
             # No matches
-            other_calls = mock_uuid.calls_from("other_package")
+            other_calls = mock_uuid.uuid4.calls_from("other_package")
             assert len(other_calls) == 0
         """
     )
@@ -248,7 +248,7 @@ def test_mock_uuid_tracks_caller_line_and_function(pytester):
 import uuid
 
 def test_line_and_function_tracked(mock_uuid):
-    mock_uuid.set("12345678-1234-4678-8234-567812345678")
+    mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
 
     # First call on this line
     uuid.uuid4()  # line 8
@@ -256,9 +256,9 @@ def test_line_and_function_tracked(mock_uuid):
     # Second call on different line
     uuid.uuid4()  # line 11
 
-    assert mock_uuid.call_count == 2
-    call1 = mock_uuid.calls[0]
-    call2 = mock_uuid.calls[1]
+    assert mock_uuid.uuid4.call_count == 2
+    call1 = mock_uuid.uuid4.calls[0]
+    call2 = mock_uuid.uuid4.calls[1]
 
     # Both calls should have line numbers
     assert call1.caller_line is not None
@@ -301,7 +301,7 @@ import uuid
 import helper_funcs
 
 def test_function_names_tracked(mock_uuid):
-    mock_uuid.set("12345678-1234-4678-8234-567812345678")
+    mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
 
     # Call from this test function
     uuid.uuid4()
@@ -314,13 +314,13 @@ def test_function_names_tracked(mock_uuid):
     obj = helper_funcs.MyClass()
     obj.method_three()
 
-    assert mock_uuid.call_count == 4
+    assert mock_uuid.uuid4.call_count == 4
 
     # Verify function names
-    assert mock_uuid.calls[0].caller_function == "test_function_names_tracked"
-    assert mock_uuid.calls[1].caller_function == "function_one"
-    assert mock_uuid.calls[2].caller_function == "function_two"
-    assert mock_uuid.calls[3].caller_function == "method_three"
+    assert mock_uuid.uuid4.calls[0].caller_function == "test_function_names_tracked"
+    assert mock_uuid.uuid4.calls[1].caller_function == "function_one"
+    assert mock_uuid.uuid4.calls[2].caller_function == "function_two"
+    assert mock_uuid.uuid4.calls[3].caller_function == "method_three"
 """
     )
 
@@ -400,29 +400,29 @@ def test_mock_uuid_mocked_vs_real_with_spy_mode(pytester):
 
         def test_mocked_vs_real(mock_uuid):
             # Start with mocked
-            mock_uuid.set("12345678-1234-4678-8234-567812345678")
+            mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
             mocked1 = uuid.uuid4()
             mocked2 = uuid.uuid4()
 
             # Switch to spy mode (real UUIDs)
-            mock_uuid.spy()
+            mock_uuid.uuid4.spy()
             real1 = uuid.uuid4()
             real2 = uuid.uuid4()
 
             # Verify call tracking
-            assert mock_uuid.call_count == 4
-            assert mock_uuid.mocked_count == 2
-            assert mock_uuid.real_count == 2
+            assert mock_uuid.uuid4.call_count == 4
+            assert mock_uuid.uuid4.mocked_count == 2
+            assert mock_uuid.uuid4.real_count == 2
 
             # Verify mocked_calls
-            mocked_calls = mock_uuid.mocked_calls
+            mocked_calls = mock_uuid.uuid4.mocked_calls
             assert len(mocked_calls) == 2
             assert all(c.was_mocked for c in mocked_calls)
             assert mocked_calls[0].uuid == mocked1
             assert mocked_calls[1].uuid == mocked2
 
             # Verify real_calls
-            real_calls = mock_uuid.real_calls
+            real_calls = mock_uuid.uuid4.real_calls
             assert len(real_calls) == 2
             assert all(not c.was_mocked for c in real_calls)
             assert real_calls[0].uuid == real1
@@ -519,7 +519,7 @@ def test_xdist_worker_isolation(pytester):
         import uuid
 
         def test_worker_a_uuid(mock_uuid):
-            mock_uuid.set("aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa")
+            mock_uuid.uuid4.set("aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa")
             result = uuid.uuid4()
             assert str(result) == "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
         """
@@ -530,7 +530,7 @@ def test_xdist_worker_isolation(pytester):
         import uuid
 
         def test_worker_b_uuid(mock_uuid):
-            mock_uuid.set("bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb")
+            mock_uuid.uuid4.set("bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb")
             result = uuid.uuid4()
             assert str(result) == "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb"
         """
@@ -541,7 +541,7 @@ def test_xdist_worker_isolation(pytester):
         import uuid
 
         def test_worker_c_uuid(mock_uuid):
-            mock_uuid.set("cccccccc-cccc-4ccc-accc-cccccccccccc")
+            mock_uuid.uuid4.set("cccccccc-cccc-4ccc-accc-cccccccccccc")
             result = uuid.uuid4()
             assert str(result) == "cccccccc-cccc-4ccc-accc-cccccccccccc"
         """
@@ -561,7 +561,7 @@ def test_xdist_no_cross_contamination(pytester):
         import time
 
         def test_slow_with_uuid_a(mock_uuid):
-            mock_uuid.set("aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa")
+            mock_uuid.uuid4.set("aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa")
             # Simulate slow test to increase chance of parallel execution
             time.sleep(0.1)
             # Verify our UUID wasn't changed by another worker
@@ -570,13 +570,13 @@ def test_xdist_no_cross_contamination(pytester):
             assert str(uuid.uuid4()) == "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
 
         def test_fast_with_uuid_b(mock_uuid):
-            mock_uuid.set("bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb")
+            mock_uuid.uuid4.set("bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb")
             # These should execute while test_slow is sleeping
             assert str(uuid.uuid4()) == "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb"
             assert str(uuid.uuid4()) == "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb"
 
         def test_fast_with_uuid_c(mock_uuid):
-            mock_uuid.set("cccccccc-cccc-4ccc-accc-cccccccccccc")
+            mock_uuid.uuid4.set("cccccccc-cccc-4ccc-accc-cccccccccccc")
             assert str(uuid.uuid4()) == "cccccccc-cccc-4ccc-accc-cccccccccccc"
             assert str(uuid.uuid4()) == "cccccccc-cccc-4ccc-accc-cccccccccccc"
         """
@@ -698,7 +698,7 @@ def test_parametrize_with_fixture(pytester):
             "33333333-3333-4333-8333-333333333333",
         ])
         def test_parametrized_fixture(mock_uuid, expected_uuid):
-            mock_uuid.set(expected_uuid)
+            mock_uuid.uuid4.set(expected_uuid)
             result = uuid.uuid4()
             assert str(result) == expected_uuid
         """

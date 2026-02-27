@@ -2,6 +2,10 @@
 
 This module provides shared functionality for tracking uuid4() calls
 across UUIDMocker, UUIDSpy, and UUIDFreezer classes.
+
+Thread Safety:
+    All tracking operations are protected by a lock, making this class
+    thread-safe for concurrent UUID calls from multiple threads.
 """
 
 from __future__ import annotations
@@ -10,6 +14,7 @@ import gc
 import hashlib
 import inspect
 import sys
+import threading
 import uuid
 from types import FrameType, FunctionType
 
@@ -129,18 +134,18 @@ class CallTrackingMixin:
         self._call_count: int = 0
         self._generated_uuids: list[uuid.UUID] = []
         self._calls: list[UUIDCall] = []
+        self._tracking_lock: threading.Lock = threading.Lock()
 
-    Note:
-        This class is NOT thread-safe. The tracking methods modify shared
-        state without synchronization. This is acceptable for typical pytest
-        usage where tests run sequentially, but concurrent uuid4() calls
-        from multiple threads may result in race conditions. If thread-safe
-        tracking is needed, consider using threading.Lock in your code.
+    Thread Safety:
+        All tracking operations are protected by a lock, making this class
+        thread-safe for concurrent UUID calls from multiple threads. The lock
+        is per-instance, so different mocker instances can track concurrently.
     """
 
     _call_count: int
     _generated_uuids: list[uuid.UUID]
     _calls: list[UUIDCall]
+    _tracking_lock: threading.Lock
 
     def _record_call(
         self,
@@ -151,8 +156,9 @@ class CallTrackingMixin:
         caller_line: int | None = None,
         caller_function: str | None = None,
         caller_qualname: str | None = None,
+        uuid_version: int = 4,
     ) -> None:
-        """Record a uuid4 call for tracking.
+        """Record a UUID call for tracking (thread-safe).
 
         Args:
             result: The UUID that was generated.
@@ -162,75 +168,87 @@ class CallTrackingMixin:
             caller_line: The line number where the call originated.
             caller_function: The function name where the call originated.
             caller_qualname: The qualified name of the function (e.g., "MyClass.method").
+            uuid_version: The UUID version (1, 3, 4, 5, 6, 7, or 8). Defaults to 4.
         """
-        self._call_count += 1
-        self._generated_uuids.append(result)
-        self._calls.append(
-            UUIDCall(
-                uuid=result,
-                was_mocked=was_mocked,
-                caller_module=caller_module,
-                caller_file=caller_file,
-                caller_line=caller_line,
-                caller_function=caller_function,
-                caller_qualname=caller_qualname,
-            )
+        # Create UUIDCall outside the lock to minimize lock hold time
+        call = UUIDCall(
+            uuid=result,
+            was_mocked=was_mocked,
+            uuid_version=uuid_version,
+            caller_module=caller_module,
+            caller_file=caller_file,
+            caller_line=caller_line,
+            caller_function=caller_function,
+            caller_qualname=caller_qualname,
         )
+        with self._tracking_lock:
+            self._call_count += 1
+            self._generated_uuids.append(result)
+            self._calls.append(call)
 
     def _reset_tracking(self) -> None:
-        """Reset all tracking data to initial state."""
-        self._call_count = 0
-        self._generated_uuids.clear()
-        self._calls.clear()
+        """Reset all tracking data to initial state (thread-safe)."""
+        with self._tracking_lock:
+            self._call_count = 0
+            self._generated_uuids.clear()
+            self._calls.clear()
 
     @property
     def call_count(self) -> int:
-        """Get the number of times uuid4 was called."""
-        return self._call_count
+        """Get the number of times uuid4 was called (thread-safe)."""
+        with self._tracking_lock:
+            return self._call_count
 
     @property
     def generated_uuids(self) -> list[uuid.UUID]:
-        """Get a list of all UUIDs that have been generated.
+        """Get a list of all UUIDs that have been generated (thread-safe snapshot).
 
-        Returns a copy to prevent external modification.
+        Returns a copy to prevent external modification and ensure thread safety.
         """
-        return list(self._generated_uuids)
+        with self._tracking_lock:
+            return list(self._generated_uuids)
 
     @property
     def last_uuid(self) -> uuid.UUID | None:
-        """Get the most recently generated UUID, or None if none generated."""
-        return self._generated_uuids[-1] if self._generated_uuids else None
+        """Get the most recently generated UUID, or None if none generated (thread-safe)."""
+        with self._tracking_lock:
+            return self._generated_uuids[-1] if self._generated_uuids else None
 
     @property
     def calls(self) -> list[UUIDCall]:
-        """Get detailed metadata for all uuid4 calls.
+        """Get detailed metadata for all uuid4 calls (thread-safe snapshot).
 
-        Returns a copy to prevent external modification.
+        Returns a copy to prevent external modification and ensure thread safety.
         """
-        return list(self._calls)
+        with self._tracking_lock:
+            return list(self._calls)
 
     @property
     def mocked_calls(self) -> list[UUIDCall]:
-        """Get only the calls that returned mocked UUIDs."""
-        return [c for c in self._calls if c.was_mocked]
+        """Get only the calls that returned mocked UUIDs (thread-safe)."""
+        with self._tracking_lock:
+            return [c for c in self._calls if c.was_mocked]
 
     @property
     def real_calls(self) -> list[UUIDCall]:
-        """Get only the calls that returned real UUIDs (e.g., spy mode)."""
-        return [c for c in self._calls if not c.was_mocked]
+        """Get only the calls that returned real UUIDs (e.g., spy mode) (thread-safe)."""
+        with self._tracking_lock:
+            return [c for c in self._calls if not c.was_mocked]
 
     @property
     def mocked_count(self) -> int:
-        """Get the number of calls that returned mocked UUIDs."""
-        return sum(1 for c in self._calls if c.was_mocked)
+        """Get the number of calls that returned mocked UUIDs (thread-safe)."""
+        with self._tracking_lock:
+            return sum(1 for c in self._calls if c.was_mocked)
 
     @property
     def real_count(self) -> int:
-        """Get the number of calls that returned real UUIDs."""
-        return sum(1 for c in self._calls if not c.was_mocked)
+        """Get the number of calls that returned real UUIDs (thread-safe)."""
+        with self._tracking_lock:
+            return sum(1 for c in self._calls if not c.was_mocked)
 
     def calls_from(self, module_prefix: str) -> list[UUIDCall]:
-        """Get calls from modules matching the given prefix.
+        """Get calls from modules matching the given prefix (thread-safe).
 
         Args:
             module_prefix: Module name prefix to filter by (e.g., "myapp.models").
@@ -238,8 +256,9 @@ class CallTrackingMixin:
         Returns:
             List of UUIDCall records from matching modules.
         """
-        return [
-            c
-            for c in self._calls
-            if c.caller_module and c.caller_module.startswith(module_prefix)
-        ]
+        with self._tracking_lock:
+            return [
+                c
+                for c in self._calls
+                if c.caller_module and c.caller_module.startswith(module_prefix)
+            ]
