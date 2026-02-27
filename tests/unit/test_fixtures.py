@@ -508,9 +508,7 @@ def test_spy_uuid_then_mock_uuid_uuid4_conflict_raises_error(pytester):
 
     result = pytester.runpytest("-v")
     result.assert_outcomes(failed=1)
-    result.stdout.fnmatch_lines(
-        ["*UsageError*Cannot use both*mock_uuid*spy_uuid*"]
-    )
+    result.stdout.fnmatch_lines(["*UsageError*Cannot use both*mock_uuid*spy_uuid*"])
 
 
 def test_mock_uuid_uuid4_then_spy_uuid_conflict_raises_error(pytester):
@@ -532,6 +530,4 @@ def test_mock_uuid_uuid4_then_spy_uuid_conflict_raises_error(pytester):
 
     result = pytester.runpytest("-v")
     result.assert_outcomes(failed=1)
-    result.stdout.fnmatch_lines(
-        ["*UsageError*Cannot use both*mock_uuid*spy_uuid*"]
-    )
+    result.stdout.fnmatch_lines(["*UsageError*Cannot use both*mock_uuid*spy_uuid*"])
