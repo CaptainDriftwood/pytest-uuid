@@ -45,7 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 mock_uuid.set("12345678-1234-4678-8234-567812345678")
 mock_uuid.call_count
 
-# After (0.7.0+)
+# After (1.0.0+)
 mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
 mock_uuid.uuid4.call_count
 ```
@@ -55,7 +55,7 @@ mock_uuid.uuid4.call_count
 # Before (0.6.x)
 @freeze_uuid("12345678-1234-4678-8234-567812345678")
 
-# After (0.7.0+) - use version-specific function
+# After (1.0.0+) - use version-specific function
 @freeze_uuid4("12345678-1234-4678-8234-567812345678")
 ```
 
