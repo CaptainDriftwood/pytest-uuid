@@ -13,6 +13,7 @@ from pytest_uuid.api import (
     freeze_uuid,
     freeze_uuid1,
     freeze_uuid4,
+    freeze_uuid6,
     freeze_uuid7,
     freeze_uuid8,
 )
@@ -660,6 +661,37 @@ class TestFreezeUUID1:
         """Test that uuid_version property returns correct version."""
         with freeze_uuid1(seed=42) as freezer:
             assert freezer.uuid_version == "uuid1"
+
+
+class TestFreezeUUID6:
+    """Tests for freeze_uuid6 function."""
+
+    def test_static_uuid(self):
+        """Test freeze_uuid6 with a static UUID."""
+        uuid6_mod = pytest.importorskip("uuid6")
+
+        with freeze_uuid6("12345678-1234-6678-8234-567812345678"):
+            result = uuid6_mod.uuid6()
+            assert str(result) == "12345678-1234-6678-8234-567812345678"
+
+    def test_seeded_generation(self):
+        """Test freeze_uuid6 with seeded generation."""
+        uuid6_mod = pytest.importorskip("uuid6")
+
+        with freeze_uuid6(seed=42):
+            uuid1 = uuid6_mod.uuid6()
+
+        with freeze_uuid6(seed=42):
+            uuid2 = uuid6_mod.uuid6()
+
+        assert uuid1 == uuid2
+        assert uuid1.version == 6
+
+    def test_uuid_version_property(self):
+        """Test that uuid_version property returns correct version."""
+        pytest.importorskip("uuid6")
+        with freeze_uuid6(seed=42) as freezer:
+            assert freezer.uuid_version == "uuid6"
 
 
 class TestFreezeUUID7:

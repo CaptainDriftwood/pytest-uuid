@@ -236,14 +236,15 @@ class UUIDFreezer(CallTrackingMixin):
         """Create the appropriate random generator for the UUID version."""
         if self._uuid_version == "uuid1":
             return RandomUUID1Generator(node=self._node, clock_seq=self._clock_seq)
+        if self._uuid_version == "uuid4":
+            return RandomUUIDGenerator()
         if self._uuid_version == "uuid6":
             return RandomUUID6Generator(node=self._node, clock_seq=self._clock_seq)
         if self._uuid_version == "uuid7":
             return RandomUUID7Generator()
         if self._uuid_version == "uuid8":
             return RandomUUID8Generator()
-        # uuid4 or fallback
-        return RandomUUIDGenerator()
+        raise ValueError(f"Unknown UUID version: {self._uuid_version}")
 
     def _create_patched_function(self) -> Callable[..., uuid.UUID]:
         """Create the patched UUID function with ignore list and call tracking."""

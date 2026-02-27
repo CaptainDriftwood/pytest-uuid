@@ -55,15 +55,15 @@ class UUIDCall:
 
     Example:
         def test_inspect_calls(mock_uuid):
-            mock_uuid.set("12345678-1234-4678-8234-567812345678")
+            mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
             uuid.uuid4()
 
-            call = mock_uuid.calls[0]
+            call = mock_uuid.uuid4.calls[0]
             assert call.was_mocked is True
             assert call.uuid_version == 4
             assert call.caller_module == "test_example"
-            assert call.caller_function == "test_tracking"
-            assert call.caller_qualname == "test_tracking"  # or "MyClass.method"
+            assert call.caller_function == "test_inspect_calls"
+            assert call.caller_qualname == "test_inspect_calls"
             assert call.caller_line is not None
     """
 
@@ -159,6 +159,23 @@ class UUIDVersionMockerProtocol(Protocol):
 
     def reset(self) -> None:
         """Reset the mocker to its initial state."""
+        ...
+
+    def set_ignore(self, *module_prefixes: str) -> None:
+        """Set modules to ignore when mocking.
+
+        Args:
+            *module_prefixes: Module name prefixes to exclude from patching.
+                             Calls from these modules will return real UUIDs.
+        """
+        ...
+
+    def set_seed_from_node(self) -> None:
+        """Set the seed from the current test's node ID.
+
+        Raises:
+            RuntimeError: If node ID is not available.
+        """
         ...
 
     def spy(self) -> None:
@@ -264,6 +281,7 @@ class UUID4MockerProtocol(UUIDVersionMockerProtocol, Protocol):
     """Protocol for UUID4 mocker with additional uuid4-specific methods.
 
     This extends UUIDVersionMockerProtocol with methods specific to uuid4.
+    Currently, the only uuid4-specific method is set_default().
     """
 
     def set_default(self, default_uuid: str | uuid.UUID) -> None:
@@ -271,23 +289,6 @@ class UUID4MockerProtocol(UUIDVersionMockerProtocol, Protocol):
 
         Args:
             default_uuid: The UUID to always return.
-        """
-        ...
-
-    def set_seed_from_node(self) -> None:
-        """Set the seed from the current test's node ID.
-
-        Raises:
-            RuntimeError: If node ID is not available.
-        """
-        ...
-
-    def set_ignore(self, *module_prefixes: str) -> None:
-        """Set modules to ignore when mocking uuid.uuid4().
-
-        Args:
-            *module_prefixes: Module name prefixes to exclude from patching.
-                             Calls from these modules will return real UUIDs.
         """
         ...
 

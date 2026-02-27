@@ -288,6 +288,7 @@ class UUID4Mocker(CallTrackingMixin):
                             caller_line,
                             caller_function,
                             caller_qualname,
+                            uuid_version=4,
                         )
                         return result
                     frame = frame.f_back
@@ -313,6 +314,7 @@ class UUID4Mocker(CallTrackingMixin):
             caller_line,
             caller_function,
             caller_qualname,
+            uuid_version=4,
         )
         return result
 
@@ -770,6 +772,23 @@ class _BaseUUIDMocker(CallTrackingMixin):
         """
         self._generator = SeededUUIDGenerator(seed)
 
+    def set_seed_from_node(self) -> None:
+        """Set the seed from the current test's node ID.
+
+        This generates reproducible UUIDs based on the test's fully qualified
+        name. The same test always gets the same sequence of UUIDs.
+
+        Raises:
+            RuntimeError: If the node ID is not available.
+        """
+        if self._node_id is None:
+            raise RuntimeError(
+                "Node ID not available. This method requires the fixture "
+                "to have access to the pytest request object."
+            )
+        seed = _get_node_seed(self._node_id)
+        self._generator = SeededUUIDGenerator(seed)
+
     def set_exhaustion_behavior(
         self,
         behavior: ExhaustionBehavior | str,
@@ -787,6 +806,22 @@ class _BaseUUIDMocker(CallTrackingMixin):
         """Reset the mocker to its initial state."""
         self._generator = None
         self._reset_tracking()
+
+    def set_ignore(self, *module_prefixes: str) -> None:
+        """Set modules to ignore when mocking.
+
+        Calls from these modules will return real UUIDs instead of mocked ones.
+
+        Args:
+            *module_prefixes: Module name prefixes to exclude from patching.
+                             For example, "sqlalchemy" ignores all sqlalchemy modules.
+        """
+        config = get_config()
+        self._ignore_extra = tuple(module_prefixes)
+        if self._ignore_defaults:
+            self._ignore_list = config.get_ignore_list() + self._ignore_extra
+        else:
+            self._ignore_list = self._ignore_extra
 
     def _get_fallback_uuid(self) -> uuid.UUID:
         """Get a real UUID when no generator is configured.
@@ -1251,9 +1286,6 @@ def pytest_configure(config: pytest.Config) -> None:
     from pathlib import Path
 
     # Update active config (early_config may have been replaced)
-    _set_active_pytest_config(config)
-
-    # Set active pytest config (enables get_config() to work)
     _set_active_pytest_config(config)
 
     # Initialize stash with default config
