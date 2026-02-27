@@ -251,10 +251,14 @@ class UUID4Mocker(CallTrackingMixin):
             self._ignore_list = base_ignore + self._ignore_extra
 
     def reset(self) -> None:
-        """Reset the mocker to its initial state."""
+        """Reset the mocker to its initial state.
+
+        Clears the generator and all call tracking data. User configuration
+        (set_ignore, set_exhaustion_behavior) is preserved.
+        """
         self._generator = None
         self._reset_tracking()
-        # Reset ignore list based on ignore_defaults setting
+        # Reset ignore list based on ignore_defaults setting, preserving user config
         config = get_config()
         with self._tracking_lock:
             if self._ignore_defaults:
@@ -815,17 +819,20 @@ class _BaseUUIDMocker(CallTrackingMixin):
             self._generator._on_exhausted = self._on_exhausted
 
     def reset(self) -> None:
-        """Reset the mocker to its initial state."""
+        """Reset the mocker to its initial state.
+
+        Clears the generator and all call tracking data. User configuration
+        (set_ignore, set_exhaustion_behavior) is preserved.
+        """
         self._generator = None
         self._reset_tracking()
-        # Reset ignore list based on ignore_defaults setting
+        # Reset ignore list based on ignore_defaults setting, preserving user config
         config = get_config()
         with self._tracking_lock:
-            self._ignore_extra = ()
             if self._ignore_defaults:
-                self._ignore_list = config.get_ignore_list()
+                self._ignore_list = config.get_ignore_list() + self._ignore_extra
             else:
-                self._ignore_list = ()
+                self._ignore_list = self._ignore_extra
 
     def set_ignore(self, *module_prefixes: str) -> None:
         """Set modules to ignore when mocking (thread-safe).
