@@ -32,8 +32,15 @@ Lifecycle:
     - pytest_unconfigure: Clears config state
 
 Thread Safety:
-    The fixtures are NOT thread-safe. For multi-threaded tests, use
-    separate fixtures per thread or synchronize access.
+    UUID generation is thread-safe: multiple threads can safely call uuid.uuid4()
+    (or other UUID functions) while mockers are active. The underlying proxy system
+    uses proper locking.
+
+    Call tracking is NOT thread-safe: the call_count, generated_uuids, calls, and
+    related properties may have race conditions if multiple threads generate UUIDs
+    simultaneously. This is acceptable for most test scenarios where threads don't
+    need accurate call counts. If you need thread-safe tracking, synchronize access
+    to the mocker or use separate mockers per thread.
 """
 
 from __future__ import annotations

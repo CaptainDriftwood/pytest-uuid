@@ -21,6 +21,10 @@ Thread Safety:
     should only be entered/exited from a single thread (don't share a context manager
     across threads). For multi-threaded tests, each thread should use its own freezer.
 
+    Note that call tracking (call_count, generated_uuids, calls) is NOT thread-safe.
+    If multiple threads generate UUIDs simultaneously, tracking counts may be inaccurate.
+    This is fine for most use cases where you only care about UUID values, not counts.
+
 Example:
     # As a decorator
     @freeze_uuid("12345678-1234-4678-8234-567812345678")
