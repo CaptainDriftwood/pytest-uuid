@@ -32,21 +32,17 @@ Lifecycle:
     - pytest_unconfigure: Clears config state
 
 Thread Safety:
-    UUID generation is thread-safe: multiple threads can safely call uuid.uuid4()
-    (or other UUID functions) while mockers are active. The underlying proxy system
-    uses proper locking.
-
-    Call tracking is NOT thread-safe: the call_count, generated_uuids, calls, and
-    related properties may have race conditions if multiple threads generate UUIDs
-    simultaneously. This is acceptable for most test scenarios where threads don't
-    need accurate call counts. If you need thread-safe tracking, synchronize access
-    to the mocker or use separate mockers per thread.
+    Both UUID generation and call tracking are thread-safe. Multiple threads can
+    safely call uuid.uuid4() (or other UUID functions) while mockers are active.
+    The underlying proxy system uses proper locking, and call tracking uses
+    per-instance locks to ensure consistent counting and metadata recording.
 """
 
 from __future__ import annotations
 
 import inspect
 import random
+import threading
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -151,6 +147,7 @@ class UUID4Mocker(CallTrackingMixin):
         self._call_count: int = 0
         self._generated_uuids: list[uuid.UUID] = []
         self._calls: list[UUIDCall] = []
+        self._tracking_lock = threading.Lock()
 
         # Ignore list handling
         config = get_config()
@@ -682,6 +679,7 @@ class UUIDSpy(CallTrackingMixin):
         self._call_count: int = 0
         self._generated_uuids: list[uuid.UUID] = []
         self._calls: list[UUIDCall] = []
+        self._tracking_lock = threading.Lock()
 
     def __call__(self) -> uuid.UUID:
         """Generate a real UUID and track it."""
@@ -742,6 +740,7 @@ class _BaseUUIDMocker(CallTrackingMixin):
         self._call_count: int = 0
         self._generated_uuids: list[uuid.UUID] = []
         self._calls: list[UUIDCall] = []
+        self._tracking_lock = threading.Lock()
 
         # Ignore list handling
         config = get_config()
@@ -1133,6 +1132,7 @@ class NamespaceUUIDSpy:
         self._generated_uuids: list[uuid.UUID] = []
         self._calls: list[NamespaceUUIDCall] = []
         self._enabled: bool = True  # Start enabled by default
+        self._tracking_lock = threading.Lock()
 
     @property
     def enabled(self) -> bool:
@@ -1157,10 +1157,11 @@ class NamespaceUUIDSpy:
         self._enabled = False
 
     def reset(self) -> None:
-        """Reset tracking data."""
-        self._call_count = 0
-        self._generated_uuids.clear()
-        self._calls.clear()
+        """Reset tracking data (thread-safe)."""
+        with self._tracking_lock:
+            self._call_count = 0
+            self._generated_uuids.clear()
+            self._calls.clear()
 
     def __call__(self, namespace: uuid.UUID, name: str) -> uuid.UUID:
         """Track the call and return the real UUID.
@@ -1185,22 +1186,24 @@ class NamespaceUUIDSpy:
             _get_caller_info(skip_frames=3)
         )
 
-        # Record the call
-        self._call_count += 1
-        self._generated_uuids.append(result)
-        self._calls.append(
-            NamespaceUUIDCall(
-                uuid=result,
-                uuid_version=self._uuid_version,
-                namespace=namespace,
-                name=name,
-                caller_module=caller_module,
-                caller_file=caller_file,
-                caller_line=caller_line,
-                caller_function=caller_function,
-                caller_qualname=caller_qualname,
-            )
+        # Create call record outside the lock to minimize lock hold time
+        call = NamespaceUUIDCall(
+            uuid=result,
+            uuid_version=self._uuid_version,
+            namespace=namespace,
+            name=name,
+            caller_module=caller_module,
+            caller_file=caller_file,
+            caller_line=caller_line,
+            caller_function=caller_function,
+            caller_qualname=caller_qualname,
         )
+
+        # Record the call (thread-safe)
+        with self._tracking_lock:
+            self._call_count += 1
+            self._generated_uuids.append(result)
+            self._calls.append(call)
 
         return result
 
@@ -1211,26 +1214,30 @@ class NamespaceUUIDSpy:
 
     @property
     def call_count(self) -> int:
-        """Get the number of calls tracked."""
-        return self._call_count
+        """Get the number of calls tracked (thread-safe)."""
+        with self._tracking_lock:
+            return self._call_count
 
     @property
     def generated_uuids(self) -> list[uuid.UUID]:
-        """Get a list of all UUIDs that have been generated."""
-        return list(self._generated_uuids)
+        """Get a list of all UUIDs that have been generated (thread-safe snapshot)."""
+        with self._tracking_lock:
+            return list(self._generated_uuids)
 
     @property
     def last_uuid(self) -> uuid.UUID | None:
-        """Get the most recently generated UUID, or None if none generated."""
-        return self._generated_uuids[-1] if self._generated_uuids else None
+        """Get the most recently generated UUID, or None if none generated (thread-safe)."""
+        with self._tracking_lock:
+            return self._generated_uuids[-1] if self._generated_uuids else None
 
     @property
     def calls(self) -> list[NamespaceUUIDCall]:
-        """Get detailed metadata for all calls."""
-        return list(self._calls)
+        """Get detailed metadata for all calls (thread-safe snapshot)."""
+        with self._tracking_lock:
+            return list(self._calls)
 
     def calls_from(self, module_prefix: str) -> list[NamespaceUUIDCall]:
-        """Get calls from modules matching the given prefix.
+        """Get calls from modules matching the given prefix (thread-safe).
 
         Args:
             module_prefix: Module name prefix to filter by.
@@ -1238,11 +1245,12 @@ class NamespaceUUIDSpy:
         Returns:
             List of NamespaceUUIDCall records from matching modules.
         """
-        return [
-            c
-            for c in self._calls
-            if c.caller_module and c.caller_module.startswith(module_prefix)
-        ]
+        with self._tracking_lock:
+            return [
+                c
+                for c in self._calls
+                if c.caller_module and c.caller_module.startswith(module_prefix)
+            ]
 
     def calls_with_namespace(self, namespace: uuid.UUID) -> list[NamespaceUUIDCall]:
         """Get calls that used a specific namespace.

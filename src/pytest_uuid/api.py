@@ -16,14 +16,13 @@ How Patching Works:
     This ensures mocking works regardless of how the code under test imports uuid4.
 
 Thread Safety:
-    The underlying proxy system is thread-safe: multiple threads can safely call
-    uuid.uuid4() etc. while freezers are active. However, each UUIDFreezer instance
-    should only be entered/exited from a single thread (don't share a context manager
-    across threads). For multi-threaded tests, each thread should use its own freezer.
+    Both UUID generation and call tracking are thread-safe. Multiple threads can
+    safely call uuid.uuid4() etc. while freezers are active. Call tracking uses
+    per-instance locks to ensure consistent counting and metadata recording.
 
-    Note that call tracking (call_count, generated_uuids, calls) is NOT thread-safe.
-    If multiple threads generate UUIDs simultaneously, tracking counts may be inaccurate.
-    This is fine for most use cases where you only care about UUID values, not counts.
+    However, each UUIDFreezer instance should only be entered/exited from a single
+    thread (don't share a context manager across threads). For multi-threaded tests,
+    each thread should use its own freezer.
 
 Example:
     # As a decorator
@@ -45,6 +44,7 @@ from __future__ import annotations
 import functools
 import inspect
 import random
+import threading
 import uuid
 from typing import TYPE_CHECKING, Literal, overload
 
@@ -194,6 +194,7 @@ class UUIDFreezer(CallTrackingMixin):
         self._call_count: int = 0
         self._generated_uuids: list[uuid.UUID] = []
         self._calls: list[UUIDCall] = []
+        self._tracking_lock = threading.Lock()
 
     def _create_generator(self) -> UUIDGenerator:
         """Create the appropriate UUID generator based on configuration."""

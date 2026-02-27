@@ -23,6 +23,7 @@ class ConcreteTracker(CallTrackingMixin):
         self._call_count: int = 0
         self._generated_uuids: list[uuid.UUID] = []
         self._calls: list[UUIDCall] = []
+        self._tracking_lock = threading.Lock()
 
 
 # --- CallTrackingMixin ---

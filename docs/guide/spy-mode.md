@@ -157,3 +157,28 @@ The `UUIDCall` dataclass contains:
 | `caller_line` | Line number of the call |
 | `caller_function` | Function name where the call originated |
 | `caller_qualname` | Qualified name (e.g., `MyClass.method` or `outer.<locals>.inner`) |
+
+## Thread Safety
+
+Call tracking is fully thread-safe. If your test code spawns multiple threads that call UUID functions concurrently, all calls will be accurately tracked:
+
+```python
+import threading
+import uuid
+
+def test_concurrent_tracking(spy_uuid):
+    """Thread-safe call tracking with concurrent UUID generation."""
+    def generate_uuids():
+        for _ in range(10):
+            uuid.uuid4()
+
+    threads = [threading.Thread(target=generate_uuids) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert spy_uuid.call_count == 40  # All calls tracked accurately
+```
+
+Each tracking operation uses per-instance locks to ensure consistent counting and metadata recording.
