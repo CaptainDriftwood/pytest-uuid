@@ -274,8 +274,12 @@ class UUID4Mocker(CallTrackingMixin):
             _get_caller_info(skip_frames=3)
         )
 
+        # Copy ignore list under lock for thread-safe access
+        with self._tracking_lock:
+            ignore_list = self._ignore_list
+
         # Check if any frame in the call stack should be ignored
-        if self._ignore_list:
+        if ignore_list:
             frame = inspect.currentframe()
             try:
                 # Skip only this frame (__call__)
@@ -284,7 +288,7 @@ class UUID4Mocker(CallTrackingMixin):
 
                 # Check if any caller should be ignored
                 while frame is not None:
-                    if _should_ignore_frame(frame, self._ignore_list):
+                    if _should_ignore_frame(frame, ignore_list):
                         result = get_original_uuid4()()
                         self._record_call(
                             result,
@@ -814,6 +818,14 @@ class _BaseUUIDMocker(CallTrackingMixin):
         """Reset the mocker to its initial state."""
         self._generator = None
         self._reset_tracking()
+        # Reset ignore list based on ignore_defaults setting
+        config = get_config()
+        with self._tracking_lock:
+            self._ignore_extra = ()
+            if self._ignore_defaults:
+                self._ignore_list = config.get_ignore_list()
+            else:
+                self._ignore_list = ()
 
     def set_ignore(self, *module_prefixes: str) -> None:
         """Set modules to ignore when mocking (thread-safe).
@@ -847,14 +859,18 @@ class _BaseUUIDMocker(CallTrackingMixin):
             _get_caller_info(skip_frames=3)
         )
 
+        # Copy ignore list under lock for thread-safe access
+        with self._tracking_lock:
+            ignore_list = self._ignore_list
+
         # Check if any frame in the call stack should be ignored
-        if self._ignore_list:
+        if ignore_list:
             frame = inspect.currentframe()
             try:
                 if frame is not None:
                     frame = frame.f_back
                 while frame is not None:
-                    if _should_ignore_frame(frame, self._ignore_list):
+                    if _should_ignore_frame(frame, ignore_list):
                         result = self._get_fallback_uuid()
                         self._record_call(
                             result,
@@ -1437,15 +1453,25 @@ def pytest_runtest_setup(item: pytest.Item) -> None:
 def pytest_runtest_teardown(item: pytest.Item) -> None:
     """Clean up freeze_uuid* markers."""
     # Clean up all version-specific freezers
+    # Use try/except for each to ensure all freezers are cleaned up
+    # even if one raises an exception
     freezers = getattr(item, "_uuid_freezers", None)
+    errors: list[Exception] = []
     if freezers is not None:
         for freezer in freezers.values():
-            freezer.__exit__(None, None, None)
+            try:
+                freezer.__exit__(None, None, None)
+            except Exception as e:  # noqa: PERF203
+                errors.append(e)
         delattr(item, "_uuid_freezers")
 
     # Clean up backward-compatible attribute
     if hasattr(item, "_uuid_freezer"):
         delattr(item, "_uuid_freezer")
+
+    # Re-raise the first error if any occurred during cleanup
+    if errors:
+        raise errors[0]
 
 
 @pytest.fixture

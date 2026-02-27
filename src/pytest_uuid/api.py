@@ -79,6 +79,16 @@ from pytest_uuid.types import UUIDCall
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
+__all__ = [
+    "UUIDFreezer",
+    "freeze_uuid",
+    "freeze_uuid1",
+    "freeze_uuid4",
+    "freeze_uuid6",
+    "freeze_uuid7",
+    "freeze_uuid8",
+]
+
 
 def _should_ignore_frame(frame: object, ignore_list: tuple[str, ...]) -> bool:
     """Check if a frame's module should be ignored.

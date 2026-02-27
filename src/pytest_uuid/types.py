@@ -29,6 +29,17 @@ from typing import TYPE_CHECKING, Protocol, runtime_checkable
 if TYPE_CHECKING:
     from pytest_uuid.generators import ExhaustionBehavior, UUIDGenerator
 
+__all__ = [
+    "NamespaceUUIDCall",
+    "NamespaceUUIDSpyProtocol",
+    "TimeBasedUUIDMockerProtocol",
+    "UUID4MockerProtocol",
+    "UUIDCall",
+    "UUIDMockerProtocol",
+    "UUIDSpyProtocol",
+    "UUIDVersionMockerProtocol",
+]
+
 
 @dataclass(frozen=True)
 class UUIDCall:

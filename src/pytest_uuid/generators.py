@@ -423,8 +423,8 @@ def generate_uuid1_from_random(
     # Generate clock_seq: 14 bits (2 bits for variant)
     clock_seq_value = rng.getrandbits(14) if clock_seq is None else clock_seq & 0x3FFF
 
-    # Generate node: 48 bits (MAC address)
-    node_value = rng.getrandbits(48) if node is None else node
+    # Generate node: 48 bits (MAC address), mask to ensure valid range
+    node_value = rng.getrandbits(48) if node is None else node & 0xFFFFFFFFFFFF
 
     # Construct UUID fields with version and variant
     # time_hi_version: 4 bits version (0001 for v1) + 12 bits time_hi
@@ -473,8 +473,8 @@ def generate_uuid6_from_random(
     # Generate clock_seq: 14 bits
     clock_seq_value = rng.getrandbits(14) if clock_seq is None else clock_seq & 0x3FFF
 
-    # Generate node: 48 bits
-    node_value = rng.getrandbits(48) if node is None else node
+    # Generate node: 48 bits, mask to ensure valid range
+    node_value = rng.getrandbits(48) if node is None else node & 0xFFFFFFFFFFFF
 
     # Construct the 128-bit UUID
     # Format: time_high (32) | time_mid (16) | version (4) | time_low (12) |
