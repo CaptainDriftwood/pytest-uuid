@@ -44,10 +44,13 @@ A pytest plugin for mocking UUID generation in your tests. Supports uuid1, uuid3
 ## Installation
 
 ```bash
-pip install pytest-uuid
+uv add --group dev pytest-uuid
+```
 
-# or with uv
-uv add pytest-uuid
+Or with pip:
+
+```bash
+pip install pytest-uuid
 ```
 
 ## Quick Start
