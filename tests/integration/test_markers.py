@@ -637,14 +637,20 @@ def test_marker_freeze_uuid6_applies_freezer(pytester):
     """Test that @pytest.mark.freeze_uuid6 applies the freezer."""
     pytester.makepyfile(
         test_marker_uuid6="""
+        import sys
         import uuid
         import pytest
 
-        uuid6_mod = pytest.importorskip("uuid6")
+        # Python 3.14+ has uuid6 in stdlib, older versions need uuid6 package
+        if sys.version_info >= (3, 14):
+            uuid6_func = uuid.uuid6
+        else:
+            uuid6_mod = pytest.importorskip("uuid6")
+            uuid6_func = uuid6_mod.uuid6
 
         @pytest.mark.freeze_uuid6("12345678-1234-6678-8234-567812345678")
         def test_marker_uuid6_works():
-            result = uuid6_mod.uuid6()
+            result = uuid6_func()
             assert str(result) == "12345678-1234-6678-8234-567812345678"
         """
     )
@@ -657,14 +663,19 @@ def test_marker_freeze_uuid6_with_seed(pytester):
     """Test that @pytest.mark.freeze_uuid6 with seed works."""
     pytester.makepyfile(
         test_marker_uuid6_seed="""
+        import sys
         import uuid
         import pytest
 
-        uuid6_mod = pytest.importorskip("uuid6")
+        if sys.version_info >= (3, 14):
+            uuid6_func = uuid.uuid6
+        else:
+            uuid6_mod = pytest.importorskip("uuid6")
+            uuid6_func = uuid6_mod.uuid6
 
         @pytest.mark.freeze_uuid6(seed=42)
         def test_marker_uuid6_seeded():
-            result = uuid6_mod.uuid6()
+            result = uuid6_func()
             assert isinstance(result, uuid.UUID)
             assert result.version == 6
         """
@@ -678,14 +689,19 @@ def test_marker_freeze_uuid8_applies_freezer(pytester):
     """Test that @pytest.mark.freeze_uuid8 applies the freezer."""
     pytester.makepyfile(
         test_marker_uuid8="""
+        import sys
         import uuid
         import pytest
 
-        uuid6_mod = pytest.importorskip("uuid6")
+        if sys.version_info >= (3, 14):
+            uuid8_func = uuid.uuid8
+        else:
+            uuid6_mod = pytest.importorskip("uuid6")
+            uuid8_func = uuid6_mod.uuid8
 
         @pytest.mark.freeze_uuid8("12345678-1234-8678-8234-567812345678")
         def test_marker_uuid8_works():
-            result = uuid6_mod.uuid8()
+            result = uuid8_func()
             assert str(result) == "12345678-1234-8678-8234-567812345678"
         """
     )
@@ -698,14 +714,19 @@ def test_marker_freeze_uuid8_with_seed(pytester):
     """Test that @pytest.mark.freeze_uuid8 with seed works."""
     pytester.makepyfile(
         test_marker_uuid8_seed="""
+        import sys
         import uuid
         import pytest
 
-        uuid6_mod = pytest.importorskip("uuid6")
+        if sys.version_info >= (3, 14):
+            uuid8_func = uuid.uuid8
+        else:
+            uuid6_mod = pytest.importorskip("uuid6")
+            uuid8_func = uuid6_mod.uuid8
 
         @pytest.mark.freeze_uuid8(seed=42)
         def test_marker_uuid8_seeded():
-            result = uuid6_mod.uuid8()
+            result = uuid8_func()
             assert isinstance(result, uuid.UUID)
             assert result.version == 8
         """
