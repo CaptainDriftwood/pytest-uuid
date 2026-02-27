@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2026-02-27
 
 ### Added
 
@@ -141,7 +141,8 @@ mock_uuid.uuid4.call_count
 - Module ignore configuration via `pyproject.toml` or `pytest.ini`
 - Python 3.9, 3.10, 3.11, 3.12, 3.13, and 3.14 support
 
-[Unreleased]: https://github.com/CaptainDriftwood/pytest-uuid/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/CaptainDriftwood/pytest-uuid/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/CaptainDriftwood/pytest-uuid/compare/v0.6.0...v1.0.0
 [0.6.0]: https://github.com/CaptainDriftwood/pytest-uuid/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/CaptainDriftwood/pytest-uuid/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/CaptainDriftwood/pytest-uuid/compare/v0.3.0...v0.4.0
