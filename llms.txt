@@ -22,6 +22,7 @@ pytest-uuid provides fixtures, decorators, and markers for controlling UUID gene
 
 ## Source Code
 
+- [\_\_init\_\_.py](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/src/pytest_uuid/__init__.py): Main package entry point, exports all public API (`freeze_uuid4`, `freeze_uuid1`, etc., `configure`, fixtures, generators, type protocols)
 - [plugin.py](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/src/pytest_uuid/plugin.py): Pytest hooks, fixtures (`mock_uuid`, `spy_uuid`, `mock_uuid_factory`), and UUID mockers (`UUIDMocker`, `UUID4Mocker`, `UUID1Mocker`, `UUID6Mocker`, `UUID7Mocker`, `UUID8Mocker`, `NamespaceUUIDSpy` for uuid3/uuid5)
 - [api.py](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/src/pytest_uuid/api.py): Version-specific freeze functions (`freeze_uuid4`, `freeze_uuid1`, `freeze_uuid6`, `freeze_uuid7`, `freeze_uuid8`) and `UUIDFreezer` class
 - [_proxy.py](https://github.com/CaptainDriftwood/pytest-uuid/blob/master/src/pytest_uuid/_proxy.py): UUID proxy and generator stack for all UUID versions
