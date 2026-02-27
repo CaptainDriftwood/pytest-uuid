@@ -792,6 +792,12 @@ class TestFreezeUUID7:
             assert str(uuid6_mod.uuid7()) == uuids[0]
             assert str(uuid6_mod.uuid7()) == uuids[1]
 
+    def test_uuid_version_property(self):
+        """Test that uuid_version property returns correct version."""
+        pytest.importorskip("uuid6")
+        with freeze_uuid7(seed=42) as freezer:
+            assert freezer.uuid_version == "uuid7"
+
 
 class TestFreezeUUID8:
     """Tests for freeze_uuid8 function."""
@@ -827,6 +833,12 @@ class TestFreezeUUID8:
         with freeze_uuid8(uuids):
             assert str(uuid6_mod.uuid8()) == uuids[0]
             assert str(uuid6_mod.uuid8()) == uuids[1]
+
+    def test_uuid_version_property(self):
+        """Test that uuid_version property returns correct version."""
+        pytest.importorskip("uuid6")
+        with freeze_uuid8(seed=42) as freezer:
+            assert freezer.uuid_version == "uuid8"
 
 
 class TestStackingMultipleVersionFreezers:
