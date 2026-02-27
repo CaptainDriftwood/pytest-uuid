@@ -697,7 +697,173 @@ class UUIDSpy(CallTrackingMixin):
         self._reset_tracking()
 
 
-class UUID1Mocker(CallTrackingMixin):
+class _BaseUUIDMocker(CallTrackingMixin):
+    """Base class for UUID version mockers (uuid1, uuid6, uuid7, uuid8).
+
+    This class provides common functionality for all UUID mockers:
+    - Setting static/sequence/seeded UUIDs
+    - Exhaustion behavior configuration
+    - Call tracking (via CallTrackingMixin)
+    - Ignore list handling
+    - Spy mode
+
+    Subclasses must define:
+        _uuid_version: The UUID version number (1, 6, 7, or 8)
+        _func_name: The function name ("uuid1", "uuid6", etc.)
+
+    Subclasses may override:
+        _get_fallback_uuid(): For versions that support node/clock_seq params
+        reset(): To reset additional state (call super().reset())
+    """
+
+    _uuid_version: int
+    _func_name: str
+
+    def __init__(
+        self,
+        node_id: str | None = None,
+        ignore: list[str] | None = None,
+        ignore_defaults: bool = True,
+    ) -> None:
+        self._node_id = node_id
+        self._generator: UUIDGenerator | None = None
+        self._on_exhausted: ExhaustionBehavior = (
+            get_config().default_exhaustion_behavior
+        )
+        self._call_count: int = 0
+        self._generated_uuids: list[uuid.UUID] = []
+        self._calls: list[UUIDCall] = []
+
+        # Ignore list handling
+        config = get_config()
+        self._ignore_extra = tuple(ignore) if ignore else ()
+        self._ignore_defaults = ignore_defaults
+        if ignore_defaults:
+            self._ignore_list = config.get_ignore_list() + self._ignore_extra
+        else:
+            self._ignore_list = self._ignore_extra
+
+    def set(self, *uuids: str | uuid.UUID) -> None:
+        """Set the UUID(s) to return for calls.
+
+        Args:
+            *uuids: One or more UUIDs (as strings or UUID objects) to return.
+                   If multiple UUIDs are provided, they will be returned in
+                   sequence. Behavior when exhausted is controlled by
+                   on_exhausted (default: cycle).
+        """
+        uuid_list = parse_uuids(uuids)
+        if len(uuid_list) == 1 and self._on_exhausted == ExhaustionBehavior.CYCLE:
+            self._generator = StaticUUIDGenerator(uuid_list[0])
+        elif uuid_list:
+            self._generator = SequenceUUIDGenerator(
+                uuid_list,
+                on_exhausted=self._on_exhausted,
+            )
+
+    def set_seed(self, seed: int | random.Random) -> None:
+        """Set a seed for reproducible UUID generation.
+
+        Args:
+            seed: Either an integer seed (creates a fresh Random instance)
+                  or a random.Random instance (BYOP - bring your own randomizer).
+        """
+        self._generator = SeededUUIDGenerator(seed)
+
+    def set_exhaustion_behavior(
+        self,
+        behavior: ExhaustionBehavior | str,
+    ) -> None:
+        """Set the behavior when a UUID sequence is exhausted."""
+        if isinstance(behavior, str):
+            self._on_exhausted = ExhaustionBehavior(behavior)
+        else:
+            self._on_exhausted = behavior
+
+        if isinstance(self._generator, SequenceUUIDGenerator):
+            self._generator._on_exhausted = self._on_exhausted
+
+    def reset(self) -> None:
+        """Reset the mocker to its initial state."""
+        self._generator = None
+        self._reset_tracking()
+
+    def _get_fallback_uuid(self) -> uuid.UUID:
+        """Get a real UUID when no generator is configured.
+
+        Subclasses can override this to pass additional parameters
+        (e.g., node, clock_seq for uuid1/uuid6).
+        """
+        return get_original(self._func_name)()
+
+    def __call__(self) -> uuid.UUID:
+        """Return the next mocked UUID."""
+        # skip_frames=3: _get_caller_info -> __call__ -> _proxy_uuidX -> caller
+        caller_module, caller_file, caller_line, caller_function, caller_qualname = (
+            _get_caller_info(skip_frames=3)
+        )
+
+        # Check if any frame in the call stack should be ignored
+        if self._ignore_list:
+            frame = inspect.currentframe()
+            try:
+                if frame is not None:
+                    frame = frame.f_back
+                while frame is not None:
+                    if _should_ignore_frame(frame, self._ignore_list):
+                        result = self._get_fallback_uuid()
+                        self._record_call(
+                            result,
+                            False,
+                            caller_module,
+                            caller_file,
+                            caller_line,
+                            caller_function,
+                            caller_qualname,
+                            uuid_version=self._uuid_version,
+                        )
+                        return result
+                    frame = frame.f_back
+            finally:
+                del frame
+
+        if self._generator is not None:
+            result = self._generator()
+            was_mocked = True
+        else:
+            result = self._get_fallback_uuid()
+            was_mocked = False
+
+        self._record_call(
+            result,
+            was_mocked,
+            caller_module,
+            caller_file,
+            caller_line,
+            caller_function,
+            caller_qualname,
+            uuid_version=self._uuid_version,
+        )
+        return result
+
+    @property
+    def generator(self) -> UUIDGenerator | None:
+        """Get the current UUID generator."""
+        return self._generator
+
+    @property
+    def seed(self) -> int | None:
+        """The seed value used for reproducible UUID generation."""
+        if isinstance(self._generator, SeededUUIDGenerator):
+            return self._generator.seed
+        return None
+
+    def spy(self) -> None:
+        """Enable spy mode - track calls but return real UUID values."""
+        self._generator = None
+
+
+class UUID1Mocker(_BaseUUIDMocker):
     """A class to manage mocked UUID1 values.
 
     This class provides imperative control over uuid.uuid1() during tests.
@@ -720,63 +886,21 @@ class UUID1Mocker(CallTrackingMixin):
             assert str(result) == "12345678-1234-1234-8234-567812345678"
     """
 
+    _uuid_version = 1
+    _func_name = "uuid1"
+
     def __init__(
         self,
         node_id: str | None = None,
         ignore: list[str] | None = None,
         ignore_defaults: bool = True,
     ) -> None:
-        self._node_id = node_id
-        self._generator: UUIDGenerator | None = None
-        self._on_exhausted: ExhaustionBehavior = (
-            get_config().default_exhaustion_behavior
+        super().__init__(
+            node_id=node_id, ignore=ignore, ignore_defaults=ignore_defaults
         )
-        self._call_count: int = 0
-        self._generated_uuids: list[uuid.UUID] = []
-        self._calls: list[UUIDCall] = []
-
         # Fixed parameters for uuid1 generation
         self._fixed_node: int | None = None
         self._fixed_clock_seq: int | None = None
-
-        # Ignore list handling
-        config = get_config()
-        self._ignore_extra = tuple(ignore) if ignore else ()
-        self._ignore_defaults = ignore_defaults
-        if ignore_defaults:
-            self._ignore_list = config.get_ignore_list() + self._ignore_extra
-        else:
-            self._ignore_list = self._ignore_extra
-
-    def set(self, *uuids: str | uuid.UUID) -> None:
-        """Set the UUID(s) to return for uuid1() calls.
-
-        Args:
-            *uuids: One or more UUIDs (as strings or UUID objects) to return.
-                   If multiple UUIDs are provided, they will be returned in
-                   sequence. Behavior when exhausted is controlled by
-                   on_exhausted (default: cycle).
-        """
-        uuid_list = parse_uuids(uuids)
-        if len(uuid_list) == 1 and self._on_exhausted == ExhaustionBehavior.CYCLE:
-            self._generator = StaticUUIDGenerator(uuid_list[0])
-        elif uuid_list:
-            self._generator = SequenceUUIDGenerator(
-                uuid_list,
-                on_exhausted=self._on_exhausted,
-            )
-
-    def set_seed(self, seed: int | random.Random) -> None:
-        """Set a seed for reproducible UUID1 generation.
-
-        Note: This produces reproducible UUIDs but they are generated using
-        the seeded random generator, not actual time-based uuid1 values.
-
-        Args:
-            seed: Either an integer seed (creates a fresh Random instance)
-                  or a random.Random instance (BYOP - bring your own randomizer).
-        """
-        self._generator = SeededUUIDGenerator(seed)
 
     def set_node(self, node: int) -> None:
         """Set a fixed node (MAC address) for uuid1 generation.
@@ -799,103 +923,20 @@ class UUID1Mocker(CallTrackingMixin):
         """
         self._fixed_clock_seq = clock_seq
 
-    def set_exhaustion_behavior(
-        self,
-        behavior: ExhaustionBehavior | str,
-    ) -> None:
-        """Set the behavior when a UUID sequence is exhausted."""
-        if isinstance(behavior, str):
-            self._on_exhausted = ExhaustionBehavior(behavior)
-        else:
-            self._on_exhausted = behavior
-
-        if isinstance(self._generator, SequenceUUIDGenerator):
-            self._generator._on_exhausted = self._on_exhausted
-
     def reset(self) -> None:
         """Reset the mocker to its initial state."""
-        self._generator = None
+        super().reset()
         self._fixed_node = None
         self._fixed_clock_seq = None
-        self._reset_tracking()
 
-    def __call__(self) -> uuid.UUID:
-        """Return the next mocked UUID1.
-
-        Returns:
-            The next UUID from the generator, or a real uuid1 if no
-            generator is configured (using any fixed node/clock_seq).
-        """
-        caller_module, caller_file, caller_line, caller_function, caller_qualname = (
-            _get_caller_info(skip_frames=3)
+    def _get_fallback_uuid(self) -> uuid.UUID:
+        """Get a real uuid1 with any fixed node/clock_seq parameters."""
+        return get_original("uuid1")(
+            node=self._fixed_node, clock_seq=self._fixed_clock_seq
         )
 
-        # Check if any frame in the call stack should be ignored
-        if self._ignore_list:
-            frame = inspect.currentframe()
-            try:
-                if frame is not None:
-                    frame = frame.f_back
-                while frame is not None:
-                    if _should_ignore_frame(frame, self._ignore_list):
-                        result = get_original("uuid1")(
-                            node=self._fixed_node, clock_seq=self._fixed_clock_seq
-                        )
-                        self._record_call(
-                            result,
-                            False,
-                            caller_module,
-                            caller_file,
-                            caller_line,
-                            caller_function,
-                            caller_qualname,
-                            uuid_version=1,
-                        )
-                        return result
-                    frame = frame.f_back
-            finally:
-                del frame
 
-        if self._generator is not None:
-            result = self._generator()
-            was_mocked = True
-        else:
-            # Use real uuid1 with any fixed parameters
-            result = get_original("uuid1")(
-                node=self._fixed_node, clock_seq=self._fixed_clock_seq
-            )
-            was_mocked = False
-
-        self._record_call(
-            result,
-            was_mocked,
-            caller_module,
-            caller_file,
-            caller_line,
-            caller_function,
-            caller_qualname,
-            uuid_version=1,
-        )
-        return result
-
-    @property
-    def generator(self) -> UUIDGenerator | None:
-        """Get the current UUID generator."""
-        return self._generator
-
-    @property
-    def seed(self) -> int | None:
-        """The seed value used for reproducible UUID generation."""
-        if isinstance(self._generator, SeededUUIDGenerator):
-            return self._generator.seed
-        return None
-
-    def spy(self) -> None:
-        """Enable spy mode - track calls but return real uuid1 values."""
-        self._generator = None
-
-
-class UUID6Mocker(CallTrackingMixin):
+class UUID6Mocker(_BaseUUIDMocker):
     """A class to manage mocked UUID6 values.
 
     This class provides imperative control over uuid.uuid6() during tests.
@@ -912,6 +953,9 @@ class UUID6Mocker(CallTrackingMixin):
             assert str(result) == "12345678-1234-6234-8234-567812345678"
     """
 
+    _uuid_version = 6
+    _func_name = "uuid6"
+
     def __init__(
         self,
         node_id: str | None = None,
@@ -921,43 +965,12 @@ class UUID6Mocker(CallTrackingMixin):
         from pytest_uuid._compat import require_uuid6_7_8
 
         require_uuid6_7_8("uuid6")
-
-        self._node_id = node_id
-        self._generator: UUIDGenerator | None = None
-        self._on_exhausted: ExhaustionBehavior = (
-            get_config().default_exhaustion_behavior
+        super().__init__(
+            node_id=node_id, ignore=ignore, ignore_defaults=ignore_defaults
         )
-        self._call_count: int = 0
-        self._generated_uuids: list[uuid.UUID] = []
-        self._calls: list[UUIDCall] = []
-
         # Fixed parameters for uuid6 generation
         self._fixed_node: int | None = None
         self._fixed_clock_seq: int | None = None
-
-        # Ignore list handling
-        config = get_config()
-        self._ignore_extra = tuple(ignore) if ignore else ()
-        self._ignore_defaults = ignore_defaults
-        if ignore_defaults:
-            self._ignore_list = config.get_ignore_list() + self._ignore_extra
-        else:
-            self._ignore_list = self._ignore_extra
-
-    def set(self, *uuids: str | uuid.UUID) -> None:
-        """Set the UUID(s) to return for uuid6() calls."""
-        uuid_list = parse_uuids(uuids)
-        if len(uuid_list) == 1 and self._on_exhausted == ExhaustionBehavior.CYCLE:
-            self._generator = StaticUUIDGenerator(uuid_list[0])
-        elif uuid_list:
-            self._generator = SequenceUUIDGenerator(
-                uuid_list,
-                on_exhausted=self._on_exhausted,
-            )
-
-    def set_seed(self, seed: int | random.Random) -> None:
-        """Set a seed for reproducible UUID6 generation."""
-        self._generator = SeededUUIDGenerator(seed)
 
     def set_node(self, node: int) -> None:
         """Set a fixed node (MAC address) for uuid6 generation."""
@@ -967,92 +980,20 @@ class UUID6Mocker(CallTrackingMixin):
         """Set a fixed clock sequence for uuid6 generation."""
         self._fixed_clock_seq = clock_seq
 
-    def set_exhaustion_behavior(self, behavior: ExhaustionBehavior | str) -> None:
-        """Set the behavior when a UUID sequence is exhausted."""
-        if isinstance(behavior, str):
-            self._on_exhausted = ExhaustionBehavior(behavior)
-        else:
-            self._on_exhausted = behavior
-        if isinstance(self._generator, SequenceUUIDGenerator):
-            self._generator._on_exhausted = self._on_exhausted
-
     def reset(self) -> None:
         """Reset the mocker to its initial state."""
-        self._generator = None
+        super().reset()
         self._fixed_node = None
         self._fixed_clock_seq = None
-        self._reset_tracking()
 
-    def __call__(self) -> uuid.UUID:
-        """Return the next mocked UUID6."""
-        caller_module, caller_file, caller_line, caller_function, caller_qualname = (
-            _get_caller_info(skip_frames=3)
+    def _get_fallback_uuid(self) -> uuid.UUID:
+        """Get a real uuid6 with any fixed node/clock_seq parameters."""
+        return get_original("uuid6")(
+            node=self._fixed_node, clock_seq=self._fixed_clock_seq
         )
 
-        if self._ignore_list:
-            frame = inspect.currentframe()
-            try:
-                if frame is not None:
-                    frame = frame.f_back
-                while frame is not None:
-                    if _should_ignore_frame(frame, self._ignore_list):
-                        result = get_original("uuid6")(
-                            node=self._fixed_node, clock_seq=self._fixed_clock_seq
-                        )
-                        self._record_call(
-                            result,
-                            False,
-                            caller_module,
-                            caller_file,
-                            caller_line,
-                            caller_function,
-                            caller_qualname,
-                            uuid_version=6,
-                        )
-                        return result
-                    frame = frame.f_back
-            finally:
-                del frame
 
-        if self._generator is not None:
-            result = self._generator()
-            was_mocked = True
-        else:
-            result = get_original("uuid6")(
-                node=self._fixed_node, clock_seq=self._fixed_clock_seq
-            )
-            was_mocked = False
-
-        self._record_call(
-            result,
-            was_mocked,
-            caller_module,
-            caller_file,
-            caller_line,
-            caller_function,
-            caller_qualname,
-            uuid_version=6,
-        )
-        return result
-
-    @property
-    def generator(self) -> UUIDGenerator | None:
-        """Get the current UUID generator."""
-        return self._generator
-
-    @property
-    def seed(self) -> int | None:
-        """The seed value used for reproducible UUID generation."""
-        if isinstance(self._generator, SeededUUIDGenerator):
-            return self._generator.seed
-        return None
-
-    def spy(self) -> None:
-        """Enable spy mode - track calls but return real uuid6 values."""
-        self._generator = None
-
-
-class UUID7Mocker(CallTrackingMixin):
+class UUID7Mocker(_BaseUUIDMocker):
     """A class to manage mocked UUID7 values.
 
     This class provides imperative control over uuid.uuid7() during tests.
@@ -1068,6 +1009,9 @@ class UUID7Mocker(CallTrackingMixin):
             assert str(result) == "12345678-1234-7234-8234-567812345678"
     """
 
+    _uuid_version = 7
+    _func_name = "uuid7"
+
     def __init__(
         self,
         node_id: str | None = None,
@@ -1077,120 +1021,12 @@ class UUID7Mocker(CallTrackingMixin):
         from pytest_uuid._compat import require_uuid6_7_8
 
         require_uuid6_7_8("uuid7")
-
-        self._node_id = node_id
-        self._generator: UUIDGenerator | None = None
-        self._on_exhausted: ExhaustionBehavior = (
-            get_config().default_exhaustion_behavior
-        )
-        self._call_count: int = 0
-        self._generated_uuids: list[uuid.UUID] = []
-        self._calls: list[UUIDCall] = []
-
-        # Ignore list handling
-        config = get_config()
-        self._ignore_extra = tuple(ignore) if ignore else ()
-        self._ignore_defaults = ignore_defaults
-        if ignore_defaults:
-            self._ignore_list = config.get_ignore_list() + self._ignore_extra
-        else:
-            self._ignore_list = self._ignore_extra
-
-    def set(self, *uuids: str | uuid.UUID) -> None:
-        """Set the UUID(s) to return for uuid7() calls."""
-        uuid_list = parse_uuids(uuids)
-        if len(uuid_list) == 1 and self._on_exhausted == ExhaustionBehavior.CYCLE:
-            self._generator = StaticUUIDGenerator(uuid_list[0])
-        elif uuid_list:
-            self._generator = SequenceUUIDGenerator(
-                uuid_list,
-                on_exhausted=self._on_exhausted,
-            )
-
-    def set_seed(self, seed: int | random.Random) -> None:
-        """Set a seed for reproducible UUID7 generation."""
-        self._generator = SeededUUIDGenerator(seed)
-
-    def set_exhaustion_behavior(self, behavior: ExhaustionBehavior | str) -> None:
-        """Set the behavior when a UUID sequence is exhausted."""
-        if isinstance(behavior, str):
-            self._on_exhausted = ExhaustionBehavior(behavior)
-        else:
-            self._on_exhausted = behavior
-        if isinstance(self._generator, SequenceUUIDGenerator):
-            self._generator._on_exhausted = self._on_exhausted
-
-    def reset(self) -> None:
-        """Reset the mocker to its initial state."""
-        self._generator = None
-        self._reset_tracking()
-
-    def __call__(self) -> uuid.UUID:
-        """Return the next mocked UUID7."""
-        caller_module, caller_file, caller_line, caller_function, caller_qualname = (
-            _get_caller_info(skip_frames=3)
+        super().__init__(
+            node_id=node_id, ignore=ignore, ignore_defaults=ignore_defaults
         )
 
-        if self._ignore_list:
-            frame = inspect.currentframe()
-            try:
-                if frame is not None:
-                    frame = frame.f_back
-                while frame is not None:
-                    if _should_ignore_frame(frame, self._ignore_list):
-                        result = get_original("uuid7")()
-                        self._record_call(
-                            result,
-                            False,
-                            caller_module,
-                            caller_file,
-                            caller_line,
-                            caller_function,
-                            caller_qualname,
-                            uuid_version=7,
-                        )
-                        return result
-                    frame = frame.f_back
-            finally:
-                del frame
 
-        if self._generator is not None:
-            result = self._generator()
-            was_mocked = True
-        else:
-            result = get_original("uuid7")()
-            was_mocked = False
-
-        self._record_call(
-            result,
-            was_mocked,
-            caller_module,
-            caller_file,
-            caller_line,
-            caller_function,
-            caller_qualname,
-            uuid_version=7,
-        )
-        return result
-
-    @property
-    def generator(self) -> UUIDGenerator | None:
-        """Get the current UUID generator."""
-        return self._generator
-
-    @property
-    def seed(self) -> int | None:
-        """The seed value used for reproducible UUID generation."""
-        if isinstance(self._generator, SeededUUIDGenerator):
-            return self._generator.seed
-        return None
-
-    def spy(self) -> None:
-        """Enable spy mode - track calls but return real uuid7 values."""
-        self._generator = None
-
-
-class UUID8Mocker(CallTrackingMixin):
+class UUID8Mocker(_BaseUUIDMocker):
     """A class to manage mocked UUID8 values.
 
     This class provides imperative control over uuid.uuid8() during tests.
@@ -1206,6 +1042,9 @@ class UUID8Mocker(CallTrackingMixin):
             assert str(result) == "12345678-1234-8234-8234-567812345678"
     """
 
+    _uuid_version = 8
+    _func_name = "uuid8"
+
     def __init__(
         self,
         node_id: str | None = None,
@@ -1215,117 +1054,9 @@ class UUID8Mocker(CallTrackingMixin):
         from pytest_uuid._compat import require_uuid6_7_8
 
         require_uuid6_7_8("uuid8")
-
-        self._node_id = node_id
-        self._generator: UUIDGenerator | None = None
-        self._on_exhausted: ExhaustionBehavior = (
-            get_config().default_exhaustion_behavior
+        super().__init__(
+            node_id=node_id, ignore=ignore, ignore_defaults=ignore_defaults
         )
-        self._call_count: int = 0
-        self._generated_uuids: list[uuid.UUID] = []
-        self._calls: list[UUIDCall] = []
-
-        # Ignore list handling
-        config = get_config()
-        self._ignore_extra = tuple(ignore) if ignore else ()
-        self._ignore_defaults = ignore_defaults
-        if ignore_defaults:
-            self._ignore_list = config.get_ignore_list() + self._ignore_extra
-        else:
-            self._ignore_list = self._ignore_extra
-
-    def set(self, *uuids: str | uuid.UUID) -> None:
-        """Set the UUID(s) to return for uuid8() calls."""
-        uuid_list = parse_uuids(uuids)
-        if len(uuid_list) == 1 and self._on_exhausted == ExhaustionBehavior.CYCLE:
-            self._generator = StaticUUIDGenerator(uuid_list[0])
-        elif uuid_list:
-            self._generator = SequenceUUIDGenerator(
-                uuid_list,
-                on_exhausted=self._on_exhausted,
-            )
-
-    def set_seed(self, seed: int | random.Random) -> None:
-        """Set a seed for reproducible UUID8 generation."""
-        self._generator = SeededUUIDGenerator(seed)
-
-    def set_exhaustion_behavior(self, behavior: ExhaustionBehavior | str) -> None:
-        """Set the behavior when a UUID sequence is exhausted."""
-        if isinstance(behavior, str):
-            self._on_exhausted = ExhaustionBehavior(behavior)
-        else:
-            self._on_exhausted = behavior
-        if isinstance(self._generator, SequenceUUIDGenerator):
-            self._generator._on_exhausted = self._on_exhausted
-
-    def reset(self) -> None:
-        """Reset the mocker to its initial state."""
-        self._generator = None
-        self._reset_tracking()
-
-    def __call__(self) -> uuid.UUID:
-        """Return the next mocked UUID8."""
-        caller_module, caller_file, caller_line, caller_function, caller_qualname = (
-            _get_caller_info(skip_frames=3)
-        )
-
-        if self._ignore_list:
-            frame = inspect.currentframe()
-            try:
-                if frame is not None:
-                    frame = frame.f_back
-                while frame is not None:
-                    if _should_ignore_frame(frame, self._ignore_list):
-                        result = get_original("uuid8")()
-                        self._record_call(
-                            result,
-                            False,
-                            caller_module,
-                            caller_file,
-                            caller_line,
-                            caller_function,
-                            caller_qualname,
-                            uuid_version=8,
-                        )
-                        return result
-                    frame = frame.f_back
-            finally:
-                del frame
-
-        if self._generator is not None:
-            result = self._generator()
-            was_mocked = True
-        else:
-            result = get_original("uuid8")()
-            was_mocked = False
-
-        self._record_call(
-            result,
-            was_mocked,
-            caller_module,
-            caller_file,
-            caller_line,
-            caller_function,
-            caller_qualname,
-            uuid_version=8,
-        )
-        return result
-
-    @property
-    def generator(self) -> UUIDGenerator | None:
-        """Get the current UUID generator."""
-        return self._generator
-
-    @property
-    def seed(self) -> int | None:
-        """The seed value used for reproducible UUID generation."""
-        if isinstance(self._generator, SeededUUIDGenerator):
-            return self._generator.seed
-        return None
-
-    def spy(self) -> None:
-        """Enable spy mode - track calls but return real uuid8 values."""
-        self._generator = None
 
 
 class NamespaceUUIDSpy:
@@ -1359,14 +1090,28 @@ class NamespaceUUIDSpy:
         self._call_count: int = 0
         self._generated_uuids: list[uuid.UUID] = []
         self._calls: list[NamespaceUUIDCall] = []
-        self._enabled: bool = False
+        self._enabled: bool = True  # Start enabled by default
+
+    @property
+    def enabled(self) -> bool:
+        """Whether call tracking is currently enabled."""
+        return self._enabled
 
     def enable(self) -> None:
-        """Start tracking calls to this UUID function."""
+        """Start tracking calls to this UUID function.
+
+        When enabled, all calls to uuid3/uuid5 are recorded with their
+        namespace, name, and caller information. The underlying UUID
+        function is always called regardless of this setting.
+        """
         self._enabled = True
 
     def disable(self) -> None:
-        """Stop tracking calls to this UUID function."""
+        """Stop tracking calls to this UUID function.
+
+        When disabled, calls still work but are not recorded. Useful for
+        ignoring setup/teardown calls while still tracking test calls.
+        """
         self._enabled = False
 
     def reset(self) -> None:
@@ -1385,14 +1130,18 @@ class NamespaceUUIDSpy:
         Returns:
             The real uuid3 or uuid5 result.
         """
-        # Get caller info
+        # Call the original function (always, regardless of enabled state)
+        func_name = f"uuid{self._uuid_version}"
+        result = get_original(func_name)(namespace, name)
+
+        # Only track if enabled
+        if not self._enabled:
+            return result
+
+        # skip_frames=3: _get_caller_info -> __call__ -> _proxy_uuid3/5 -> caller
         caller_module, caller_file, caller_line, caller_function, caller_qualname = (
             _get_caller_info(skip_frames=3)
         )
-
-        # Call the original function
-        func_name = f"uuid{self._uuid_version}"
-        result = get_original(func_name)(namespace, name)
 
         # Record the call
         self._call_count += 1
@@ -1567,7 +1316,13 @@ def pytest_unconfigure(config: pytest.Config) -> None:  # noqa: ARG001
 
 
 # All supported version-specific markers
-_FREEZE_MARKERS = ("freeze_uuid4", "freeze_uuid1", "freeze_uuid6", "freeze_uuid7", "freeze_uuid8")
+_FREEZE_MARKERS = (
+    "freeze_uuid4",
+    "freeze_uuid1",
+    "freeze_uuid6",
+    "freeze_uuid7",
+    "freeze_uuid8",
+)
 
 
 def _create_freezer_from_marker(
@@ -1769,7 +1524,7 @@ def spy_uuid() -> Iterator[UUIDSpy]:
     """
     # Check for fixture conflict - if another fixture already set a generator
     current = get_current_generator()
-    if current is not None and isinstance(current, UUIDMocker):
+    if current is not None and isinstance(current, UUID4Mocker):
         raise pytest.UsageError(
             "Cannot use both 'mock_uuid' and 'spy_uuid' fixtures in the same test. "
             "Use mock_uuid.spy() to switch to spy mode instead."

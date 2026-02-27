@@ -421,22 +421,29 @@ def generate_uuid1_from_random(
     time_hi = rng.getrandbits(12)  # 12 bits (4 bits for version)
 
     # Generate clock_seq: 14 bits (2 bits for variant)
-    clock_seq = rng.getrandbits(14) if clock_seq is None else clock_seq & 0x3FFF
+    clock_seq_value = rng.getrandbits(14) if clock_seq is None else clock_seq & 0x3FFF
 
     # Generate node: 48 bits (MAC address)
-    node = rng.getrandbits(48) if node is None else node
+    node_value = rng.getrandbits(48) if node is None else node
 
     # Construct UUID fields with version and variant
     # time_hi_version: 4 bits version (0001 for v1) + 12 bits time_hi
     time_hi_version = (1 << 12) | time_hi
 
     # clock_seq_hi_variant: 2 bits variant (10 for RFC 4122) + 6 bits clock_seq_hi
-    clock_seq_hi = (clock_seq >> 8) & 0x3F
+    clock_seq_hi = (clock_seq_value >> 8) & 0x3F
     clock_seq_hi_variant = 0x80 | clock_seq_hi  # Set variant bits to 10
-    clock_seq_low = clock_seq & 0xFF
+    clock_seq_low = clock_seq_value & 0xFF
 
     return uuid.UUID(
-        fields=(time_low, time_mid, time_hi_version, clock_seq_hi_variant, clock_seq_low, node)
+        fields=(
+            time_low,
+            time_mid,
+            time_hi_version,
+            clock_seq_hi_variant,
+            clock_seq_low,
+            node_value,
+        )
     )
 
 
@@ -464,10 +471,10 @@ def generate_uuid6_from_random(
     time_low = rng.getrandbits(12)  # 12 bits (with 4 bits for version)
 
     # Generate clock_seq: 14 bits
-    clock_seq = rng.getrandbits(14) if clock_seq is None else clock_seq & 0x3FFF
+    clock_seq_value = rng.getrandbits(14) if clock_seq is None else clock_seq & 0x3FFF
 
     # Generate node: 48 bits
-    node = rng.getrandbits(48) if node is None else node
+    node_value = rng.getrandbits(48) if node is None else node
 
     # Construct the 128-bit UUID
     # Format: time_high (32) | time_mid (16) | version (4) | time_low (12) |
@@ -477,8 +484,8 @@ def generate_uuid6_from_random(
     int_val |= 6 << 76  # Version 6
     int_val |= time_low << 64
     int_val |= 0x2 << 62  # Variant (10 binary)
-    int_val |= clock_seq << 48
-    int_val |= node
+    int_val |= clock_seq_value << 48
+    int_val |= node_value
 
     return uuid.UUID(int=int_val)
 

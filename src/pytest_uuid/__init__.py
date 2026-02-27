@@ -37,17 +37,17 @@ Thread Safety:
 Example:
     # Fixture approach (most common)
     def test_user_creation(mock_uuid):
-        mock_uuid.set("12345678-1234-4678-8234-567812345678")
+        mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
         user = create_user()
         assert user.id == "12345678-1234-4678-8234-567812345678"
 
     # Decorator approach
-    @freeze_uuid("12345678-1234-4678-8234-567812345678")
+    @freeze_uuid4("12345678-1234-4678-8234-567812345678")
     def test_with_decorator():
         assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
 
     # Marker with node seeding (reproducible per-test)
-    @pytest.mark.freeze_uuid(seed="node")
+    @pytest.mark.freeze_uuid4(seed="node")
     def test_reproducible():
         result = uuid.uuid4()  # Same UUID every time this test runs
 """
@@ -102,9 +102,13 @@ from pytest_uuid.plugin import (
 )
 from pytest_uuid.types import (
     NamespaceUUIDCall,
+    NamespaceUUIDSpyProtocol,
+    TimeBasedUUIDMockerProtocol,
+    UUID4MockerProtocol,
     UUIDCall,
     UUIDMockerProtocol,
     UUIDSpyProtocol,
+    UUIDVersionMockerProtocol,
 )
 
 try:
@@ -150,6 +154,10 @@ __all__ = [
     "NamespaceUUIDCall",
     "UUIDMockerProtocol",
     "UUIDSpyProtocol",
+    "UUIDVersionMockerProtocol",
+    "UUID4MockerProtocol",
+    "TimeBasedUUIDMockerProtocol",
+    "NamespaceUUIDSpyProtocol",
     # Fixtures (for documentation - actual fixtures registered via plugin)
     "mock_uuid",
     "mock_uuid_factory",

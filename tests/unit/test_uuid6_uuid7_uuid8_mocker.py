@@ -5,13 +5,17 @@ These tests require Python 3.14+ or the uuid6 backport package.
 
 from __future__ import annotations
 
+import sys
 import uuid
 
 from pytest_uuid._compat import HAS_UUID6_7_8
 
-# Import uuid6/uuid7/uuid8 from backport if available
+# Import uuid6/uuid7/uuid8 from stdlib (3.14+) or backport package
 if HAS_UUID6_7_8:
-    from uuid6 import uuid6, uuid7, uuid8
+    if sys.version_info >= (3, 14):
+        from uuid import uuid6, uuid7, uuid8
+    else:
+        from uuid6 import uuid6, uuid7, uuid8
 
 
 import pytest

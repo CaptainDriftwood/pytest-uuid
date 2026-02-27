@@ -16,9 +16,10 @@ How Patching Works:
     This ensures mocking works regardless of how the code under test imports uuid4.
 
 Thread Safety:
-    UUIDFreezer is NOT thread-safe. Each thread should use its own instance.
-    For multi-threaded tests, consider using separate freezers per thread or
-    synchronizing access to a shared freezer.
+    The underlying proxy system is thread-safe: multiple threads can safely call
+    uuid.uuid4() etc. while freezers are active. However, each UUIDFreezer instance
+    should only be entered/exited from a single thread (don't share a context manager
+    across threads). For multi-threaded tests, each thread should use its own freezer.
 
 Example:
     # As a decorator
@@ -201,10 +202,9 @@ class UUIDFreezer(CallTrackingMixin):
                         f"seed='node' requires node_id to be provided. "
                         f"Use @pytest.mark.{marker_name}(seed='node') or pass node_id explicitly."
                     )
-                actual_seed = _get_node_seed(self._node_id)
-            elif isinstance(self._seed, random.Random):
-                actual_seed = self._seed
+                actual_seed: int | random.Random = _get_node_seed(self._node_id)
             else:
+                # seed is either an int or random.Random instance
                 actual_seed = self._seed
 
             # Use version-appropriate seeded generator
@@ -255,7 +255,8 @@ class UUIDFreezer(CallTrackingMixin):
         if not ignore_list:
             # Accept *args, **kwargs for compatibility with uuid1/uuid6 signatures
             def patched_uuid_func(
-                *args: object, **kwargs: object  # noqa: ARG001
+                *args: object,  # noqa: ARG001
+                **kwargs: object,  # noqa: ARG001
             ) -> uuid.UUID:
                 # skip_frames=3: _get_caller_info -> patched_uuid_func -> _proxy_uuidX -> caller
                 (

@@ -1,8 +1,13 @@
 """Type definitions and protocols for pytest-uuid.
 
 This module provides:
-    - UUIDCall: Dataclass for tracking individual uuid4() call metadata
-    - UUIDMockerProtocol: Type protocol for the mock_uuid fixture
+    - UUIDCall: Dataclass for tracking individual UUID call metadata
+    - NamespaceUUIDCall: Dataclass for tracking uuid3/uuid5 call metadata
+    - UUIDMockerProtocol: Type protocol for the mock_uuid fixture container
+    - UUIDVersionMockerProtocol: Base protocol for version-specific mockers
+    - UUID4MockerProtocol: Protocol for uuid4 mocker with extra methods
+    - TimeBasedUUIDMockerProtocol: Protocol for uuid1/uuid6 mockers
+    - NamespaceUUIDSpyProtocol: Protocol for uuid3/uuid5 spies
     - UUIDSpyProtocol: Type protocol for the spy_uuid fixture
 
 These protocols enable proper type checking and IDE autocomplete when using
@@ -11,7 +16,7 @@ the fixtures. Import them for type annotations:
     from pytest_uuid import UUIDMockerProtocol, UUIDSpyProtocol
 
     def test_example(mock_uuid: UUIDMockerProtocol) -> None:
-        mock_uuid.set("...")  # IDE autocomplete works here
+        mock_uuid.uuid4.set("...")  # IDE autocomplete works here
 """
 
 from __future__ import annotations
@@ -114,15 +119,15 @@ class NamespaceUUIDCall:
 
 
 @runtime_checkable
-class UUIDMockerProtocol(Protocol):
-    """Protocol for UUID mocker fixtures.
+class UUIDVersionMockerProtocol(Protocol):
+    """Protocol for version-specific UUID mockers (uuid1, uuid4, uuid6, uuid7, uuid8).
 
-    This protocol defines the interface for the `mock_uuid` fixture,
+    This protocol defines the common interface for all UUID version mockers,
     enabling proper type checking and IDE autocomplete.
 
     Example:
         def test_with_types(mock_uuid: UUIDMockerProtocol) -> None:
-            mock_uuid.set("12345678-1234-4678-8234-567812345678")
+            mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
             result = uuid.uuid4()
             assert str(result) == "12345678-1234-4678-8234-567812345678"
     """
@@ -136,27 +141,11 @@ class UUIDMockerProtocol(Protocol):
         """
         ...
 
-    def set_default(self, default_uuid: str | uuid.UUID) -> None:
-        """Set a default UUID to return for all calls.
-
-        Args:
-            default_uuid: The UUID to always return.
-        """
-        ...
-
     def set_seed(self, seed: int | random.Random) -> None:
         """Set a seed for reproducible UUID generation.
 
         Args:
             seed: Integer seed or random.Random instance.
-        """
-        ...
-
-    def set_seed_from_node(self) -> None:
-        """Set the seed from the current test's node ID.
-
-        Raises:
-            RuntimeError: If node ID is not available.
         """
         ...
 
@@ -168,17 +157,16 @@ class UUIDMockerProtocol(Protocol):
         """
         ...
 
-    def set_ignore(self, *module_prefixes: str) -> None:
-        """Set modules to ignore when mocking uuid.uuid4().
-
-        Args:
-            *module_prefixes: Module name prefixes to exclude from patching.
-                             Calls from these modules will return real UUIDs.
-        """
-        ...
-
     def reset(self) -> None:
         """Reset the mocker to its initial state."""
+        ...
+
+    def spy(self) -> None:
+        """Enable spy mode - track calls but return real UUIDs.
+
+        In spy mode, UUID calls return real values but are still
+        tracked via call_count, generated_uuids, and last_uuid properties.
+        """
         ...
 
     def __call__(self) -> uuid.UUID:
@@ -192,16 +180,12 @@ class UUIDMockerProtocol(Protocol):
 
     @property
     def seed(self) -> int | None:
-        """The seed value used for reproducible UUID generation.
-
-        Returns the actual integer seed being used, or None if not using
-        seeded generation or if a random.Random instance was passed directly.
-        """
+        """The seed value used for reproducible UUID generation."""
         ...
 
     @property
     def call_count(self) -> int:
-        """Get the number of times uuid4 was called."""
+        """Get the number of times this UUID function was called."""
         ...
 
     @property
@@ -216,7 +200,7 @@ class UUIDMockerProtocol(Protocol):
 
     @property
     def calls(self) -> list[UUIDCall]:
-        """Get detailed metadata for all uuid4 calls."""
+        """Get detailed metadata for all calls."""
         ...
 
     @property
@@ -250,12 +234,177 @@ class UUIDMockerProtocol(Protocol):
         """
         ...
 
-    def spy(self) -> None:
-        """Enable spy mode - track calls but return real UUIDs.
 
-        In spy mode, uuid4 calls return real random UUIDs but are still
-        tracked via call_count, generated_uuids, and last_uuid properties.
+@runtime_checkable
+class TimeBasedUUIDMockerProtocol(UUIDVersionMockerProtocol, Protocol):
+    """Protocol for time-based UUID mockers (uuid1, uuid6).
+
+    Extends UUIDVersionMockerProtocol with node and clock_seq support.
+    """
+
+    def set_node(self, node: int) -> None:
+        """Set a fixed node (MAC address) for UUID generation.
+
+        Args:
+            node: 48-bit integer representing the hardware address.
         """
+        ...
+
+    def set_clock_seq(self, clock_seq: int) -> None:
+        """Set a fixed clock sequence for UUID generation.
+
+        Args:
+            clock_seq: 14-bit integer for the clock sequence.
+        """
+        ...
+
+
+@runtime_checkable
+class UUID4MockerProtocol(UUIDVersionMockerProtocol, Protocol):
+    """Protocol for UUID4 mocker with additional uuid4-specific methods.
+
+    This extends UUIDVersionMockerProtocol with methods specific to uuid4.
+    """
+
+    def set_default(self, default_uuid: str | uuid.UUID) -> None:
+        """Set a default UUID to return for all calls.
+
+        Args:
+            default_uuid: The UUID to always return.
+        """
+        ...
+
+    def set_seed_from_node(self) -> None:
+        """Set the seed from the current test's node ID.
+
+        Raises:
+            RuntimeError: If node ID is not available.
+        """
+        ...
+
+    def set_ignore(self, *module_prefixes: str) -> None:
+        """Set modules to ignore when mocking uuid.uuid4().
+
+        Args:
+            *module_prefixes: Module name prefixes to exclude from patching.
+                             Calls from these modules will return real UUIDs.
+        """
+        ...
+
+
+@runtime_checkable
+class NamespaceUUIDSpyProtocol(Protocol):
+    """Protocol for namespace-based UUID spies (uuid3, uuid5).
+
+    Since uuid3 and uuid5 are deterministic, these only support spy mode.
+    """
+
+    @property
+    def uuid_version(self) -> int:
+        """The UUID version being tracked (3 or 5)."""
+        ...
+
+    @property
+    def enabled(self) -> bool:
+        """Whether call tracking is currently enabled."""
+        ...
+
+    def enable(self) -> None:
+        """Start tracking calls to this UUID function."""
+        ...
+
+    def disable(self) -> None:
+        """Stop tracking calls to this UUID function."""
+        ...
+
+    def reset(self) -> None:
+        """Reset tracking data."""
+        ...
+
+    def __call__(self, namespace: uuid.UUID, name: str) -> uuid.UUID:
+        """Track the call and return the real UUID."""
+        ...
+
+    @property
+    def call_count(self) -> int:
+        """Get the number of calls tracked."""
+        ...
+
+    @property
+    def generated_uuids(self) -> list[uuid.UUID]:
+        """Get a list of all UUIDs that have been generated."""
+        ...
+
+    @property
+    def last_uuid(self) -> uuid.UUID | None:
+        """Get the most recently generated UUID, or None if none generated."""
+        ...
+
+    @property
+    def calls(self) -> list[NamespaceUUIDCall]:
+        """Get detailed metadata for all calls."""
+        ...
+
+    def calls_from(self, module_prefix: str) -> list[NamespaceUUIDCall]:
+        """Get calls from modules matching the given prefix."""
+        ...
+
+
+@runtime_checkable
+class UUIDMockerProtocol(Protocol):
+    """Protocol for the mock_uuid fixture container.
+
+    This protocol defines the interface for the `mock_uuid` fixture,
+    which provides access to version-specific mockers via properties.
+
+    Example:
+        def test_with_types(mock_uuid: UUIDMockerProtocol) -> None:
+            # Mock uuid4
+            mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
+            result = uuid.uuid4()
+            assert str(result) == "12345678-1234-4678-8234-567812345678"
+
+            # Mock uuid1
+            mock_uuid.uuid1.set("12345678-1234-1234-8234-567812345678")
+
+            # Spy on uuid5 (deterministic, spy-only)
+            result = uuid.uuid5(uuid.NAMESPACE_DNS, "example.com")
+            assert mock_uuid.uuid5.call_count == 1
+    """
+
+    @property
+    def uuid1(self) -> TimeBasedUUIDMockerProtocol:
+        """Access UUID1 mocker API."""
+        ...
+
+    @property
+    def uuid3(self) -> NamespaceUUIDSpyProtocol:
+        """Access UUID3 spy API (spy-only, deterministic)."""
+        ...
+
+    @property
+    def uuid4(self) -> UUID4MockerProtocol:
+        """Access UUID4 mocker API."""
+        ...
+
+    @property
+    def uuid5(self) -> NamespaceUUIDSpyProtocol:
+        """Access UUID5 spy API (spy-only, deterministic)."""
+        ...
+
+    @property
+    def uuid6(self) -> TimeBasedUUIDMockerProtocol:
+        """Access UUID6 mocker API (requires Python 3.14+ or uuid6 package)."""
+        ...
+
+    @property
+    def uuid7(self) -> UUIDVersionMockerProtocol:
+        """Access UUID7 mocker API (requires Python 3.14+ or uuid6 package)."""
+        ...
+
+    @property
+    def uuid8(self) -> UUIDVersionMockerProtocol:
+        """Access UUID8 mocker API (requires Python 3.14+ or uuid6 package)."""
         ...
 
 
