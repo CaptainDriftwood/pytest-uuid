@@ -210,7 +210,7 @@ def freeze_uuids_globally(request):
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `uuids` | `str`, `UUID`, or sequence | UUID(s) to return |
-| `seed` | `int` or `"node"` | Seed for reproducible generation |
+| `seed` | `int`, `Random`, or `"node"` | Seed for reproducible generation |
 | `on_exhausted` | `str` | `"cycle"`, `"random"`, or `"raise"` |
 | `ignore` | `list[str]` | Module prefixes to exclude from mocking |
 | `ignore_defaults` | `bool` | Include default ignore list (default `True`) |
