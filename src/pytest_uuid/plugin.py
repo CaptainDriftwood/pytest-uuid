@@ -231,7 +231,7 @@ class UUID4Mocker(CallTrackingMixin):
             self._generator._on_exhausted = self._on_exhausted
 
     def set_ignore(self, *module_prefixes: str) -> None:
-        """Set modules to ignore when mocking uuid.uuid4().
+        """Set modules to ignore when mocking uuid.uuid4() (thread-safe).
 
         Args:
             *module_prefixes: Module name prefixes to exclude from patching.
@@ -246,8 +246,9 @@ class UUID4Mocker(CallTrackingMixin):
         """
         config = get_config()
         base_ignore = config.get_ignore_list()
-        self._ignore_extra = module_prefixes
-        self._ignore_list = base_ignore + module_prefixes
+        with self._tracking_lock:
+            self._ignore_extra = tuple(module_prefixes)
+            self._ignore_list = base_ignore + self._ignore_extra
 
     def reset(self) -> None:
         """Reset the mocker to its initial state."""
@@ -255,10 +256,11 @@ class UUID4Mocker(CallTrackingMixin):
         self._reset_tracking()
         # Reset ignore list based on ignore_defaults setting
         config = get_config()
-        if self._ignore_defaults:
-            self._ignore_list = config.get_ignore_list() + self._ignore_extra
-        else:
-            self._ignore_list = self._ignore_extra
+        with self._tracking_lock:
+            if self._ignore_defaults:
+                self._ignore_list = config.get_ignore_list() + self._ignore_extra
+            else:
+                self._ignore_list = self._ignore_extra
 
     def __call__(self) -> uuid.UUID:
         """Return the next mocked UUID.
@@ -814,7 +816,7 @@ class _BaseUUIDMocker(CallTrackingMixin):
         self._reset_tracking()
 
     def set_ignore(self, *module_prefixes: str) -> None:
-        """Set modules to ignore when mocking.
+        """Set modules to ignore when mocking (thread-safe).
 
         Calls from these modules will return real UUIDs instead of mocked ones.
 
@@ -823,11 +825,12 @@ class _BaseUUIDMocker(CallTrackingMixin):
                              For example, "sqlalchemy" ignores all sqlalchemy modules.
         """
         config = get_config()
-        self._ignore_extra = tuple(module_prefixes)
-        if self._ignore_defaults:
-            self._ignore_list = config.get_ignore_list() + self._ignore_extra
-        else:
-            self._ignore_list = self._ignore_extra
+        with self._tracking_lock:
+            self._ignore_extra = tuple(module_prefixes)
+            if self._ignore_defaults:
+                self._ignore_list = config.get_ignore_list() + self._ignore_extra
+            else:
+                self._ignore_list = self._ignore_extra
 
     def _get_fallback_uuid(self) -> uuid.UUID:
         """Get a real UUID when no generator is configured.
@@ -1253,7 +1256,7 @@ class NamespaceUUIDSpy:
             ]
 
     def calls_with_namespace(self, namespace: uuid.UUID) -> list[NamespaceUUIDCall]:
-        """Get calls that used a specific namespace.
+        """Get calls that used a specific namespace (thread-safe).
 
         Args:
             namespace: The namespace UUID to filter by.
@@ -1261,10 +1264,11 @@ class NamespaceUUIDSpy:
         Returns:
             List of NamespaceUUIDCall records using that namespace.
         """
-        return [c for c in self._calls if c.namespace == namespace]
+        with self._tracking_lock:
+            return [c for c in self._calls if c.namespace == namespace]
 
     def calls_with_name(self, name: str) -> list[NamespaceUUIDCall]:
-        """Get calls that used a specific name.
+        """Get calls that used a specific name (thread-safe).
 
         Args:
             name: The name to filter by.
@@ -1272,7 +1276,8 @@ class NamespaceUUIDSpy:
         Returns:
             List of NamespaceUUIDCall records using that name.
         """
-        return [c for c in self._calls if c.name == name]
+        with self._tracking_lock:
+            return [c for c in self._calls if c.name == name]
 
 
 def pytest_load_initial_conftests(

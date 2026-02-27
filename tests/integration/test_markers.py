@@ -611,3 +611,105 @@ def test_marker_freeze_uuid_backward_compat(pytester):
 
     result = pytester.runpytest("-v")
     result.assert_outcomes(passed=1)
+
+
+def test_marker_freeze_uuid1_with_node(pytester):
+    """Test that @pytest.mark.freeze_uuid1 with node parameter works."""
+    pytester.makepyfile(
+        test_marker_uuid1_node="""
+        import uuid
+        import pytest
+
+        @pytest.mark.freeze_uuid1(seed=42, node=0x123456789ABC)
+        def test_marker_uuid1_with_node():
+            result = uuid.uuid1()
+            assert isinstance(result, uuid.UUID)
+            assert result.version == 1
+            assert result.node == 0x123456789ABC
+        """
+    )
+
+    result = pytester.runpytest("-v")
+    result.assert_outcomes(passed=1)
+
+
+def test_marker_freeze_uuid6_applies_freezer(pytester):
+    """Test that @pytest.mark.freeze_uuid6 applies the freezer."""
+    pytester.makepyfile(
+        test_marker_uuid6="""
+        import uuid
+        import pytest
+
+        uuid6_mod = pytest.importorskip("uuid6")
+
+        @pytest.mark.freeze_uuid6("12345678-1234-6678-8234-567812345678")
+        def test_marker_uuid6_works():
+            result = uuid6_mod.uuid6()
+            assert str(result) == "12345678-1234-6678-8234-567812345678"
+        """
+    )
+
+    result = pytester.runpytest("-v")
+    result.assert_outcomes(passed=1)
+
+
+def test_marker_freeze_uuid6_with_seed(pytester):
+    """Test that @pytest.mark.freeze_uuid6 with seed works."""
+    pytester.makepyfile(
+        test_marker_uuid6_seed="""
+        import uuid
+        import pytest
+
+        uuid6_mod = pytest.importorskip("uuid6")
+
+        @pytest.mark.freeze_uuid6(seed=42)
+        def test_marker_uuid6_seeded():
+            result = uuid6_mod.uuid6()
+            assert isinstance(result, uuid.UUID)
+            assert result.version == 6
+        """
+    )
+
+    result = pytester.runpytest("-v")
+    result.assert_outcomes(passed=1)
+
+
+def test_marker_freeze_uuid8_applies_freezer(pytester):
+    """Test that @pytest.mark.freeze_uuid8 applies the freezer."""
+    pytester.makepyfile(
+        test_marker_uuid8="""
+        import uuid
+        import pytest
+
+        uuid6_mod = pytest.importorskip("uuid6")
+
+        @pytest.mark.freeze_uuid8("12345678-1234-8678-8234-567812345678")
+        def test_marker_uuid8_works():
+            result = uuid6_mod.uuid8()
+            assert str(result) == "12345678-1234-8678-8234-567812345678"
+        """
+    )
+
+    result = pytester.runpytest("-v")
+    result.assert_outcomes(passed=1)
+
+
+def test_marker_freeze_uuid8_with_seed(pytester):
+    """Test that @pytest.mark.freeze_uuid8 with seed works."""
+    pytester.makepyfile(
+        test_marker_uuid8_seed="""
+        import uuid
+        import pytest
+
+        uuid6_mod = pytest.importorskip("uuid6")
+
+        @pytest.mark.freeze_uuid8(seed=42)
+        def test_marker_uuid8_seeded():
+            result = uuid6_mod.uuid8()
+            assert isinstance(result, uuid.UUID)
+            assert result.version == 8
+        """
+    )
+
+    result = pytester.runpytest("-v")
+    result.assert_outcomes(passed=1)

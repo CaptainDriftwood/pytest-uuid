@@ -657,6 +657,36 @@ class TestFreezeUUID1:
             assert result.node == fixed_node
             assert result.version == 1
 
+    def test_seeded_with_fixed_clock_seq(self):
+        """Test freeze_uuid1 with seeded generation and fixed clock_seq."""
+        fixed_clock_seq = 0x1234
+
+        with freeze_uuid1(seed=42, clock_seq=fixed_clock_seq):
+            result = uuid.uuid1()
+            assert result.clock_seq == fixed_clock_seq
+            assert result.version == 1
+
+    def test_seeded_with_node_and_clock_seq(self):
+        """Test freeze_uuid1 with both node and clock_seq."""
+        fixed_node = 0x123456789ABC
+        fixed_clock_seq = 0x1234
+
+        with freeze_uuid1(seed=42, node=fixed_node, clock_seq=fixed_clock_seq):
+            result = uuid.uuid1()
+            assert result.node == fixed_node
+            assert result.clock_seq == fixed_clock_seq
+            assert result.version == 1
+
+    def test_sequence(self):
+        """Test freeze_uuid1 with multiple UUIDs."""
+        uuids = [
+            "11111111-1111-1111-8111-111111111111",
+            "22222222-2222-1222-8222-222222222222",
+        ]
+        with freeze_uuid1(uuids):
+            assert str(uuid.uuid1()) == uuids[0]
+            assert str(uuid.uuid1()) == uuids[1]
+
     def test_uuid_version_property(self):
         """Test that uuid_version property returns correct version."""
         with freeze_uuid1(seed=42) as freezer:
@@ -686,6 +716,37 @@ class TestFreezeUUID6:
 
         assert uuid1 == uuid2
         assert uuid1.version == 6
+
+    def test_seeded_with_fixed_node(self):
+        """Test freeze_uuid6 with seeded generation and fixed node."""
+        uuid6_mod = pytest.importorskip("uuid6")
+        fixed_node = 0x123456789ABC
+
+        with freeze_uuid6(seed=42, node=fixed_node):
+            result = uuid6_mod.uuid6()
+            assert result.node == fixed_node
+            assert result.version == 6
+
+    def test_seeded_with_fixed_clock_seq(self):
+        """Test freeze_uuid6 with seeded generation and fixed clock_seq."""
+        uuid6_mod = pytest.importorskip("uuid6")
+        fixed_clock_seq = 0x1234
+
+        with freeze_uuid6(seed=42, clock_seq=fixed_clock_seq):
+            result = uuid6_mod.uuid6()
+            assert result.clock_seq == fixed_clock_seq
+            assert result.version == 6
+
+    def test_sequence(self):
+        """Test freeze_uuid6 with multiple UUIDs."""
+        uuid6_mod = pytest.importorskip("uuid6")
+        uuids = [
+            "12345678-1234-6678-8234-567812345678",
+            "87654321-4321-6876-8432-876543218765",
+        ]
+        with freeze_uuid6(uuids):
+            assert str(uuid6_mod.uuid6()) == uuids[0]
+            assert str(uuid6_mod.uuid6()) == uuids[1]
 
     def test_uuid_version_property(self):
         """Test that uuid_version property returns correct version."""
@@ -720,9 +781,28 @@ class TestFreezeUUID7:
         assert uuid1 == uuid2
         assert uuid1.version == 7
 
+    def test_sequence(self):
+        """Test freeze_uuid7 with multiple UUIDs."""
+        uuid6_mod = pytest.importorskip("uuid6")
+        uuids = [
+            "01234567-89ab-7def-8123-456789abcdef",
+            "fedcba98-7654-7321-8fed-cba987654321",
+        ]
+        with freeze_uuid7(uuids):
+            assert str(uuid6_mod.uuid7()) == uuids[0]
+            assert str(uuid6_mod.uuid7()) == uuids[1]
+
 
 class TestFreezeUUID8:
     """Tests for freeze_uuid8 function."""
+
+    def test_static_uuid(self):
+        """Test freeze_uuid8 with a static UUID."""
+        uuid6_mod = pytest.importorskip("uuid6")
+
+        with freeze_uuid8("12345678-1234-8678-8234-567812345678"):
+            result = uuid6_mod.uuid8()
+            assert str(result) == "12345678-1234-8678-8234-567812345678"
 
     def test_seeded_generation(self):
         """Test freeze_uuid8 with seeded generation."""
@@ -736,6 +816,17 @@ class TestFreezeUUID8:
 
         assert uuid1 == uuid2
         assert uuid1.version == 8
+
+    def test_sequence(self):
+        """Test freeze_uuid8 with multiple UUIDs."""
+        uuid6_mod = pytest.importorskip("uuid6")
+        uuids = [
+            "12345678-1234-8678-8234-567812345678",
+            "87654321-4321-8876-8432-876543218765",
+        ]
+        with freeze_uuid8(uuids):
+            assert str(uuid6_mod.uuid8()) == uuids[0]
+            assert str(uuid6_mod.uuid8()) == uuids[1]
 
 
 class TestStackingMultipleVersionFreezers:
@@ -804,3 +895,86 @@ class TestBackwardCompatibility:
             uuid2 = uuid.uuid4()
 
         assert uuid1 == uuid2
+
+
+class TestVersionSpecificDecorators:
+    """Tests for using version-specific freezers as decorators."""
+
+    def test_freeze_uuid1_as_decorator(self):
+        """Test freeze_uuid1 as a function decorator."""
+
+        @freeze_uuid1("11111111-1111-1111-8111-111111111111")
+        def func():
+            return uuid.uuid1()
+
+        result = func()
+        assert str(result) == "11111111-1111-1111-8111-111111111111"
+
+    def test_freeze_uuid1_decorator_with_node(self):
+        """Test freeze_uuid1 decorator with node parameter."""
+        fixed_node = 0x123456789ABC
+
+        @freeze_uuid1(seed=42, node=fixed_node)
+        def func():
+            return uuid.uuid1()
+
+        result = func()
+        assert result.node == fixed_node
+        assert result.version == 1
+
+    def test_freeze_uuid6_as_decorator(self):
+        """Test freeze_uuid6 as a function decorator."""
+        uuid6_mod = pytest.importorskip("uuid6")
+
+        @freeze_uuid6("12345678-1234-6678-8234-567812345678")
+        def func():
+            return uuid6_mod.uuid6()
+
+        result = func()
+        assert str(result) == "12345678-1234-6678-8234-567812345678"
+
+    def test_freeze_uuid7_as_decorator(self):
+        """Test freeze_uuid7 as a function decorator."""
+        uuid6_mod = pytest.importorskip("uuid6")
+
+        @freeze_uuid7("01234567-89ab-7def-8123-456789abcdef")
+        def func():
+            return uuid6_mod.uuid7()
+
+        result = func()
+        assert str(result) == "01234567-89ab-7def-8123-456789abcdef"
+
+    def test_freeze_uuid8_as_decorator(self):
+        """Test freeze_uuid8 as a function decorator."""
+        uuid6_mod = pytest.importorskip("uuid6")
+
+        @freeze_uuid8("12345678-1234-8678-8234-567812345678")
+        def func():
+            return uuid6_mod.uuid8()
+
+        result = func()
+        assert str(result) == "12345678-1234-8678-8234-567812345678"
+
+    def test_freeze_uuid1_as_class_decorator(self):
+        """Test freeze_uuid1 as a class decorator."""
+
+        @freeze_uuid1(seed=42)
+        class TestClass:
+            def method(self):
+                return uuid.uuid1()
+
+        obj = TestClass()
+        result = obj.method()
+        assert result.version == 1
+
+    def test_stacked_decorators(self):
+        """Test stacking multiple version-specific decorators."""
+
+        @freeze_uuid4("44444444-4444-4444-8444-444444444444")
+        @freeze_uuid1("11111111-1111-1111-8111-111111111111")
+        def func():
+            return uuid.uuid4(), uuid.uuid1()
+
+        result4, result1 = func()
+        assert str(result4) == "44444444-4444-4444-8444-444444444444"
+        assert str(result1) == "11111111-1111-1111-8111-111111111111"
