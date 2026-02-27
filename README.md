@@ -139,7 +139,7 @@ def test_static(mock_uuid):
     assert uuid.uuid4() == uuid.uuid4()  # Same UUID
 
 # Or with decorator
-@freeze_uuid("12345678-1234-4678-8234-567812345678")
+@freeze_uuid4("12345678-1234-4678-8234-567812345678")
 def test_static_decorator():
     assert uuid.uuid4() == uuid.uuid4()  # Same UUID
 ```
@@ -173,7 +173,7 @@ def test_seeded(mock_uuid):
     assert uuid.uuid4() == first  # Same UUID
 
 # With decorator
-@freeze_uuid(seed=42)
+@freeze_uuid4(seed=42)
 def test_seeded_decorator():
     result = uuid.uuid4()
     assert result.version == 4  # Valid UUID v4
@@ -189,7 +189,7 @@ def test_node_seeded(mock_uuid):
     # Same test always produces the same sequence
 
 # With marker
-@pytest.mark.freeze_uuid(seed="node")
+@pytest.mark.freeze_uuid4(seed="node")
 def test_node_seeded_marker():
     # Same test always produces the same sequence
     pass
@@ -204,7 +204,7 @@ import uuid
 import pytest
 
 
-@pytest.mark.freeze_uuid(seed="node")
+@pytest.mark.freeze_uuid4(seed="node")
 class TestUserService:
     def test_create(self):
         # Seed derived from "test_module.py::TestUserService::test_create"
@@ -224,7 +224,7 @@ class TestUserService:
 import uuid
 import pytest
 
-pytestmark = pytest.mark.freeze_uuid(seed="node")
+pytestmark = pytest.mark.freeze_uuid4(seed="node")
 
 
 def test_create_user():
@@ -320,7 +320,7 @@ def test_exhaustion_raise(mock_uuid):
         uuid.uuid4()  # Raises - sequence exhausted
 
 # With decorator
-@freeze_uuid(
+@freeze_uuid4(
     ["11111111-1111-4111-8111-111111111111"],
     on_exhausted="raise",  # or "cycle" or "random"
 )
@@ -485,11 +485,11 @@ def test_with_ignored_modules(mock_uuid):
 #### Decorator/Marker API
 
 ```python
-@freeze_uuid("12345678-1234-4678-8234-567812345678", ignore=["sqlalchemy"])
+@freeze_uuid4("12345678-1234-4678-8234-567812345678", ignore=["sqlalchemy"])
 def test_with_decorator():
     assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
 
-@pytest.mark.freeze_uuid("...", ignore=["celery"])
+@pytest.mark.freeze_uuid4("...", ignore=["celery"])
 def test_with_marker():
     pass
 ```
@@ -599,7 +599,7 @@ Apply to all tests in a module using pytest's `pytestmark`:
 import uuid
 import pytest
 
-pytestmark = pytest.mark.freeze_uuid("12345678-1234-4678-8234-567812345678")
+pytestmark = pytest.mark.freeze_uuid4("12345678-1234-4678-8234-567812345678")
 
 
 def test_create_user():
@@ -616,10 +616,10 @@ Apply the decorator to a test class to freeze UUIDs for all test methods:
 
 ```python
 import uuid
-from pytest_uuid import freeze_uuid
+from pytest_uuid import freeze_uuid4
 
 
-@freeze_uuid("12345678-1234-4678-8234-567812345678")
+@freeze_uuid4("12345678-1234-4678-8234-567812345678")
 class TestUserService:
     def test_create(self):
         assert str(uuid.uuid4()) == "12345678-1234-4678-8234-567812345678"
@@ -635,7 +635,7 @@ import uuid
 import pytest
 
 
-@pytest.mark.freeze_uuid(seed=42)
+@pytest.mark.freeze_uuid4(seed=42)
 class TestSeededService:
     def test_one(self):
         result = uuid.uuid4()
