@@ -485,3 +485,53 @@ def test_uuid_call_optional_fields():
     assert call.was_mocked is False
     assert call.caller_module is None
     assert call.caller_file is None
+
+
+# --- Fixture conflict detection (requires pytester) ---
+
+
+def test_spy_uuid_then_mock_uuid_uuid4_conflict_raises_error(pytester):
+    """Test that accessing mock_uuid.uuid4 when spy_uuid is active raises UsageError."""
+    pytester.makepyfile(
+        test_conflict="""
+        import uuid
+
+        def test_spy_active_then_mock_uuid4_access(spy_uuid, mock_uuid):
+            # spy_uuid activates and starts tracking
+            uuid.uuid4()  # This activates spy_uuid
+
+            # Now accessing mock_uuid.uuid4 should raise UsageError
+            # because spy_uuid (UUIDSpy) is already on the generator stack
+            mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
+        """
+    )
+
+    result = pytester.runpytest("-v")
+    result.assert_outcomes(failed=1)
+    result.stdout.fnmatch_lines(
+        ["*UsageError*Cannot use both*mock_uuid*spy_uuid*"]
+    )
+
+
+def test_mock_uuid_uuid4_then_spy_uuid_conflict_raises_error(pytester):
+    """Test that spy_uuid raises UsageError when mock_uuid.uuid4 is active."""
+    pytester.makepyfile(
+        test_conflict="""
+        import uuid
+
+        def test_mock_active_then_spy_request(mock_uuid, spy_uuid):
+            # First activate mock_uuid.uuid4
+            mock_uuid.uuid4.set("12345678-1234-4678-8234-567812345678")
+            uuid.uuid4()  # Use the mock
+
+            # Now spy_uuid should conflict because UUID4Mocker is active
+            # The spy_uuid fixture will error when it tries to activate
+            _ = spy_uuid.call_count
+        """
+    )
+
+    result = pytester.runpytest("-v")
+    result.assert_outcomes(failed=1)
+    result.stdout.fnmatch_lines(
+        ["*UsageError*Cannot use both*mock_uuid*spy_uuid*"]
+    )

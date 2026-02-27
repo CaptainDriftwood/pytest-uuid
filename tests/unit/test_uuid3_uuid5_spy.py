@@ -81,6 +81,21 @@ class TestUUID3Spy:
         assert mock_uuid.uuid3.call_count == 0
         assert len(mock_uuid.uuid3.calls) == 0
 
+    def test_uuid3_calls_from_filters_by_module(self, mock_uuid):
+        """Test that calls_from filters calls by module prefix."""
+        _ = mock_uuid.uuid3
+        # Make some calls from this test module
+        uuid.uuid3(uuid.NAMESPACE_DNS, "example.com")
+        uuid.uuid3(uuid.NAMESPACE_URL, "https://example.com")
+
+        # Filter by this test module
+        test_calls = mock_uuid.uuid3.calls_from("tests.unit.test_uuid3")
+        assert len(test_calls) == 2
+
+        # Filter by non-existent module prefix
+        other_calls = mock_uuid.uuid3.calls_from("nonexistent.module")
+        assert len(other_calls) == 0
+
 
 class TestUUID5Spy:
     """Tests for mock_uuid.uuid5 spy functionality."""

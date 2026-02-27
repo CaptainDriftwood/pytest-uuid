@@ -9,6 +9,10 @@ import pytest
 
 from pytest_uuid.generators import (
     ExhaustionBehavior,
+    RandomUUID1Generator,
+    RandomUUID6Generator,
+    RandomUUID7Generator,
+    RandomUUID8Generator,
     RandomUUIDGenerator,
     SeededUUID1Generator,
     SeededUUID6Generator,
@@ -623,3 +627,312 @@ class TestGetSeededGenerator:
         gen2 = get_seeded_generator("uuid4", 42)
 
         assert gen1() == gen2()
+
+
+# =============================================================================
+# RandomUUID*Generator classes (delegate to real uuid functions)
+# =============================================================================
+
+
+class TestRandomUUID1Generator:
+    """Tests for RandomUUID1Generator."""
+
+    def test_produces_valid_uuid_v1(self):
+        """Test that generated UUIDs are valid v1 UUIDs."""
+        gen = RandomUUID1Generator()
+        result = gen()
+
+        assert isinstance(result, uuid.UUID)
+        assert result.version == 1
+        assert result.variant == uuid.RFC_4122
+
+    def test_each_call_returns_different_uuid(self):
+        """Test that each call returns a different UUID."""
+        gen = RandomUUID1Generator()
+
+        results = [gen() for _ in range(10)]
+        assert len(set(results)) == 10
+
+    def test_fixed_node_is_preserved(self):
+        """Test that fixed node value is used."""
+        fixed_node = 0x123456789ABC
+        gen = RandomUUID1Generator(node=fixed_node)
+
+        result = gen()
+        assert result.node == fixed_node
+
+    def test_fixed_clock_seq_is_preserved(self):
+        """Test that fixed clock_seq value is used."""
+        fixed_clock_seq = 0x1234
+        gen = RandomUUID1Generator(clock_seq=fixed_clock_seq)
+
+        result = gen()
+        assert result.clock_seq == fixed_clock_seq
+
+    def test_reset_does_nothing(self):
+        """Test that reset doesn't affect the generator."""
+        gen = RandomUUID1Generator()
+
+        gen()
+        gen.reset()  # Should not raise
+        result = gen()
+        assert isinstance(result, uuid.UUID)
+
+
+class TestRandomUUID6Generator:
+    """Tests for RandomUUID6Generator."""
+
+    def test_produces_valid_uuid_v6(self):
+        """Test that generated UUIDs are valid v6 UUIDs."""
+        gen = RandomUUID6Generator()
+        result = gen()
+
+        assert isinstance(result, uuid.UUID)
+        assert result.version == 6
+        assert result.variant == uuid.RFC_4122
+
+    def test_each_call_returns_different_uuid(self):
+        """Test that each call returns a different UUID."""
+        gen = RandomUUID6Generator()
+
+        results = [gen() for _ in range(10)]
+        assert len(set(results)) == 10
+
+    def test_fixed_node_is_preserved(self):
+        """Test that fixed node value is used."""
+        fixed_node = 0x123456789ABC
+        gen = RandomUUID6Generator(node=fixed_node)
+
+        result = gen()
+        assert result.node == fixed_node
+
+    def test_fixed_clock_seq_is_preserved(self):
+        """Test that fixed clock_seq value is used."""
+        fixed_clock_seq = 0x1234
+        gen = RandomUUID6Generator(clock_seq=fixed_clock_seq)
+
+        result = gen()
+        assert result.clock_seq == fixed_clock_seq
+
+    def test_reset_does_nothing(self):
+        """Test that reset doesn't affect the generator."""
+        gen = RandomUUID6Generator()
+
+        gen()
+        gen.reset()  # Should not raise
+        result = gen()
+        assert isinstance(result, uuid.UUID)
+
+
+class TestRandomUUID7Generator:
+    """Tests for RandomUUID7Generator."""
+
+    def test_produces_valid_uuid_v7(self):
+        """Test that generated UUIDs are valid v7 UUIDs."""
+        gen = RandomUUID7Generator()
+        result = gen()
+
+        assert isinstance(result, uuid.UUID)
+        assert result.version == 7
+        assert result.variant == uuid.RFC_4122
+
+    def test_each_call_returns_different_uuid(self):
+        """Test that each call returns a different UUID."""
+        gen = RandomUUID7Generator()
+
+        results = [gen() for _ in range(10)]
+        assert len(set(results)) == 10
+
+    def test_reset_does_nothing(self):
+        """Test that reset doesn't affect the generator."""
+        gen = RandomUUID7Generator()
+
+        gen()
+        gen.reset()  # Should not raise
+        result = gen()
+        assert isinstance(result, uuid.UUID)
+
+
+class TestRandomUUID8Generator:
+    """Tests for RandomUUID8Generator."""
+
+    def test_produces_valid_uuid_v8(self):
+        """Test that generated UUIDs are valid v8 UUIDs."""
+        gen = RandomUUID8Generator()
+        result = gen()
+
+        assert isinstance(result, uuid.UUID)
+        assert result.version == 8
+        assert result.variant == uuid.RFC_4122
+
+    def test_each_call_returns_different_uuid(self):
+        """Test that each call returns a different UUID."""
+        gen = RandomUUID8Generator()
+
+        results = [gen() for _ in range(10)]
+        assert len(set(results)) == 10
+
+    def test_reset_does_nothing(self):
+        """Test that reset doesn't affect the generator."""
+        gen = RandomUUID8Generator()
+
+        gen()
+        gen.reset()  # Should not raise
+        result = gen()
+        assert isinstance(result, uuid.UUID)
+
+
+# =============================================================================
+# Additional SeededUUID6Generator and SeededUUID7Generator tests
+# =============================================================================
+
+
+class TestSeededUUID6GeneratorExtended:
+    """Extended tests for SeededUUID6Generator."""
+
+    def test_reset_restarts_sequence(self):
+        """Test that reset restarts the sequence."""
+        gen = SeededUUID6Generator(42)
+
+        first = gen()
+        gen()  # Skip one
+        gen.reset()
+
+        assert gen() == first
+
+    def test_seed_property_with_integer(self):
+        """Test that seed property returns the integer seed."""
+        gen = SeededUUID6Generator(42)
+        assert gen.seed == 42
+
+    def test_seed_property_with_random_instance(self):
+        """Test that seed property returns None when using Random instance."""
+        rng = random.Random(42)
+        gen = SeededUUID6Generator(rng)
+        assert gen.seed is None
+
+    def test_reset_with_random_instance_does_nothing(self):
+        """Test that reset does nothing when using Random instance."""
+        rng = random.Random(42)
+        gen = SeededUUID6Generator(rng)
+
+        first = gen()
+        gen.reset()  # Should do nothing
+
+        # The next call continues the sequence
+        assert gen() != first
+
+    def test_fixed_node_is_used(self):
+        """Test that fixed node is used in generation."""
+        fixed_node = 0x123456789ABC
+        gen = SeededUUID6Generator(42, node=fixed_node)
+
+        result = gen()
+        assert result.node == fixed_node
+
+    def test_fixed_clock_seq_is_used(self):
+        """Test that fixed clock_seq is used in generation."""
+        fixed_clock_seq = 0x1234
+        gen = SeededUUID6Generator(42, clock_seq=fixed_clock_seq)
+
+        result = gen()
+        assert result.clock_seq == fixed_clock_seq
+
+
+class TestSeededUUID7GeneratorExtended:
+    """Extended tests for SeededUUID7Generator."""
+
+    def test_reset_restarts_sequence(self):
+        """Test that reset restarts the sequence."""
+        gen = SeededUUID7Generator(42)
+
+        first = gen()
+        gen()  # Skip one
+        gen.reset()
+
+        assert gen() == first
+
+    def test_seed_property_with_integer(self):
+        """Test that seed property returns the integer seed."""
+        gen = SeededUUID7Generator(42)
+        assert gen.seed == 42
+
+    def test_seed_property_with_random_instance(self):
+        """Test that seed property returns None when using Random instance."""
+        rng = random.Random(42)
+        gen = SeededUUID7Generator(rng)
+        assert gen.seed is None
+
+    def test_reset_with_random_instance_does_nothing(self):
+        """Test that reset does nothing when using Random instance."""
+        rng = random.Random(42)
+        gen = SeededUUID7Generator(rng)
+
+        first = gen()
+        gen.reset()  # Should do nothing
+
+        # The next call continues the sequence
+        assert gen() != first
+
+
+class TestSeededUUID8GeneratorExtended:
+    """Extended tests for SeededUUID8Generator."""
+
+    def test_reset_restarts_sequence(self):
+        """Test that reset restarts the sequence."""
+        gen = SeededUUID8Generator(42)
+
+        first = gen()
+        gen()  # Skip one
+        gen.reset()
+
+        assert gen() == first
+
+    def test_seed_property_with_integer(self):
+        """Test that seed property returns the integer seed."""
+        gen = SeededUUID8Generator(42)
+        assert gen.seed == 42
+
+    def test_seed_property_with_random_instance(self):
+        """Test that seed property returns None when using Random instance."""
+        rng = random.Random(42)
+        gen = SeededUUID8Generator(rng)
+        assert gen.seed is None
+
+
+# =============================================================================
+# Additional generate_uuid6_from_random tests
+# =============================================================================
+
+
+class TestGenerateUUID6FromRandomExtended:
+    """Extended tests for generate_uuid6_from_random function."""
+
+    def test_fixed_node_is_preserved(self):
+        """Test that fixed node value is used."""
+        rng = random.Random(42)
+        fixed_node = 0x123456789ABC
+
+        result = generate_uuid6_from_random(rng, node=fixed_node)
+        assert result.node == fixed_node
+
+    def test_fixed_clock_seq_is_preserved(self):
+        """Test that fixed clock_seq value is used."""
+        rng = random.Random(42)
+        fixed_clock_seq = 0x1234
+
+        result = generate_uuid6_from_random(rng, clock_seq=fixed_clock_seq)
+        assert result.clock_seq == fixed_clock_seq
+
+    def test_fixed_node_and_clock_seq_together(self):
+        """Test that both fixed node and clock_seq work together."""
+        rng = random.Random(42)
+        fixed_node = 0x123456789ABC
+        fixed_clock_seq = 0x1234
+
+        result = generate_uuid6_from_random(
+            rng, node=fixed_node, clock_seq=fixed_clock_seq
+        )
+        assert result.node == fixed_node
+        assert result.clock_seq == fixed_clock_seq
+        assert result.version == 6
