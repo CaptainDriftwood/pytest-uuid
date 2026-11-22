@@ -261,9 +261,10 @@ class UUIDFreezer(CallTrackingMixin):
             return RandomUUID8Generator()
         raise ValueError(f"Unknown UUID version: {self._uuid_version}")
 
-    def _create_patched_function(self) -> Callable[..., uuid.UUID]:
+    def _create_patched_function(
+        self, generator: UUIDGenerator
+    ) -> Callable[..., uuid.UUID]:
         """Create the patched UUID function with ignore list and call tracking."""
-        generator = self._generator
         ignore_list = self._ignore_list
         freezer = self  # Capture self for tracking
         uuid_version = self._uuid_version
@@ -282,7 +283,7 @@ class UUIDFreezer(CallTrackingMixin):
                     caller_function,
                     caller_qualname,
                 ) = _get_caller_info(skip_frames=3)
-                result = generator()  # type: ignore[misc]
+                result = generator()
                 freezer._record_call(
                     result,
                     was_mocked=True,
@@ -332,7 +333,7 @@ class UUIDFreezer(CallTrackingMixin):
             finally:
                 del frame
 
-            result = generator()  # type: ignore[misc]
+            result = generator()
             freezer._record_call(
                 result,
                 was_mocked=True,
@@ -357,8 +358,9 @@ class UUIDFreezer(CallTrackingMixin):
         The proxy approach means any code that captured the UUID function
         (including Pydantic default_factory) will automatically use our generator.
         """
-        self._generator = self._create_generator()
-        patched = self._create_patched_function()
+        generator = self._create_generator()
+        self._generator = generator
+        patched = self._create_patched_function(generator)
         self._token = set_generator(patched, func_name=self._uuid_version)
         return self
 
@@ -459,9 +461,9 @@ class UUIDFreezer(CallTrackingMixin):
         - The freezer is not currently active
         """
         # Check if the generator has a seed property (all seeded generators do)
-        if self._generator is not None and hasattr(self._generator, "seed"):
-            return self._generator.seed  # type: ignore[union-attr]
-        return None
+        if self._generator is None:
+            return None
+        return getattr(self._generator, "seed", None)
 
     def reset(self) -> None:
         """Reset the generator and tracking data to initial state."""

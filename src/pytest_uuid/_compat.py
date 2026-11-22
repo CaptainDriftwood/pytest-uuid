@@ -44,10 +44,15 @@ else:
         _uuid8 = None  # type: ignore[assignment]
 
 
-# Export the functions (may be None if not available)
-uuid6: UUIDFunc | None = _uuid6 if HAS_UUID6_7_8 else None
-uuid7: UUIDFunc | None = _uuid7 if HAS_UUID6_7_8 else None
-uuid8: UUIDFunc | None = _uuid8 if HAS_UUID6_7_8 else None
+# Export the functions. For type checking they are always declared as callables;
+# at runtime they are None when unavailable (see require_uuid6_7_8).
+uuid6: UUIDFunc
+uuid7: UUIDFunc
+uuid8: UUIDFunc
+if not TYPE_CHECKING:
+    uuid6 = _uuid6 if HAS_UUID6_7_8 else None
+    uuid7 = _uuid7 if HAS_UUID6_7_8 else None
+    uuid8 = _uuid8 if HAS_UUID6_7_8 else None
 
 
 def require_uuid6_7_8(func_name: str) -> None:
@@ -64,11 +69,3 @@ def require_uuid6_7_8(func_name: str) -> None:
             f"{func_name} mocking requires Python 3.14+ or the 'uuid6' package. "
             f"Install with: pip install uuid6"
         )
-
-
-# For type checking, provide proper types regardless of runtime availability
-if TYPE_CHECKING:
-    # These are always available for type checking purposes
-    uuid6: UUIDFunc  # type: ignore[no-redef]
-    uuid7: UUIDFunc  # type: ignore[no-redef]
-    uuid8: UUIDFunc  # type: ignore[no-redef]

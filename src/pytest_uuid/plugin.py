@@ -1326,8 +1326,6 @@ def pytest_load_initial_conftests(
 
 def pytest_configure(config: pytest.Config) -> None:
     """Load config from pyproject.toml and register the freeze_uuid marker."""
-    from pathlib import Path
-
     # Update active config (early_config may have been replaced)
     _set_active_pytest_config(config)
 
@@ -1336,7 +1334,7 @@ def pytest_configure(config: pytest.Config) -> None:
         config.stash[_config_key] = PytestUUIDConfig()
 
     # Load configuration from pyproject.toml (updates stash via configure())
-    load_config_from_pyproject(Path(config.rootdir))  # type: ignore[unresolved-attribute]
+    load_config_from_pyproject(config.rootpath)
 
     # Register version-specific markers
     config.addinivalue_line(
@@ -1450,10 +1448,10 @@ def pytest_runtest_setup(item: pytest.Item) -> None:
         freezers["uuid4"] = freezer
 
     if freezers:
-        item._uuid_freezers = freezers  # type: ignore[attr-defined]
+        item._uuid_freezers = freezers  # ty: ignore[unresolved-attribute]
         # Also set _uuid_freezer for backward compatibility with mock_uuid fixture
         if "uuid4" in freezers:
-            item._uuid_freezer = freezers["uuid4"]  # type: ignore[attr-defined]
+            item._uuid_freezer = freezers["uuid4"]  # ty: ignore[unresolved-attribute]
 
 
 @pytest.hookimpl(trylast=True)
