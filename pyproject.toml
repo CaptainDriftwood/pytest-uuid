@@ -158,8 +158,9 @@ docs = [
 python-version = "3.9"
 
 [tool.ty.rules]
-# tomli is only installed on Python < 3.11 (conditional dependency)
-unresolved-import = "warn"
+# tomli (Python < 3.11) and uuid6 (Python < 3.14) are conditional dependencies,
+# so whether they resolve depends on the Python version of the environment.
+import-not-found = "ignore"
 
 [tool.uv]
 # Skip package versions released in the last 14 days, so fresh releases have
