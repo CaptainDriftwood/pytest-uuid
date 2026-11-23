@@ -44,7 +44,7 @@ import inspect
 import random
 import threading
 import uuid
-from collections.abc import Iterator
+from collections.abc import Generator, Iterator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
@@ -1572,7 +1572,7 @@ def mock_uuid_factory() -> Callable[..., AbstractContextManager[UUIDMocker]]:
         module_path: str | None = None,
         *,
         ignore_defaults: bool = True,
-    ) -> Iterator[UUIDMocker]:
+    ) -> Generator[UUIDMocker, None, None]:
         # module_path is kept for backward compatibility but no longer used
         # with the proxy approach (all uuid4 calls go through the proxy)
         _ = module_path
