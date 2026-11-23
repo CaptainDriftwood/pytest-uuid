@@ -142,3 +142,7 @@ docs:
 docs-build:
     uv sync --group docs
     NO_MKDOCS_2_WARNING=1 uv run mkdocs build --strict
+
+# Audit dependencies for known vulnerabilities and adverse project statuses
+audit:
+    uv audit --locked
